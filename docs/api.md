@@ -12,57 +12,57 @@
 
 | 参数 | 类型 | 默认 | 说明 |
 |---|---|---|---|
-| `archived` | string | — | `"1"` 时包含已归档任务 |
+| `archived` | string | — | `\"1\"` 时包含已归档任务 |
 
 **响应** `200`
 
 ```json
 {
-  "revision": 42,
-  "tasks": [
+  \"revision\": 42,
+  \"tasks\": [
     {
-      "key": "daily-report",
-      "status": "done",
-      "workDir": "/home/user/.dsh/queue/runs/2026-08/daily-report-...",
-      "sessionId": "abc-123",
-      "goalRef": { "id": "goal-1", "revision": 3 },
-      "attempts": 1,
-      "blockedResumes": 0,
-      "executions": [
+      \"key\": \"daily-report\",
+      \"status\": \"done\",
+      \"workDir\": \"/home/user/.dsh/queue/runs/2026-08/daily-report-...\",
+      \"sessionId\": \"abc-123\",
+      \"goalRef\": { \"id\": \"goal-1\", \"revision\": 3 },
+      \"attempts\": 1,
+      \"blockedResumes\": 0,
+      \"executions\": [
         {
-          "id": "exec-1",
-          "sessionId": "abc-123",
-          "attempt": 1,
-          "startedAt": "2026-08-26T08:00:00.000Z",
-          "endedAt": "2026-08-26T08:15:00.000Z",
-          "result": "done"
+          \"id\": \"exec-1\",
+          \"sessionId\": \"abc-123\",
+          \"attempt\": 1,
+          \"startedAt\": \"2026-08-26T08:00:00.000Z\",
+          \"endedAt\": \"2026-08-26T08:15:00.000Z\",
+          \"result\": \"done\"
         }
       ],
-      "createdAt": "2026-08-25T12:00:00.000Z",
-      "updatedAt": "2026-08-26T08:15:00.000Z",
-      "archivedAt": null,
-      "body": "# 每日工作报告\n\n...",
-      "cron": "0 8 * * *",
-      "schedule": null,
-      "deadline": null,
-      "maxGoalRounds": 40,
-      "maxBlockedResumes": 3,
-      "timeoutMs": 5400000,
-      "priority": 5,
-      "webhook": null,
-      "workspace": "ws-1",
-      "agentPreset": null,
-      "autoArchive": false,
-      "stallThreshold": 10,
-      "unknownThreshold": 3,
-      "maxAttempts": 3
+      \"createdAt\": \"2026-08-25T12:00:00.000Z\",
+      \"updatedAt\": \"2026-08-26T08:15:00.000Z\",
+      \"archivedAt\": null,
+      \"body\": \"# 每日工作报告\\n\\n...\",
+      \"cron\": \"0 8 * * *\",
+      \"schedule\": null,
+      \"deadline\": null,
+      \"maxGoalRounds\": 40,
+      \"maxBlockedResumes\": 3,
+      \"timeoutMs\": 5400000,
+      \"priority\": 5,
+      \"webhook\": null,
+      \"workspace\": \"ws-1\",
+      \"agentPreset\": null,
+      \"autoArchive\": false,
+      \"stallThreshold\": 10,
+      \"unknownThreshold\": 3,
+      \"maxAttempts\": 3
     }
   ],
-  "config": {
-    "maxConcurrent": 2,
-    "webhook": null,
-    "queueDir": null,
-    "workspace": null
+  \"config\": {
+    \"maxConcurrent\": 2,
+    \"webhook\": null,
+    \"queueDir\": null,
+    \"workspace\": null
   }
 }
 ```
@@ -109,7 +109,7 @@
 **响应** `201`
 
 ```json
-{ "ok": true, "key": "daily-report", "existing": false, "status": "pending" }
+{ \"ok\": true, \"key\": \"daily-report\", \"existing\": false, \"status\": \"pending\" }
 ```
 
 ---
@@ -122,10 +122,10 @@
 
 ```json
 {
-  "requestId": "unique-id",
-  "action": {
-    "kind": "stop",
-    "key": "daily-report"
+  \"requestId\": \"unique-id\",
+  \"action\": {
+    \"kind\": \"stop\",
+    \"key\": \"daily-report\"
   }
 }
 ```
@@ -146,7 +146,7 @@
 **响应** `200`
 
 ```json
-{ "ok": true, "key": "daily-report" }
+{ \"ok\": true, \"key\": \"daily-report\" }
 ```
 
 ---
@@ -165,14 +165,14 @@
 
 ```json
 {
-  "ok": true,
-  "task": {
-    "key": "daily-report",
-    "status": "done",
-    "reports": {
-      "goal": "...",
-      "result": "{...}",
-      "report": "# 执行报告\n..."
+  \"ok\": true,
+  \"task\": {
+    \"key\": \"daily-report\",
+    \"status\": \"done\",
+    \"reports\": {
+      \"goal\": \"...\",
+      \"result\": \"{...}\",
+      \"report\": \"# 执行报告\\n...\"
     }
   }
 }
@@ -188,8 +188,8 @@
 
 ```json
 {
-  "agents": [{ "name": "default", "label": "默认" }],
-  "workspaces": [{ "id": "ws-1", "name": "Default" }]
+  \"agents\": [{ \"name\": \"default\", \"label\": \"默认\" }],
+  \"workspaces\": [{ \"id\": \"ws-1\", \"name\": \"Default\" }]
 }
 ```
 
@@ -203,23 +203,23 @@
 
 ```json
 {
-  "maxGoalRounds": 40,
-  "maxBlockedResumes": 3,
-  "autoArchive": false,
-  "stallThreshold": 10,
-  "unknownThreshold": 3,
-  "maxAttempts": 3,
-  "webhook": null,
-  "workspace": null,
-  "queueDir": null,
-  "defaultDeadline": null
+  \"maxGoalRounds\": 40,
+  \"maxBlockedResumes\": 3,
+  \"autoArchive\": false,
+  \"stallThreshold\": 10,
+  \"unknownThreshold\": 3,
+  \"maxAttempts\": 3,
+  \"webhook\": null,
+  \"workspace\": null,
+  \"queueDir\": null,
+  \"defaultDeadline\": null
 }
 ```
 
 **POST 请求体**（只传需要修改的字段）
 
 ```json
-{ "maxConcurrent": 4 }
+{ \"maxConcurrent\": 4 }
 ```
 
 ---
@@ -239,9 +239,9 @@ Content-Type: text/event-stream
 Cache-Control: no-cache
 Connection: keep-alive
 
-data: {"revision":42,"tasks":[...],"config":{...}}
+data: {\"revision\":42,\"tasks\":[...],\"config\":{...}}
 
-data: {"revision":43,"tasks":[...],"config":{...}}
+data: {\"revision\":43,\"tasks\":[...],\"config\":{...}}
 
 : heartbeat
 
