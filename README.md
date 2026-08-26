@@ -23,11 +23,13 @@ curl -X POST http://127.0.0.1:3080/api/queue/task \
 ```
 
 ### 丢文件
+
 ```sh
 echo "# 生成日报" > ~/.dsh/queue/tasks/daily-report.md
 ```
 
 文件名就是 `key`，内容就是任务。支持文件头声明调度：
+
 ```md
 <!-- cron: 0 8 * * * -->
 <!-- deadline: 0 21 * * * -->
@@ -37,10 +39,13 @@ echo "# 生成日报" > ~/.dsh/queue/tasks/daily-report.md
 ### 看板
 
 安装后在 DSH Web 侧边栏底部点击「队列」进入看板。
+
 ---
 
 ## API 参考
+
 完整文档见 [`docs/api.md`](./docs/api.md)。
+
 | 方法 | 路径 | 用途 |
 |---|---|---|
 | `GET` | `/api/queue/state` | 任务快照（`?archived=1` 含归档） |
@@ -55,9 +60,9 @@ echo "# 生成日报" > ~/.dsh/queue/tasks/daily-report.md
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
-| `requestId` | string |  ✓ | — | 去重 ID |
-| `key` | string |  ✓ | — | 任务标识，唯一 |
-| `content` | string |  ✓ | — | Markdown 内容（≤2MB） |
+| `requestId` | string | ✅ | — | 去重 ID |
+| `key` | string | ✅ | — | 任务标识，唯一 |
+| `content` | string | ✅ | — | Markdown 内容（≤2MB） |
 | `priority` | number | | 5 | 优先级 1-10 |
 | `schedule` | string | | — | ISO 8601 一次性定时 |
 | `cron` | string | | — | 5 字段 cron 循环定时 |
@@ -90,9 +95,10 @@ echo "# 生成日报" > ~/.dsh/queue/tasks/daily-report.md
 | `0 8,20 * * *` | 每天 08:00 和 20:00 |
 
 ### 截止时间（deadline）
+
 `deadline` 和 `timeoutMs` 共存，先到先停：
 
-| 字段 | 类型 | 起点 | 场景 |
+| 字段 | 类型 | 起算点 | 场景 |
 |---|---|---|---|
 | `timeoutMs` | 毫秒 | 任务启动 | "单次最多跑 30 分钟" |
 | `deadline` | cron | 墙上时钟 | "每天 21:00 还没跑完就停" |
@@ -100,27 +106,35 @@ echo "# 生成日报" > ~/.dsh/queue/tasks/daily-report.md
 ---
 
 ## 反阻塞 & 停滞检测
+
 ### 显式阻塞
 goal 报告 `blocked` → 自动 steering 注入换方案指令 + resume goal，最多 `maxBlockedResumes` 次（默认 3）。
+
 ### 隐式停滞
-goal 连续 `stallThreshold` 轮（默认 10）仍不是 `active`/`running`，无进展 → 自动 steering 催促，计入 `blockedResumes` 配额。
+goal 连续 `stallThreshold` 轮（默认 10）仍为 `active`/`running`，无进展 → 自动 steering 催促，计入 `blockedResumes` 配额。
+
 两种机制耗尽后任务标记 `failed`。Agent 不会等待人类回答——系统提示已要求「不要提问，自己做决定」。
+
 ---
 
 ## 任务生命周期
 
 ```
-pending ——> running ——> done
-               |               |——> failed (超时/反阻塞上限/会话不可达)
-               |      |——> pending（重试，未达 maxAttempts）               |——> stopped (手动停止)
+pending ──→ running ──→ done
+               │
+               ├──→ failed (超时/反阻塞上限/会话不可达)
+               │       └──→ pending（重试，未达 maxAttempts）
+               └──→ stopped (手动停止)
 ```
 
 `archived` 是独立布尔标志，不是状态。
+
 ---
 
 ## Webhook 回调
 
 任务到达终态时 POST 到 webhook URL：
+
 ```json
 {
   "key": "daily-report",
@@ -153,6 +167,7 @@ config:
 ```
 
 运行时也可通过 `GET/POST /api/queue/config` 动态调整。
+
 ---
 
 ## 架构
