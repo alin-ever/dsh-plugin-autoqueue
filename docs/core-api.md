@@ -69,10 +69,10 @@ engine.setConfig({ maxGoalRounds: 50, autoArchive: true });
 
 ```js
 // 停止任务
-await engine.applyAction({ kind: "stop", key: "daily-report" }, "req-001");
+await engine.applyAction({ kind: \"stop\", key: \"daily-report\" }, \"req-001\");
 
 // 创建任务
-await engine.applyAction({ kind: "create", key: "daily-report", content: "..." }, "req-002");
+await engine.applyAction({ kind: \"create\", key: \"daily-report\", content: \"...\" }, \"req-002\");
 ```
 
 ---
