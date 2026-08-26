@@ -1,5 +1,5 @@
 {
-  "name": "@deepseek-ai/dsh-queue-autoqueue",
+  "name": "@deepseek-ai/dsh-plugin-autoqueue",
   "description": "无人值守任务队列插件：丢 .md 进收件箱 → AI 自动执行 → 产出报告",
   "version": "0.1.1",
   "type": "module",

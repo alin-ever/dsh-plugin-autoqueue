@@ -2,7 +2,7 @@
 # 对齐 task-board 的双面插件 bundle 模式
 - insert:
     - id: autoqueue
-      name: '@deepseek-ai/dsh-queue-autoqueue'
+      name: '@deepseek-ai/dsh-plugin-autoqueue'
       config:
         maxGoalRounds: 40
         maxBlockedResumes: 3
