@@ -10,7 +10,7 @@
         stallThreshold: 10
         unknownThreshold: 3
         maxAttempts: 3
-        agentPreset: null
+        agentPreset: unattended
         priority: 5
         scanIntervalMs: 15000
         maxConcurrent: 2

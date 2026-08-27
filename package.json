@@ -12,7 +12,7 @@
   "files": ["lib/*.js", "cordis.patch.yml"],
   "dsh": {
     "engines": {
-      "dsh": ">=0.1.1-rc.1"
+      "dsh": ">=0.1.1-rc.2"
     },
     "bundle": {
       "patch": "./cordis.patch.yml"

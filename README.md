@@ -61,7 +61,7 @@ echo "# 生成日报" > ~/.dsh/queue/tasks/daily-report.md
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
 | `requestId` | string | ✅ | — | 去重 ID |
-| `key` | string | ✅ | — | 任务标识，唯一 |
+| `key` | string | | — | 可选。省略时从内容首行自动生成，重复时自动附加时间戳 |
 | `content` | string | ✅ | — | Markdown 内容（≤2MB） |
 | `priority` | number | | 5 | 优先级 1-10 |
 | `schedule` | string | | — | ISO 8601 一次性定时 |
