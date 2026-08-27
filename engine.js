@@ -76,11 +76,11 @@ export function createEngine(apiProxy, options = {}) {
 
     // ─── 快照 ──────────────────────────────────────────
 
-    /** @returns {{ revision: number, tasks: LedgerEntry[], config: { maxConcurrent: number, webhook?: string|null } }} */
     snapshot(includeArchived = false) {
       const s = snapshot();
-      const tasks = includeArchived ? s.tasks : s.tasks.filter(t => !t.archivedAt);
-      return { ...s, tasks, config: { ...s.config, webhook: engineConfig.webhook, queueDir: engineConfig.queueDir, workspace: engineConfig.workspace } };
+      let tasks = includeArchived ? s.tasks : s.tasks.filter(t => !t.archivedAt);
+      tasks = [...tasks].sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+      return { ...s, tasks, config: { ...s.config, webhook: engineConfig.webhook, queueDir: engineConfig.queueDir, workspace: engineConfig.workspace, enableNotifications: engineConfig.enableNotifications } };
     },
 
     // ─── 运行时配置 ─────────────────────────────────────
@@ -223,16 +223,17 @@ export function createEngine(apiProxy, options = {}) {
           const entry = findByKey(key);
           if (!entry) return { ok: false, error: "任务不存在" };
           if (entry.status === "running") return { ok: false, error: "任务正在运行" };
-          if (entry.status === "done") return { ok: false, error: "已完成的任务无需重跑" };
+          // done 任务也允许重跑（结果可能已过时，用户需要重新执行）
           writeTaskFile(key, entry.raw ?? entry.body ?? "");
           upsertEntry(key, {
             status: "pending", sessionId: null, goalRef: null, consecutiveUnknowns: 0,
-            attempts: 0, blockedResumes: 0,
+            attempts: 0, consecutiveActive: 0, lastRoundCount: 0,
             priority: entry.priority, webhook: entry.webhook,
             maxGoalRounds: entry.maxGoalRounds, maxBlockedResumes: entry.maxBlockedResumes, timeoutMs: entry.timeoutMs,
+            enableNotifications: entry.enableNotifications,
           });
           flushLedger();
-          engine.scanPending();
+          await engine.scanPending();
           return { ok: true };
         }
         case "set-concurrency":

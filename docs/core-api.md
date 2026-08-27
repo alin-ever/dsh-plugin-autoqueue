@@ -131,7 +131,7 @@ const engine = {
 | `stop` | 停止运行中任务 | status=running |
 | `archive` | 归档任务 + 归档 DSH 会话 | status≠running |
 | `restore` | 恢复归档任务 | 已归档 |
-| `delete` | 永久删除任务及记录 | status≠running |
+| `delete` | 永久删除待执行任务及记录 | status=pending |
 | `rerun` | 重跑失败/已停止任务 | status=failed/stopped |
 | `update` | 修改任务内容/配置 | status≠running |
 | `force-scan` | 立即扫描收件箱 | 无 |

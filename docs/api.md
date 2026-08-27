@@ -188,7 +188,7 @@
 { "requestId": "req-xxx", "action": { "kind": "delete", "key": "daily-report" } }
 ```
 
-运行中的任务不能删除，需先 `stop`。
+只能删除待执行（`pending`）的任务，已执行的任务请使用 `archive` 归档。
 
 ### 3.5 重新执行
 
