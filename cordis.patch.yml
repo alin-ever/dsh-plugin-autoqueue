@@ -1,8 +1,8 @@
 # autoqueue 插件 — 无人值守任务队列
 # 对齐 task-board 的双面插件 bundle 模式
 - insert:
-    - id: autoqueue
-      name: '@deepseek-ai/dsh-plugin-autoqueue'
+    - id: '@alintever/dsh-plugin-autoqueue'
+      name: '@alintever/dsh-plugin-autoqueue'
       config:
         maxGoalRounds: 40
         maxBlockedResumes: 3
