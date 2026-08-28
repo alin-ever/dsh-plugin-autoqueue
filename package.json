@@ -1,7 +1,7 @@
 {
-  "name": "@deepseek-ai/dsh-plugin-autoqueue",
+  "name": "@alintever/dsh-plugin-autoqueue",
   "description": "无人值守任务队列插件：丢 .md 进收件箱 → AI 自动执行 → 产出报告",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -11,7 +11,11 @@
   },
   "files": [
     "lib/*.js",
-    "cordis.patch.yml"
+    "cordis.patch.yml",
+    "docs/*.md",
+    "README.md",
+    "AGENTS.md",
+    "autoqueue-design.md"
   ],
   "dsh": {
     "engines": {
@@ -29,10 +33,7 @@
     }
   },
   "license": "MIT",
-  "peerDependencies": {
-    "@deepseek-ai/cordis": "^4.0.1",
-    "@deepseek-ai/dsh-host-apiproxy": "^0.1.1",
-    "@deepseek-ai/dsh-host-webserver": "^0.1.1",
-    "@deepseek-ai/dsh-tools": "^0.1.1"
+  "engines": {
+    "dsh": ">=0.1.1-rc.2"
   }
 }
