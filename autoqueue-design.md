@@ -1,3 +1,5 @@
+
+| 干预原则 | 只有 session 消失才推送 wakeup，其他情况静默等待 |
 # autoqueue 设计文档
 
 > 无人值守任务队列插件 — 丢 .md 进收件箱 → AI 自动执行 → 产出报告
@@ -63,7 +65,7 @@ pollRunning 检测到 goal.phase === 'blocked'
 
 关键两步：先 `sessions.prompt(mode:'steer')` 注入新思路，再 `goals.resume()` 重新激活。仅 resume 不注入新指令可能立即再次 blocked；仅 steering 不 resume 则 goal 仍处于 blocked 状态。
 
-**停滞检测**：agent 连续多轮处于 `active`/`running` 但无进展时，也会触发 steering 催促（`stallThreshold`，默认 10 轮）。
+**停滞检测**：agent 连续多轮处于 `active`/`running` 但无进展时，也会触发 steering 催促（`stallThreshold`，默认 360 轮）。
 
 ### 3.3 未读/已读标记
 
@@ -260,9 +262,8 @@ Common cron: daily 08:00 = "0 8 * * *", every 30min = "*/30 * * * *", ...
 | `maxGoalRounds` | 40 | 最大 goal 轮数 |
 | `maxBlockedResumes` | 3 | 最大反阻塞次数 |
 | `autoArchive` | false | 完成后自动归档 |
-| `stallThreshold` | 10 | 连续 active 轮数后触发停滞检测 |
-| `stallTimeoutMs` | 300000 | 单轮无 rounds 增长时的停滞超时（毫秒，默认 5 分钟） |
-| `unknownThreshold` | 3 | 连续轮询失败后判定会话不可达 |
+| `stallThreshold` | 360 | 连续 active 轮数后触发停滞检测 |
+| `stallTimeoutMs` | 3600000 | 单轮无 rounds 增长时的停滞超时（毫秒，默认 60 分钟） |
 | `maxAttempts` | 3 | 派发重试上限 |
 | `maxConcurrent` | 2 | 最大并发任务数（上限 8） |
 | `scanIntervalMs` | 15000 | 收件箱扫描间隔 |
@@ -270,7 +271,6 @@ Common cron: daily 08:00 = "0 8 * * *", every 30min = "*/30 * * * *", ...
 
 ### 9.2 任务级覆盖
 
-通过 `autoqueue_create_task` 或 HTTP API 创建时可指定：`maxGoalRounds`、`maxBlockedResumes`、`timeoutMs`、`autoArchive`、`stallThreshold`、`stallTimeoutMs`、`unknownThreshold`、`maxAttempts`、`priority`、`webhook`、`workspace`、`agentPreset`、`model`、`deadline`。任务级配置覆盖全局配置。
 
 ---
 

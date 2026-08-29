@@ -72,11 +72,10 @@ echo "# 生成日报" > ~/.dsh/queue/tasks/daily-report.md
 | `agentPreset` | string | | — | Agent 预设名 |
 | `maxGoalRounds` | number | | 40 | 最大 goal 轮数 |
 | `maxBlockedResumes` | number | | 3 | 最大反阻塞次数 |
-| `timeoutMs` | number | | 90 分钟 | 任务超时 |
+| `timeoutMs` | number | | 180 分钟 | 任务超时 |
 | `autoArchive` | boolean | | 跟随全局 | 完成后自动归档 |
-| `stallThreshold` | number | | 10 | 连续 active 轮数后触停滞检测 |
+| `stallThreshold` | number | | 360 | 连续 active 轮数后触停滞检测 |
 | `stallTimeoutMs` | number | | 300000 | 单轮无 rounds 增长时的停滞超时（毫秒，默认 5 分钟） |
-| `unknownThreshold` | number | | 3 | 连续轮询失败后判不可达 |
 | `maxAttempts` | number | | 3 | 派发重试次数 |
 
 ---
@@ -101,7 +100,7 @@ echo "# 生成日报" > ~/.dsh/queue/tasks/daily-report.md
 
 | 字段 | 类型 | 起算点 | 场景 |
 |---|---|---|---|
-| `timeoutMs` | 毫秒 | 任务启动 | "单次最多跑 30 分钟" |
+| `timeoutMs` | 毫秒 | 任务启动 | "单次最多跑 180 分钟" |
 | `deadline` | cron | 墙上时钟 | "每天 21:00 还没跑完就停" |
 
 ---
@@ -112,7 +111,7 @@ echo "# 生成日报" > ~/.dsh/queue/tasks/daily-report.md
 goal 报告 `blocked` → 自动 steering 注入换方案指令 + resume goal，最多 `maxBlockedResumes` 次（默认 3）。
 
 ### 隐式停滞
-goal 连续 `stallThreshold` 轮（默认 10）仍为 `active`/`running`，无进展 → 自动 steering 催促，计入 `blockedResumes` 配额。
+goal 连续 `stallThreshold` 轮（默认 360）仍为 `active`/`running`，无进展 → 自动 steering 催促，计入 `blockedResumes` 配额。
 
 两种机制耗尽后任务标记 `failed`。Agent 不会等待人类回答——系统提示已要求「不要提问，自己做决定」。
 
@@ -158,9 +157,8 @@ config:
   maxGoalRounds: 40
   maxBlockedResumes: 3
   autoArchive: false
-  stallThreshold: 10
+  stallThreshold: 30
   stallTimeoutMs: 300000
-  unknownThreshold: 3
   maxAttempts: 3
   agentPreset: null
   priority: 5

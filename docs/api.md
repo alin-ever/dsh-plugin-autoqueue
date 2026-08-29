@@ -55,7 +55,6 @@
       "agentPreset": null,
       "autoArchive": false,
       "stallThreshold": 10,
-      "unknownThreshold": 3,
       "maxAttempts": 3
     }
   ],
@@ -105,7 +104,6 @@
 | `autoArchive` | boolean | | 完成后自动归档，默认跟随全局配置 |
 | `stallThreshold` | number | | 连续 active 轮数后触发停滞检测，默认 10 |
 | `stallTimeoutMs` | number | | 单轮无 rounds 增长时的停滞超时毫秒，默认 300000（5 分钟） |
-| `unknownThreshold` | number | | 连续轮询失败后判定不可达，默认 3 |
 | `maxAttempts` | number | | 派发重试次数，默认 3 |
 
 **响应**
@@ -215,7 +213,6 @@
 }
 ```
 
-可更新字段：`content`、`cron`、`schedule`、`deadline`、`priority`、`autoArchive`、`maxGoalRounds`、`maxBlockedResumes`、`timeoutMs`、`webhook`、`workspace`、`agentPreset`、`stallThreshold`、`unknownThreshold`、`maxAttempts`。
 
 运行中的任务不能更新。
 
@@ -273,7 +270,6 @@
     "agentPreset": null,
     "autoArchive": false,
     "stallThreshold": 10,
-    "unknownThreshold": 3,
     "maxAttempts": 3,
     "executions": [
       {
@@ -334,7 +330,6 @@
   "autoArchive": false,
   "stallThreshold": 10,
   "stallTimeoutMs": 300000,
-  "unknownThreshold": 3,
   "maxAttempts": 3,
   "agentPreset": null,
   "priority": 5,
@@ -355,7 +350,6 @@
 }
 ```
 
-可写字段：`maxGoalRounds`（1-100）、`maxBlockedResumes`（0-10）、`stallThreshold`（1-100）、`stallTimeoutMs`（10000-3600000，毫秒）、`unknownThreshold`（1-100）、`maxAttempts`（1-10）、`autoArchive`、`webhook`、`workspace`、`queueDir`、`agentPreset`、`model`、`priority`（1-10）、`defaultDeadline`。
 
 ---
 
