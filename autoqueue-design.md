@@ -1,7 +1,7 @@
 # autoqueue 设计文档
 
 > 无人值守任务队列插件 — 丢 .md 进收件箱 → AI 自动执行 → 产出报告
-> 版本 0.1.1 · 基于 DSH 插件生态，所有 API 已对照源码验证
+> 版本 0.2.0 · 基于 DSH 插件生态，所有 API 已对照源码验证
 
 ---
 
@@ -9,7 +9,7 @@
 
 `autoqueue` 是运行在 DeepSeek Harness（DSH）Web 宿主上的「无人值守任务队列」插件。它把「丢一个 .md 任务进去，由 AI 自动执行完并产出报告」产品化成：
 
-- **Host 侧引擎**：每 ~15s 扫描收件箱 → 用 `ctx.apiProxy` 派发一个真实会话去执行 → 轮询 goal 投影判定完成/阻塞 → 反阻塞 → 结算归档
+- **Host 侧引擎**：每 ~30s 扫描收件箱 → 用 `ctx.apiProxy` 派发一个真实会话去执行 → 轮询 goal 投影判定完成/阻塞 → 反阻塞 → 结算归档
 - **Client 侧看板**：侧边栏「任务队列」入口，实时展示任务状态，支持新建/停止/归档/删除
 - **AI 工具层**：9 个模型工具，让 AI 在对话中直接管理任务队列
 
@@ -46,7 +46,7 @@ task-board 解决的是「任务编排调度」，autoqueue 解决的是「无�
   ├─ blocked  → 反阻塞：steering 唤醒 + resume goal（最多 3 次）
   ├─ active/running → 停滞检测 → 反阻塞
   └─ 超时/deadline → 结算 failed/stopped
-→ 产出报告 → 归档会话
+→ 产出报告 → 标记未读 → 归档会话
 ```
 
 ### 3.2 反阻塞（Anti-Block）—— 核心差异化
@@ -64,6 +64,16 @@ pollRunning 检测到 goal.phase === 'blocked'
 关键两步：先 `sessions.prompt(mode:'steer')` 注入新思路，再 `goals.resume()` 重新激活。仅 resume 不注入新指令可能立即再次 blocked；仅 steering 不 resume 则 goal 仍处于 blocked 状态。
 
 **停滞检测**：agent 连续多轮处于 `active`/`running` 但无进展时，也会触发 steering 催促（`stallThreshold`，默认 10 轮）。
+
+### 3.3 未读/已读标记
+
+任务进入 terminal 状态（done/failed/stopped）后自动标记为未读。用户可通过 HTTP API、AI 工具或看板 UI 标记已读。未读判断逻辑：
+
+- 只统计 terminal 状态的任务
+- 已归档的不算
+- 没有 `readAt` 或 `updatedAt > readAt` 视为未读
+
+`unreadCount` 随快照一起返回，SSE 实时推送。
 
 ---
 
@@ -251,6 +261,7 @@ Common cron: daily 08:00 = "0 8 * * *", every 30min = "*/30 * * * *", ...
 | `maxBlockedResumes` | 3 | 最大反阻塞次数 |
 | `autoArchive` | false | 完成后自动归档 |
 | `stallThreshold` | 10 | 连续 active 轮数后触发停滞检测 |
+| `stallTimeoutMs` | 300000 | 单轮无 rounds 增长时的停滞超时（毫秒，默认 5 分钟） |
 | `unknownThreshold` | 3 | 连续轮询失败后判定会话不可达 |
 | `maxAttempts` | 3 | 派发重试上限 |
 | `maxConcurrent` | 2 | 最大并发任务数（上限 8） |
@@ -259,7 +270,7 @@ Common cron: daily 08:00 = "0 8 * * *", every 30min = "*/30 * * * *", ...
 
 ### 9.2 任务级覆盖
 
-通过 `autoqueue_create_task` 或 HTTP API 创建时可指定：`maxGoalRounds`、`maxBlockedResumes`、`timeoutMs`、`autoArchive`、`stallThreshold`、`unknownThreshold`、`maxAttempts`、`priority`、`webhook`、`workspace`、`agentPreset`、`deadline`。任务级配置覆盖全局配置。
+通过 `autoqueue_create_task` 或 HTTP API 创建时可指定：`maxGoalRounds`、`maxBlockedResumes`、`timeoutMs`、`autoArchive`、`stallThreshold`、`stallTimeoutMs`、`unknownThreshold`、`maxAttempts`、`priority`、`webhook`、`workspace`、`agentPreset`、`model`、`deadline`。任务级配置覆盖全局配置。
 
 ---
 

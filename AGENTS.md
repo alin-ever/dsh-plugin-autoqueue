@@ -10,6 +10,7 @@ autoqueue 是 DSH 的无人值守任务队列插件。丢 .md 文件进收件箱
 |---|---|---|
 | 设计文档 | `autoqueue-design.md` | 理解架构、设计决策、执行模型 |
 | HTTP API | `docs/api.md` | 视图层开发、外部集成、接口契约 |
+| 核心层 API | `docs/core-api.md` | 内部模块接口（ledger/engine/runner） |
 | 核心层 API | `docs/core-api.md` | 内部模块接口（engine/runner/ledger/files） |
 | README | `README.md` | 快速了解项目、安装使用 |
 
@@ -39,11 +40,15 @@ lib/
 |---|---|
 | 收件箱模式（丢 .md 就跑） | ✅ |
 | 反阻塞（steering + resume） | ✅ |
-| 停滞检测 | ✅ |
+| 停滞检测（轮数 + 超时双检测） | ✅ |
+| 限流退避（指数退避重试，不消耗 attempts） | ✅ |
+| PTC 自动检测（步骤识别 → ptc-unattended） | ✅ |
 | cron/schedule/deadline 调度 | ✅ |
 | SSE 实时推送 | ✅ |
 | 看板 UI | ✅ |
-| 9 个 AI 工具 | ✅ |
+| 10 个 AI 工具 | ✅ |
+| 未读/已读标记 | ✅ |
+| 任务级 model 选择 | ✅ |
 | Webhook 回调 | ✅ |
 | 重启恢复（reconcile） | ✅ |
 | 优先级派发 | ✅ |

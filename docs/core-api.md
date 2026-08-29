@@ -30,6 +30,7 @@
 | `unknownThreshold` | number | 3 | 连续不可达轮数阈值，判定失败 |
 | `maxAttempts` | number | 3 | 派发失败重试次数 |
 | `agentPreset` | string\|null | null | 全局默认 Agent 预设 |
+| `model` | string\|null | null | 全局默认执行模型 |
 | `priority` | number | 5 | 全局默认优先级 1-10 |
 | `webhook` | string\|null | null | 全局 webhook URL |
 | `workspace` | string\|null | null | DSH 工作区 UUID |
@@ -190,6 +191,7 @@ const engine = {
 | `maxBlockedResumes` | number | 0-10 |
 | `autoArchive` | boolean | 默认 false；true 时 done/failed 自动归档 |
 | `stallThreshold` | number | 1-100，默认 10；连续 poll 仍 active 触发 anti-block |
+| `stallTimeoutMs` | number | 10000-3600000，默认 300000（5 分钟）；单轮无 rounds 增长时的停滞超时 |
 | `unknownThreshold` | number | 1-100，默认 3；连续 session 不可达判定失败 |
 | `maxAttempts` | number | 1-10，默认 3；派发失败重试次数 |
 | `agentPreset` | string\|null | Agent 预设名称 |
@@ -295,15 +297,15 @@ $QUEUE_DIR/
 
 ### `readTaskFile(key)` / `removeTaskFile(key)` / `writeTaskFile(key, content)`
 
-单个任务文件的读写删。
+单个任务文件的读写删。注意：`readTaskFile` 当前未实现（内部使用 `readFileSync` 直接读取），`removeTaskFile` 和 `writeTaskFile` 可用。
 
 ### `createRunDir(key)`
 
 创建运行目录，返回路径。
 
-### `writeReport(workDir, content)`
+### `writeTaskCopy(workDir, body)` / `writeGoalSnapshot(workDir, content)` / `writeResult(workDir, content)`
 
-向运行目录写入 `执行报告.md`。
+向运行目录写入 `.task.md`（任务副本）、`.目标.md`（目标快照）、`.结果.md`（执行结果）。Agent 自行写入 `执行报告.md`。
 
 ### `matchCron(expr, now?)`
 
@@ -403,11 +405,13 @@ pending ──→ running ──→ done
 | `flushLedger()` | 强制写入磁盘 |
 | `snapshot()` | 返回 `{ revision, tasks, config }` |
 | `findByKey(key)` | 查找任务 |
-| `findBySessionId(sessionId)` | 按会话查找 |
 | `upsertEntry(key, patch)` | 创建或更新任务 |
 | `removeEntry(key)` | 删除任务 |
 | `getConcurrency()` / `setConcurrency(n)` | 并发数 |
 | `runningCount()` | 运行中任务数 |
+| `markRead(key)` | 标记任务为已读 |
+| `markUnread(key)` | 标记任务为未读 |
+| `unreadCount()` | 未读任务数 |
 | `checkRequest(requestId, meta)` | 请求去重 |
 
 ---
@@ -425,6 +429,8 @@ pending ──→ running ──→ done
 | `taskTimeoutMs` | 5400000 | 90 分钟 |
 | `autoArchive` | false | 全局自动归档默认 |
 | `agentPreset` | null | 全局 Agent 预设 |
+| `model` | null | 全局执行模型 |
+| `model` | null | 全局执行模型 |
 | `priority` | 5 | 全局优先级 |
 | `stallThreshold` | 10 | 停滞检测阈值 |
 | `unknownThreshold` | 3 | 不可达判定阈值 |
@@ -446,7 +452,7 @@ const runner = {
   cancelTask(sessionId, goalRef),  // 取消运行中任务
   cancelSession(sessionId),       // 清理孤儿会话
   archiveSessions(entry),  // 归档该任务所有会话
-  isTimeout(startedAt),    // 检查是否超时
+  listSessions(),          // 列出所有活跃 session
   maxBlockedResumes,       // 配置值
   taskTimeoutMs,           // 配置值
 }

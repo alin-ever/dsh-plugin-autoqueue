@@ -28,6 +28,7 @@
       "goalRef": { "id": "goal-1", "revision": 3 },
       "attempts": 1,
       "blockedResumes": 0,
+      "readAt": "2026-08-28T12:00:00.000Z",
       "executions": [
         {
           "id": "exec-1",
@@ -96,13 +97,14 @@
 | `cron` | string | | 5 字段 cron 表达式，如 `"0 8 * * *"` |
 | `deadline` | string | | 5 字段 cron 截止时间，到点强制停止运行中任务 |
 | `webhook` | string | | 完成/失败时 POST 回调 URL |
-| `workspace` | string | | 工作区 ID |
+| `workspace` | string | | 工作区 ID（UUID，非显示名称） |
 | `agentPreset` | string | | Agent 预设名 |
 | `maxGoalRounds` | number | | 最大 goal 轮数，默认 40，范围 1-100 |
 | `maxBlockedResumes` | number | | 最大反阻塞次数，默认 3，范围 0-10 |
 | `timeoutMs` | number | | 任务超时毫秒，默认 90 分钟 |
 | `autoArchive` | boolean | | 完成后自动归档，默认跟随全局配置 |
 | `stallThreshold` | number | | 连续 active 轮数后触发停滞检测，默认 10 |
+| `stallTimeoutMs` | number | | 单轮无 rounds 增长时的停滞超时毫秒，默认 300000（5 分钟） |
 | `unknownThreshold` | number | | 连续轮询失败后判定不可达，默认 3 |
 | `maxAttempts` | number | | 派发重试次数，默认 3 |
 
@@ -331,6 +333,7 @@
   "maxBlockedResumes": 3,
   "autoArchive": false,
   "stallThreshold": 10,
+  "stallTimeoutMs": 300000,
   "unknownThreshold": 3,
   "maxAttempts": 3,
   "agentPreset": null,
@@ -352,11 +355,39 @@
 }
 ```
 
-可写字段：`maxGoalRounds`（1-100）、`maxBlockedResumes`（0-10）、`stallThreshold`（1-100）、`unknownThreshold`（1-100）、`maxAttempts`（1-10）、`autoArchive`、`webhook`、`workspace`、`queueDir`、`agentPreset`、`priority`（1-10）、`defaultDeadline`。
+可写字段：`maxGoalRounds`（1-100）、`maxBlockedResumes`（0-10）、`stallThreshold`（1-100）、`stallTimeoutMs`（10000-3600000，毫秒）、`unknownThreshold`（1-100）、`maxAttempts`（1-10）、`autoArchive`、`webhook`、`workspace`、`queueDir`、`agentPreset`、`model`、`priority`（1-10）、`defaultDeadline`。
 
 ---
 
-## 7. `GET /api/queue/events`（SSE）
+## 7. `POST /api/queue/mark-read`（标记已读/未读）
+
+标记已完成任务为已读或未读状态。未读任务会在看板中显示蓝色标记，并在 `unreadCount` 中计数。
+
+**请求体**
+
+```json
+{
+  "key": "daily-report",
+  "read": true
+}
+```
+
+- `key`（必填）— 任务标识
+- `read`（可选）— `true` 标记已读（默认），`false` 标记未读
+
+**响应** `200`
+
+```json
+{
+  "ok": true,
+  "key": "daily-report",
+  "unreadCount": 5
+}
+```
+
+---
+
+## 8. `GET /api/queue/events`（SSE）
 
 Server-Sent Events 实时推送。
 

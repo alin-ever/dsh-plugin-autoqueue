@@ -68,13 +68,14 @@ echo "# 生成日报" > ~/.dsh/queue/tasks/daily-report.md
 | `cron` | string | | — | 5 字段 cron 循环定时 |
 | `deadline` | string | | — | 5 字段 cron 截止时间 |
 | `webhook` | string | | — | 完成/失败回调 URL |
-| `workspace` | string | | — | 工作区 ID |
+| `workspace` | string | | — | 工作区 ID（UUID，非显示名称） |
 | `agentPreset` | string | | — | Agent 预设名 |
 | `maxGoalRounds` | number | | 40 | 最大 goal 轮数 |
 | `maxBlockedResumes` | number | | 3 | 最大反阻塞次数 |
 | `timeoutMs` | number | | 90 分钟 | 任务超时 |
 | `autoArchive` | boolean | | 跟随全局 | 完成后自动归档 |
 | `stallThreshold` | number | | 10 | 连续 active 轮数后触停滞检测 |
+| `stallTimeoutMs` | number | | 300000 | 单轮无 rounds 增长时的停滞超时（毫秒，默认 5 分钟） |
 | `unknownThreshold` | number | | 3 | 连续轮询失败后判不可达 |
 | `maxAttempts` | number | | 3 | 派发重试次数 |
 
@@ -158,11 +159,12 @@ config:
   maxBlockedResumes: 3
   autoArchive: false
   stallThreshold: 10
+  stallTimeoutMs: 300000
   unknownThreshold: 3
   maxAttempts: 3
   agentPreset: null
   priority: 5
-  scanIntervalMs: 15000
+  scanIntervalMs: 30000
   maxConcurrent: 2
 ```
 
@@ -179,7 +181,7 @@ lib/
 ├── runner.js    ← 会话驱动：所有 apiProxy 调用集中在此
 ├── ledger.js    ← 账本：原子读写 / 去重 / 并发控制 / 重启恢复
 ├── files.js     ← I/O 层：收件箱扫描 / 调度解析 / 原子写入
-├── ai-tool.js   ← AI 工具层：9 个模型工具 + 系统提示注入
+├── ai-tool.js   ← AI 工具层：10 个模型工具 + 系统提示注入
 └── client.js    ← 浏览器看板：React UI + 侧边栏入口
 ```
 
