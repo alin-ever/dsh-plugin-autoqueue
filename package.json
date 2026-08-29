@@ -1,7 +1,7 @@
 {
   "name": "@alintever/dsh-plugin-autoqueue",
   "description": "无人值守任务队列插件：丢 .md 进收件箱 → AI 自动执行 → 产出报告",
-  "version": "0.2.9",
+  "version": "0.3.0",
   "type": "module",
   "main": "lib/index.js",
   "exports": {

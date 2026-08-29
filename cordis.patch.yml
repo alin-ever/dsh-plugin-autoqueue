@@ -1,16 +1,17 @@
 # autoqueue 插件 — 无人值守任务队列
 # 对齐 task-board 的双面插件 bundle 模式
 - insert:
-    - id: '@alintever/dsh-plugin-autoqueue'
+    - id: autoqueue
       name: '@alintever/dsh-plugin-autoqueue'
       config:
         maxGoalRounds: 40
         maxBlockedResumes: 3
         autoArchive: false
         stallThreshold: 10
+        stallTimeoutMs: 300000
         unknownThreshold: 3
         maxAttempts: 3
-        agentPreset: unattended
+        agentPreset: null          # null = 自动检测（PTC / unattended）
         priority: 5
         scanIntervalMs: 15000
         maxConcurrent: 2
