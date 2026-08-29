@@ -159,7 +159,7 @@ ctx.jobs.attachController(name)  // 附加控制器
 # 当前
 - insert:
     - id: autoqueue
-      name: '@deepseek-ai/dsh-plugin-autoqueue'
+      name: '@alintever/dsh-plugin-autoqueue'
       config:
         maxGoalRounds: 40
         maxBlockedResumes: 3
