@@ -36,7 +36,15 @@
   "engines": {
     "dsh": ">=0.1.1-rc.2 <0.1.2"
   },
+  "scripts": {
+    "build:client": "esbuild client/src/index.jsx --bundle --outfile=lib/client.js --format=iife --external:react --external:react-dom/client --loader:.css=text --define:React=window.__React --tree-shaking=false",
+    "watch:client": "esbuild client/src/index.jsx --bundle --outfile=lib/client.js --format=iife --external:react --external:react-dom/client --loader:.css=text --define:React=window.__React --tree-shaking=false --watch=forever",
+    "build": "npm run build:client"
+  },
   "dependencies": {
     "@deepseek-ai/dsh-tools": "^0.1.1-rc.2"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
   }
 }

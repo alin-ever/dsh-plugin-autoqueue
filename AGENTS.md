@@ -24,8 +24,45 @@ lib/
 ├── ledger.js    ← 账本：原子读写 / 去重 / 并发控制 / 重启恢复
 ├── files.js     ← I/O 层：收件箱扫描 / 调度解析 / 原子写入
 ├── ai-tool.js   ← AI 工具层：9 个模型工具 + 系统提示注入
-└── client.js    ← 浏览器看板：React UI + 侧边栏入口
+└── client.js    ← 浏览器看板：esbuild 构建产物，源文件在 client/src/
+
+client/src/
+├── index.jsx              ← 入口：ModuleLoader 包装 + DOM 挂载
+├── transport.js           ← HTTP + SSE 传输层
+├── controller.js          ← 状态管理（订阅模式）
+├── utils.js               ← 工具函数、常量、SVG 图标
+├── styles/
+│   └── workstation.css    ← 全局样式（使用 DSW 令牌）
+└── components/
+    ├── Workstation.jsx    ← 主布局：侧边栏 + 工具栏 + KPI + 任务列表
+    ├── TaskDetail.jsx     ← 右侧滑出详情面板
+    └── Modals.jsx         ← 弹窗：新建/编辑/配置/确认
 ```
+
+## 构建
+
+```bash
+npm run build:client    # esbuild 打包 client/src/ → lib/client.js
+npm run watch:client    # 监听模式，修改源文件自动重新构建
+```
+
+源文件使用 JSX 语法和 ES import，通过 esbuild 编译为单个 IIFE 模块，输出格式对齐 DSH 的 `__ModuleLoader__` 规范。
+
+## 本地开发
+
+```bash
+# 1. 安装依赖
+npm install
+
+# 2. 启动 watch 模式（终端 1）
+npm run watch:client
+
+# 3. 修改 client/src/ 下的源文件，保存后自动构建到 lib/client.js
+
+# 4. 在 DSH 中加载插件，修改即时生效
+```
+
+修改 `client/src/` 下的任意文件（JSX、CSS、JS），esbuild 会自动重新构建 `lib/client.js`。重启 DSH 或刷新页面即可看到效果。
 
 ## 开发约定
 
