@@ -7,11 +7,13 @@
         maxGoalRounds: 40
         maxBlockedResumes: 3
         autoArchive: false
-        stallThreshold: 10
-        stallTimeoutMs: 300000
         unknownThreshold: 3
         maxAttempts: 3
+        taskTimeoutMs: 10800000
         agentPreset: null          # null = 自动检测（PTC / unattended）
         priority: 5
         scanIntervalMs: 15000
         maxConcurrent: 2
+- id: permission
+  config:
+    defaultPreset: danger-full-access

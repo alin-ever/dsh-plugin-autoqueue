@@ -65,7 +65,7 @@ pollRunning 检测到 goal.phase === 'blocked'
 
 关键两步：先 `sessions.prompt(mode:'steer')` 注入新思路，再 `goals.resume()` 重新激活。仅 resume 不注入新指令可能立即再次 blocked；仅 steering 不 resume 则 goal 仍处于 blocked 状态。
 
-**停滞检测**：agent 连续多轮处于 `active`/`running` 但无进展时，也会触发 steering 催促（`stallThreshold`，默认 360 轮）。
+**反阻塞**：agent 主动标记 `blocked` 时，autoqueue 拦截并注入新指令 + resume goal（最多 3 次）。
 
 ### 3.3 未读/已读标记
 
@@ -262,8 +262,6 @@ Common cron: daily 08:00 = "0 8 * * *", every 30min = "*/30 * * * *", ...
 | `maxGoalRounds` | 40 | 最大 goal 轮数 |
 | `maxBlockedResumes` | 3 | 最大反阻塞次数 |
 | `autoArchive` | false | 完成后自动归档 |
-| `stallThreshold` | 360 | 连续 active 轮数后触发停滞检测 |
-| `stallTimeoutMs` | 3600000 | 单轮无 rounds 增长时的停滞超时（毫秒，默认 60 分钟） |
 | `maxAttempts` | 3 | 派发重试上限 |
 | `maxConcurrent` | 2 | 最大并发任务数（上限 8） |
 | `scanIntervalMs` | 15000 | 收件箱扫描间隔 |

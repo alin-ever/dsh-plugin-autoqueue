@@ -54,7 +54,6 @@
       "workspace": "ws-1",
       "agentPreset": null,
       "autoArchive": false,
-      "stallThreshold": 10,
       "maxAttempts": 3
     }
   ],
@@ -102,8 +101,6 @@
 | `maxBlockedResumes` | number | | 最大反阻塞次数，默认 3，范围 0-10 |
 | `timeoutMs` | number | | 任务超时毫秒，默认 90 分钟 |
 | `autoArchive` | boolean | | 完成后自动归档，默认跟随全局配置 |
-| `stallThreshold` | number | | 连续 active 轮数后触发停滞检测，默认 10 |
-| `stallTimeoutMs` | number | | 单轮无 rounds 增长时的停滞超时毫秒，默认 300000（5 分钟） |
 | `maxAttempts` | number | | 派发重试次数，默认 3 |
 
 **响应**
@@ -269,7 +266,6 @@
     "workspace": "ws-1",
     "agentPreset": null,
     "autoArchive": false,
-    "stallThreshold": 10,
     "maxAttempts": 3,
     "executions": [
       {
@@ -328,8 +324,6 @@
   "maxGoalRounds": 40,
   "maxBlockedResumes": 3,
   "autoArchive": false,
-  "stallThreshold": 10,
-  "stallTimeoutMs": 300000,
   "maxAttempts": 3,
   "agentPreset": null,
   "priority": 5,

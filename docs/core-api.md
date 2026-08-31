@@ -26,7 +26,7 @@
 | `maxGoalRounds` | number | 40 | 单个任务最多 goal 轮数 |
 | `maxBlockedResumes` | number | 3 | 阻塞后最多重试次数 |
 | `autoArchive` | boolean | false | 全局默认：done/failed 是否自动归档 |
-| `stallThreshold` | number | 10 | 连续 active 轮数阈值，触发 anti-block |
+| `unknownThreshold` | number | 3 | 连续 unknown 轮数阈值，判定任务不可达 |
 | `maxAttempts` | number | 3 | 派发失败重试次数 |
 | `agentPreset` | string\|null | null | 全局默认 Agent 预设 |
 | `model` | string\|null | null | 全局默认执行模型 |
@@ -84,7 +84,6 @@ const engine = {
 | `maxBlockedResumes` | number | - | 任务级阻塞重试上限 |
 | `timeoutMs` | number | - | 任务级超时毫秒 |
 | `autoArchive` | boolean | - | 任务级自动归档，覆盖全局配置 |
-| `stallThreshold` | number | - | 任务级停滞阈值，覆盖全局 |
 | `deadline` | string | - | 5 字段 cron 截止时间 |
 | `maxAttempts` | number | - | 任务级派发重试次数，覆盖全局 |
 
@@ -188,8 +187,7 @@ const engine = {
 | `maxGoalRounds` | number | 1-100 |
 | `maxBlockedResumes` | number | 0-10 |
 | `autoArchive` | boolean | 默认 false；true 时 done/failed 自动归档 |
-| `stallThreshold` | number | 1-100，默认 10；连续 poll 仍 active 触发 anti-block |
-| `stallTimeoutMs` | number | 10000-3600000，默认 300000（5 分钟）；单轮无 rounds 增长时的停滞超时 |
+| `unknownThreshold` | number | 1-10，默认 3；连续 poll 返回 unknown 触发 retry |
 | `maxAttempts` | number | 1-10，默认 3；派发失败重试次数 |
 | `agentPreset` | string\|null | Agent 预设名称 |
 | `priority` | number | 1-10，默认 5；全局默认优先级 |
@@ -214,7 +212,6 @@ const engine = {
     "status": "done",
     "archivedAt": null,
     "autoArchive": null,
-    "stallThreshold": null,
     "maxAttempts": null,
     "priority": 5,
     "schedule": null,
@@ -362,7 +359,6 @@ $QUEUE_DIR/
       "workspace": "uuid",
       "agentPreset": "...",
       "autoArchive": null,
-      "stallThreshold": null,
       "maxAttempts": null,
       "maxGoalRounds": 40,
       "maxBlockedResumes": 3,
@@ -427,7 +423,7 @@ pending ──→ running ──→ done
 | `model` | null | 全局执行模型 |
 | `model` | null | 全局执行模型 |
 | `priority` | 5 | 全局优先级 |
-| `stallThreshold` | 10 | 停滞检测阈值 |
+| `unknownThreshold` | 3 | 不可达检测阈值 |
 | `maxAttempts` | 3 | 派发重试次数 |
 | `webhook` | null | 全局 webhook |
 | `workspace` | null | 默认工作区 |
@@ -458,7 +454,7 @@ const runner = {
 
 | phase | 含义 | 引擎行为 |
 |---|---|---|
-| `active` | 运行中 | 连续 N 次 active 触发 anti-block（N = `stallThreshold`，默认 10） |
+| `active` | 运行中 | agent 工作中，不做干预 |
 | `complete` | 完成 | 调用 finalize，若 `autoArchive` 则归档 |
 | `blocked` | 阻塞 | 调用 antiBlock，超限则标记失败 |
 
