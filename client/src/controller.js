@@ -33,7 +33,14 @@ export function createController(transport) {
   var revision = 0;
   var config = { maxConcurrent: 1 };
   var metrics = { total: 0, running: 0, pending: 0, done24h: 0, failed24h: 0, successRate: 0 };
-  var options = { workspaces: [], presets: [], models: [], isolation: { strict: true } };
+  var options = { workspaces: [], presets: [], models: [], isolation: null };
+  var optionsStatus = "idle";
+  var optionsError = null;
+  var runtimeHealth = {
+    status: "idle", connected: false, reconnecting: false,
+    lastEventAt: null, revision: null
+  };
+  var runtimeObservation = null;
   var transportError = null;
   var sseDisposer = null;
   var prevStatuses = {};
@@ -55,29 +62,46 @@ export function createController(transport) {
       var s = activeTasks[i].status;
       counts[s] = (counts[s] || 0) + 1;
     }
-    var filtered = tasks;
-    if (filter !== "all") filtered = filtered.filter(function (t) { return t.status === filter; });
+    var scoped = tasks;
     if (navGroup === "archived") {
-      filtered = filtered.filter(function (t) { return !!t.archivedAt; });
+      scoped = scoped.filter(function (t) { return !!t.archivedAt; });
     } else {
-      filtered = filtered.filter(function (t) { return !t.archivedAt; });
-      if (navGroup === "cron") filtered = filtered.filter(function (t) { return t.taskType === "cron"; });
-      else if (navGroup === "schedule") filtered = filtered.filter(function (t) { return t.taskType === "schedule"; });
-      else if (navGroup === "manual") filtered = filtered.filter(function (t) { return t.taskType === "manual"; });
-      else if (navGroup === "active") filtered = filtered.filter(function (t) { return t.status === "pending" || t.status === "running" || t.status === "interrupted"; });
+      scoped = scoped.filter(function (t) { return !t.archivedAt; });
+      if (navGroup === "cron") scoped = scoped.filter(function (t) { return t.taskType === "cron"; });
+      else if (navGroup === "schedule") scoped = scoped.filter(function (t) { return t.taskType === "schedule"; });
+      else if (navGroup === "manual") scoped = scoped.filter(function (t) { return t.taskType === "manual"; });
+      else if (navGroup === "active") scoped = scoped.filter(function (t) { return t.status === "pending" || t.status === "running" || t.status === "interrupted"; });
     }
+    var scopeCounts = {};
+    for (var s = 0; s < scoped.length; s++) scopeCounts[scoped[s].status] = (scopeCounts[scoped[s].status] || 0) + 1;
+    var filtered = filter === "all" ? scoped : scoped.filter(function (t) { return t.status === filter; });
     var detailTask = showDetail ? tasks.find(function (t) { return t.key === showDetail; }) : null;
     var editTask = showEdit
       ? (editTaskData && editTaskData.key === showEdit ? editTaskData : tasks.find(function (t) { return t.key === showEdit; }))
       : null;
     return {
-      tasks: tasks, filtered: filtered, counts: counts, metrics: metrics,
+      tasks: tasks, scoped: scoped, filtered: filtered, counts: counts, scopeCounts: scopeCounts,
+      scopeMetrics: deriveMetrics(scoped.map(function (task) { return Object.assign({}, task, { archivedAt: null }); })), metrics: metrics,
       boardOpen: boardOpen, filter: filter, navGroup: navGroup,
       showDetail: showDetail, showNewTask: showNewTask, showEdit: showEdit, showConfig: showConfig,
       loading: loading, error: error, revision: revision, config: config, options: options,
+      optionsStatus: optionsStatus, optionsError: optionsError,
+      runtimeHealth: runtimeHealth, isolationHealth: getIsolationHealth(),
+      runtimeObservation: runtimeObservation,
       transportError: transportError, detailTask: detailTask, editTask: editTask,
       unreadCount: countUnread(tasks)
     };
+  }
+
+  function getIsolationHealth() {
+    if (optionsStatus === "error") return { status: "error", verified: false, message: optionsError || "隔离策略读取失败" };
+    if (optionsStatus !== "ready") return { status: "unknown", verified: false, message: "正在读取隔离策略" };
+    var isolation = options && options.isolation;
+    var locks = isolation && Array.isArray(isolation.overridesLocked) ? isolation.overridesLocked : [];
+    var required = ["workspace", "agentPreset", "model"];
+    var verified = !!isolation && isolation.strict === true && required.every(function (name) { return locks.indexOf(name) >= 0; });
+    if (!verified) return { status: "unsafe", verified: false, message: "隔离字段未完整锁定" };
+    return { status: "safe", verified: true, message: "工作区、预设与模型覆盖已锁定", locks: locks, reason: isolation.reason || "" };
   }
 
   function subscribe(fn) { listeners.push(fn); return function () { listeners = listeners.filter(function (x) { return x !== fn; }); }; }
@@ -122,6 +146,8 @@ export function createController(transport) {
     for (var j = 0; j < newTasks.length; j++) prevStatuses[newTasks[j].key] = newTasks[j].status;
     tasks = newTasks;
     if (Number.isFinite(incomingRevision)) revision = incomingRevision;
+    runtimeHealth = Object.assign({}, runtimeHealth, { revision: revision });
+    if (data.runtime && typeof data.runtime === "object") runtimeObservation = data.runtime;
     mergeConfig(data.config);
     metrics = Object.assign(deriveMetrics(newTasks), data.metrics || {});
     transportError = null;
@@ -141,7 +167,17 @@ export function createController(transport) {
   }
 
   async function loadOptions() {
-    try { options = await transport.options(); } catch (e) {}
+    optionsStatus = "loading";
+    optionsError = null;
+    try {
+      var loaded = await transport.options();
+      options = loaded && typeof loaded === "object" ? loaded : { workspaces: [], presets: [], models: [], isolation: null };
+      optionsStatus = "ready";
+    } catch (err) {
+      optionsStatus = "error";
+      optionsError = err.message || "隔离策略读取失败";
+    }
+    notif();
   }
 
   async function loadConfig() {
@@ -154,12 +190,27 @@ export function createController(transport) {
 
   function startSSE() {
     if (disposed || sseDisposer) return;
+    runtimeHealth = Object.assign({}, runtimeHealth, { status: "connecting", connected: false, reconnecting: false });
+    notif();
     sseDisposer = transport.subscribe(function (data) {
       if (disposed) return;
       if (data && data.revision !== undefined) {
         if (!applyState(data, true)) return;
       } else if (data === null) {
         loadState();
+      }
+      notif();
+    }, function (health) {
+      if (disposed) return;
+      var previousRevision = Number(runtimeHealth.revision);
+      var incomingHealthRevision = Number(health && health.revision);
+      runtimeHealth = Object.assign({}, runtimeHealth, health || {});
+      if (Number.isFinite(previousRevision) || Number.isFinite(incomingHealthRevision) || Number.isFinite(revision)) {
+        runtimeHealth.revision = Math.max(
+          Number.isFinite(previousRevision) ? previousRevision : 0,
+          Number.isFinite(incomingHealthRevision) ? incomingHealthRevision : 0,
+          Number.isFinite(revision) ? revision : 0
+        );
       }
       notif();
     });
@@ -233,7 +284,8 @@ export function createController(transport) {
   async function doAction(kind, key, opts) {
     try {
       var result = await transport.action(kind, key, opts);
-      if (!result.ok) throw new Error(result.error || kind + " \u5931\u8D25");
+      var isBatchArchive = kind === "archive" && opts && Array.isArray(opts.keys) && Array.isArray(result && result.results);
+      if (!result.ok && !isBatchArchive) throw new Error(result.error || kind + " \u5931\u8D25");
       await loadState();
       return result;
     } catch (err) { error = err.message; notif(); throw err; }

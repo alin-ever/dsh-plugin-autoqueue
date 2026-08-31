@@ -19,6 +19,7 @@ autoqueue 同时满足两个核心要求：
 - 不承诺分布式 exactly-once。实现用持久 ownership、admission marker、CAS generation 和定向 containment 尽力避免重复执行。
 - 不把 Host 的全局选择器包装成“任务级能力”。rc.2 无法证明这类选择不会影响普通会话。
 - 不默认改变所有 DSH 会话的 prompt/tool catalog。Host AI 工具必须显式 opt-in。
+- 不承诺内核级进程/资源隔离。插件仍运行在同一 DSH Host 进程内；本文的“不影响主进程”指不修改普通会话或 Host 选择状态、前台优先和 fail-closed admission。要求 CPU/内存/崩溃域硬隔离时应部署独立 DSH Host。
 
 ## 3. 总体架构
 
@@ -137,6 +138,8 @@ persist pause intent
 
 pause-before-cancel 是硬顺序：绝不 cancel 一个仍 armed 的 durable goal。前台暂停状态保留在账本中，重启后不会被 wakeup/replacement 路径误启动。整个过程不取消、暂停、重命名或归档用户会话。
 
+原生 `agent/status`、owned `goal/changed`、`session/disposed` 只触发 dirty latch，让这条收敛更快；它们不是控制事实。所有恢复、结算和前台门控仍由 `sessions.list` / history 权威读取决定，10 秒 watchdog 负责补漏事件。
+
 ### 4.7 Host AI 工具默认关闭
 
 注册工具会改变所有普通会话的系统提示和 tool catalog，因此 `enableHostAiTools` 默认 `false`。只有显式设置 `true` 才注册 16 个 `autoqueue_*` 工具。外部 AI 走鉴权 HTTP/OpenAPI，不依赖这个开关。
@@ -203,11 +206,13 @@ archivedAt 是独立标志，不是状态。
 
 默认 `autoArchive=true`：terminal 结算后归档插件自有 sessions，并设置 `archivedAt`；归档失败时不提前隐藏任务。任务级显式设置可覆盖此默认。
 
+stop/deadline/timeout/cleanup 走另一条持久取消子状态：先落 cancel intent，再请求 DSH；`sessions.cancel=true` 只记录受理，不直接结算。只有两次因果上晚于受理的可信 idle/缺席观察后才能 stopped/retry。旧快照、未知列表、running 回弹、重启或新 goal ref 都不会释放 ownership。
+
 ## 8. 轮询、反阻塞与恢复
 
 ### 8.1 轮询
 
-每 10 秒批量调用一次 `sessions.list`，再按任务读取 goal projection：
+原生 runtime 事件会立即请求一次合并对账；每 10 秒仍由 watchdog 批量调用 `sessions.list`，再按任务读取 goal projection：
 
 | phase/信号 | 行为 |
 |---|---|
@@ -278,7 +283,7 @@ cron 使用本地时间，支持 `*`、数字、步长、范围和逗号；日�
 
 业务能力覆盖创建、更新、查询、详情、停止、重跑、归档、批量归档、恢复、删除、强制扫描、并发配置、运行时配置、已读状态与 SSE。
 
-所有端点使用同一 Host/token 鉴权。Capabilities 与 OpenAPI 只描述认证方案，不返回 token 值。`/options` 返回：
+所有端点使用同一 Host/token 鉴权。未配置 token 时，仅 socket peer 与 Host header 都是 loopback 的本机直连免 token；远程或配置 token 后必须鉴权。Capabilities 与 OpenAPI 不返回 token 值。`/options` 返回：
 
 ```json
 {
@@ -298,8 +303,9 @@ UI 不是只读监控页，而是安全核心能力的完整工作台。
 
 ### 11.1 信息架构
 
-- 左侧：任务队列、正在推进、循环调度、定时执行、执行记录。
-- 顶部：严格隔离/前台让行契约、后台工作位、前台暂停态、立即扫描、运行设置、新建任务、AI/API 接入。
+- 左侧：任务队列、正在推进、循环调度、定时执行、归档记录；每项都是带独立统计、文案、空态和动作的范围工作区。
+- 顶部：严格隔离/前台让行契约、后台工作位、前台暂停/停止收口态、立即扫描、运行设置、新建任务、AI/API 接入。
+- 正在推进：原生事件时间、权威对账、foreground gate、扫描时间和 watchdog；SSE 连接健康单独表达。
 - KPI：执行中、待派发、需关注、24 小时完成、成功率、未读结果。
 - 队列：搜索 + 状态筛选；任务类型、状态/隔离告警、计划、优先级、进度、attempt。
 
@@ -310,7 +316,7 @@ UI 不是只读监控页，而是安全核心能力的完整工作台。
 - 批量动作：多选非 running 任务并批量归档。
 - 详情抽屉：概览、执行轨迹、Goal/结果/最终报告、调度/韧性策略和隔离状态。
 - 设置抽屉：并发、超时、轮数、反阻塞、attempt、unknown 阈值、退避、默认 priority/deadline、Webhook、归档、通知；queueDir 只读。
-- AI/API 抽屉：Capabilities、OpenAPI、compact curl 和能力标签；从不回显 token。
+- AI/API 抽屉：实时 Capabilities、16 个工具、resources/limits、options 隔离证据、OpenAPI、compact curl 与本机/远程鉴权契约；从不回显 token。
 
 隔离覆盖不出现在任何表单中。详情的策略页只展示它们已锁定。
 

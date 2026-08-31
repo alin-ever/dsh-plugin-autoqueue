@@ -167,7 +167,7 @@ const engine = {
 
 | action | 前置条件 | 核心行为 |
 |---|---|---|
-| `stop` | running | clear goal、cancel owned session、finalize stopped |
+| `stop` | running | 持久化 stop intent，提交 owned cancel；双重权威 idle 后 finalize stopped |
 | `archive` | 非 running | archive owned sessions，设置 `archivedAt` |
 | `restore` | 已归档 | 清除 `archivedAt` |
 | `delete` | pending | 删除收件箱与账本项 |
@@ -177,6 +177,8 @@ const engine = {
 | `set-concurrency` | 1-8 | 调用 ledger `setConcurrency` |
 
 `archive` 支持 `opts.keys` 1-100 个任务并逐项返回结果。requestId 使用 fingerprint 区分同 ID 同操作、inflight 重复和冲突复用。
+
+`stop` 返回 `{ ok:true, accepted:true, pending:true }` 只表示异步停止意图已持久接纳；pending 任务必须走 `delete`。`_cancelAccepted` 仅由 DSH cancel 的明确 `true` 回执设置，并绑定当时的 goal ref/ledger revision；之后两次因果上更晚的可信 idle/缺席观察才允许释放 ownership。重启、running 回弹或新 goal ref 都会保留/重置证明并继续 containment。
 
 ## 6. 快照、详情与配置
 
@@ -188,13 +190,22 @@ const engine = {
 {
   revision,
   tasks,
+  runtime: {
+    monitorMode: "native-events+authoritative-reconcile",
+    foregroundGate,
+    sessionListKnown,
+    lastNativeEventAt,
+    lastPollAt,
+    lastScanAt,
+    watchdogMs: 10000
+  },
   unreadCount,
   metrics: { total, running, pending, done24h, failed24h, successRate },
   config: { maxConcurrent, webhook, queueDir, enableNotifications, unknownThreshold }
 }
 ```
 
-任务按 `updatedAt` 倒序。投影会删除 `raw` 和所有下划线内部字段，并派生 `taskType`、`nextRunAt`、`startedAt`、`currentRound`、`goalPhase`、`lastActivityTime`、`foregroundPaused`。
+任务按 `updatedAt` 倒序。投影会删除 `raw` 和所有下划线内部字段，并派生 `taskType`、`nextRunAt`、`startedAt`、`currentRound`、`goalPhase`、`lastActivityTime`、`lastSessionId`、`lastError`、`readAt`、`foregroundPaused` 与 `stopPending`。
 
 ### `engine.getTaskDetail(key)`
 
@@ -242,6 +253,8 @@ const engine = {
 ### `engine.pollRunning()` 的前台分支
 
 一次可信或未知的 session list 供本轮所有 running task 共用。若检测到前台活跃或列表未知，则每个 owned task 进入 `_yieldForForeground()`；若任务已经带 foreground marker 且 Host 当前可信空闲，则进入 `_resumeAfterForeground()`；其余才执行普通 `_pollOne()`。前台暂停任务仍保留 `status=running` 和并发占位，不能走 wakeup/replacement retry。
+
+`registerRuntimePollEvents()` 监听原生 `agent/status`、owned `goal/changed`、`session/disposed`，只设置 coalescing dirty latch；回调不直接改变 ledger/session/goal。`pollRunning()` 仍是唯一控制收敛路径，10 秒 timer 是漏事件 watchdog。
 
 ### `_dispatch(task)`
 
@@ -345,6 +358,7 @@ rc.2 的 goal driver 在 `goals.create` 后自行开始工作。因此新 launch
 - 账本损坏时保留原文件并尽力写只读诊断副本，插件 fail closed，不以空账本启动。
 - 重启时，只有 `running` 且没有 session ID 的 legacy 记录回到 pending；带专属 ID/goal/admission marker 的记录保留 ownership，由 poll/containment 继续处理。
 - foreground pause pending/paused/cancel-pending marker 同样持久化；重启后从 history/list 收敛，不 wakeup 或重建第二个 Agent。
+- stop/deadline/retry/cleanup 的 cancel intent、DSH 受理 revision 与首次 idle 证明同样持久化；未受理、旧快照或单次 idle 都不能释放 session ownership。
 
 ### 导出
 
@@ -393,6 +407,6 @@ cron 是 5 字段本地时间表达式，支持 `*`、数字、`*/step`、范围
 
 - HTTP：完整契约见 `docs/api.md`。
 - 外部 AI：Capabilities → OpenAPI → compact state → detail。
-- Host AI：16 个工具，只有 `enableHostAiTools=true` 才注册；默认不改变普通会话 tool catalog。
-- UI：导航/筛选/KPI、完整安全任务表单、任务动作、批量归档、详情四页签、配置抽屉、AI/API 接入抽屉、SSE 和已读状态均已暴露。
+- Host AI：16 个工具，只有 `enableHostAiTools=true` 才注册；列表/详情结构化结果含 runtime 和派生运行事实，默认不改变普通会话 tool catalog。
+- UI：五个范围工作区、原生 runtime 观测、SSE 健康、完整安全任务表单/动作、批量归档、详情四页签、配置与动态 AI/API 接入抽屉、已读状态均已暴露。
 - `/api/queue/options` 返回 `workspaces: []`、`presets: []`、`models: []` 和 `isolation.overridesLocked`；它是锁声明，不是 Host 枚举接口。

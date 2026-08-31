@@ -16,19 +16,21 @@ function requestNotificationPermission() {
 }
 
 export function NewTaskModal(props) {
+  var config = props.config || {};
+  var valueOr = function (value, fallback) { return value === undefined || value === null ? fallback : value; };
   var key = React.useState("");
   var content = React.useState("");
-  var priority = React.useState("5");
+  var priority = React.useState(String(valueOr(config.priority, 5)));
   var cron = React.useState("");
   var schedule = React.useState("");
-  var deadline = React.useState("");
-  var maxGoalRounds = React.useState("");
-  var maxBlockedResumes = React.useState("");
-  var timeoutMinutes = React.useState("180");
-  var maxAttempts = React.useState("3");
-  var webhook = React.useState("");
-  var autoArchive = React.useState(true);
-  var enableNotifications = React.useState(false);
+  var deadline = React.useState(config.defaultDeadline || "");
+  var maxGoalRounds = React.useState(String(valueOr(config.maxGoalRounds, 40)));
+  var maxBlockedResumes = React.useState(String(valueOr(config.maxBlockedResumes, 3)));
+  var timeoutMinutes = React.useState(String(Math.round(valueOr(config.taskTimeoutMs, 10800000) / 60000)));
+  var maxAttempts = React.useState(String(valueOr(config.maxAttempts, 3)));
+  var webhook = React.useState(config.webhook || "");
+  var autoArchive = React.useState(config.autoArchive !== false);
+  var enableNotifications = React.useState(config.enableNotifications === true);
   var advancedOpen = React.useState(false);
   var notifyOpen = React.useState(false);
   var error = React.useState("");
@@ -66,7 +68,7 @@ export function NewTaskModal(props) {
       h("textarea", { id: "aq-new-content", "data-dialog-initial-focus": "", value: content[0], onChange: function (event) { content[1](event.target.value); }, placeholder: "例如：整理本周客户访谈，归纳三条产品机会并输出报告…", required: true }),
       h("div", { className: "aq-row" },
         h(Field, { label: "任务标识（可选）", help: "留空将自动生成" }, h("input", { value: key[0], onChange: function (event) { key[1](event.target.value); }, placeholder: "weekly-insight" })),
-        h(Field, { label: "优先级（1–10）" }, h("input", { type: "number", min: "1", max: "10", value: priority[0], onChange: function (event) { priority[1](event.target.value); } }))
+        h(Field, { label: "优先级（1-10）" }, h("input", { type: "number", min: "1", max: "10", value: priority[0], onChange: function (event) { priority[1](event.target.value); } }))
       ),
       h("div", { className: "aq-row" },
         h(CronField, { label: "循环调度", value: cron[0], onChange: cron[1], presets: CRON_PRESETS, placeholder: "0 8 * * *" }),
@@ -75,11 +77,11 @@ export function NewTaskModal(props) {
       h(CronField, { label: "执行截止窗口", value: deadline[0], onChange: deadline[1], presets: DEADLINE_PRESETS, placeholder: "0 21 * * *" }),
       h(Disclosure, { title: "高级执行策略", hint: "轮数、超时与重试", open: advancedOpen[0], onToggle: function () { advancedOpen[1](!advancedOpen[0]); } },
         h("div", { className: "aq-row three" },
-          h(Field, { label: "最大 Goal 轮数" }, h("input", { type: "number", min: "1", max: "100", value: maxGoalRounds[0], onChange: function (event) { maxGoalRounds[1](event.target.value); }, placeholder: "默认 40" })),
-          h(Field, { label: "最大反阻塞" }, h("input", { type: "number", min: "0", max: "10", value: maxBlockedResumes[0], onChange: function (event) { maxBlockedResumes[1](event.target.value); }, placeholder: "默认 3" })),
+          h(Field, { label: "最大 Goal 轮数" }, h("input", { type: "number", min: "1", max: "100", value: maxGoalRounds[0], onChange: function (event) { maxGoalRounds[1](event.target.value); } })),
+          h(Field, { label: "最大反阻塞" }, h("input", { type: "number", min: "0", max: "10", value: maxBlockedResumes[0], onChange: function (event) { maxBlockedResumes[1](event.target.value); } })),
           h(Field, { label: "最长执行（分钟）" }, h("input", { type: "number", min: "10", max: "1440", value: timeoutMinutes[0], onChange: function (event) { timeoutMinutes[1](event.target.value); } }))
         ),
-        h(Field, { label: "最大派发尝试（1–10）" }, h("input", { type: "number", min: "1", max: "10", value: maxAttempts[0], onChange: function (event) { maxAttempts[1](event.target.value); } })),
+        h(Field, { label: "最大派发尝试（1-10）" }, h("input", { type: "number", min: "1", max: "10", value: maxAttempts[0], onChange: function (event) { maxAttempts[1](event.target.value); } })),
         h("div", { className: "aq-safety-note" }, h("strong", null, "隔离锁定"), " DSH rc.2 的模型、工作区和预设覆盖会改变宿主全局状态，因此本任务台不开放这些字段。")
       ),
       h(Disclosure, { title: "通知与回调", hint: "默认完全静默", open: notifyOpen[0], onToggle: function () { notifyOpen[1](!notifyOpen[0]); } },
@@ -145,7 +147,7 @@ export function EditTaskModal(props) {
       h("label", { htmlFor: "aq-edit-content" }, "任务内容（Markdown）"),
       h("textarea", { id: "aq-edit-content", "data-dialog-initial-focus": "", value: content[0], onChange: function (event) { content[1](event.target.value); } }),
       h("div", { className: "aq-row" },
-        h(Field, { label: "优先级（1–10）" }, h("input", { type: "number", min: "1", max: "10", value: priority[0], onChange: function (event) { priority[1](event.target.value); } })),
+        h(Field, { label: "优先级（1-10）" }, h("input", { type: "number", min: "1", max: "10", value: priority[0], onChange: function (event) { priority[1](event.target.value); } })),
         h(CronField, { label: "循环调度", value: cron[0], onChange: cron[1], presets: CRON_PRESETS, placeholder: "0 8 * * *" })
       ),
       h("div", { className: "aq-row" },
@@ -158,7 +160,7 @@ export function EditTaskModal(props) {
           h(Field, { label: "最大反阻塞" }, h("input", { type: "number", min: "0", max: "10", value: maxBlockedResumes[0], onChange: function (event) { maxBlockedResumes[1](event.target.value); }, placeholder: "默认 3" })),
           h(Field, { label: "最长执行（分钟）" }, h("input", { type: "number", min: "10", max: "1440", value: timeoutMinutes[0], onChange: function (event) { timeoutMinutes[1](event.target.value); }, placeholder: "默认 180" }))
         ),
-        h(Field, { label: "最大派发尝试（1–10）" }, h("input", { type: "number", min: "1", max: "10", value: maxAttempts[0], onChange: function (event) { maxAttempts[1](event.target.value); }, placeholder: "默认 3" }))
+        h(Field, { label: "最大派发尝试（1-10）" }, h("input", { type: "number", min: "1", max: "10", value: maxAttempts[0], onChange: function (event) { maxAttempts[1](event.target.value); }, placeholder: "默认 3" }))
       ),
       h(Disclosure, { title: "通知与回调", hint: "默认完全静默", open: notifyOpen[0], onToggle: function () { notifyOpen[1](!notifyOpen[0]); } },
         h(Field, { label: "Webhook URL" }, h("input", { type: "url", value: webhook[0], onChange: function (event) { webhook[1](event.target.value); }, placeholder: "https://example.com/hook" })),
@@ -225,7 +227,7 @@ export function ConfigPanel(props) {
       h("section", { className: "aq-config-contract" }, h("strong", null, "严格隔离已锁定"), h("p", null, "并发默认 1；前台活跃即持久化暂停后台 Goal 并取消其 turn；不修改宿主模型、工作区或预设。")),
       h(ConfigSection, { title: "资源边界" },
         h("div", { className: "aq-row" },
-          h(Field, { label: "最大并发（1–8）" }, h("input", { "data-dialog-initial-focus": "", type: "number", min: "1", max: "8", value: maxConcurrent[0], onChange: function (event) { maxConcurrent[1](event.target.value); } })),
+          h(Field, { label: "最大并发（1-8）" }, h("input", { "data-dialog-initial-focus": "", type: "number", min: "1", max: "8", value: maxConcurrent[0], onChange: function (event) { maxConcurrent[1](event.target.value); } })),
           h(Field, { label: "任务超时（分钟）" }, h("input", { type: "number", min: "10", max: "1440", value: taskTimeoutMin[0], onChange: function (event) { taskTimeoutMin[1](event.target.value); } }))
         ),
         h("div", { className: "aq-row" },
@@ -269,7 +271,7 @@ export function ConfirmModal(props) {
       h("p", { className: "aq-confirm-message" }, props.message),
       h("div", { className: "aq-modal-actions" },
         h("button", { type: "button", className: "aq-btn", "data-confirm-cancel": "", onClick: props.onCancel }, "取消"),
-        h("button", { type: "button", className: "aq-btn danger", onClick: props.onConfirm }, props.confirmLabel || "确认")
+        h("button", { type: "button", className: "aq-btn " + (props.tone || "danger"), onClick: props.onConfirm }, props.confirmLabel || "确认")
       )
     )
   );

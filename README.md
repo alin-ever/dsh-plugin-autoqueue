@@ -6,7 +6,7 @@
 
 - 本版本逐项审计和自测的精确基线是 **`@deepseek-ai/dsh 0.1.1-rc.2`**。
 - 插件清单接受 `>=0.1.1-rc.2 <0.1.2`，但升级 DSH 后仍应重新跑单元测试和 Playwright；本文的安全结论不自动外推到其他版本。
-- `@deepseek-ai/dsh-tools` 与 `@deepseek-ai/dsh-user-approval` 固定为 `0.1.1-rc.2`。
+- `@deepseek-ai/dsh-sandbox-policy`、`@deepseek-ai/dsh-tools` 与 `@deepseek-ai/dsh-user-approval` 固定为 `0.1.1-rc.2`。
 
 ## 无人值守安全契约
 
@@ -17,10 +17,13 @@ autoqueue 不是普通会话的全局自动化开关。每次执行都遵守以�
 3. 执行模式只由引擎在两个插件自有、带版本号的 preset 中选择：`autoqueue-unattended-v2` 与 `autoqueue-ptc-unattended-v2`。v1 内容保留且绝不覆盖，但不再被新执行选择。v2 要求 `[autoqueue:unattended-discipline:v2]` 完整匹配，并禁用提问、jobs、subagent/fork/control/list、workflow、Ralph；bash/pwsh 强制 `enableRunInBackground:false`，禁止 detached/daemon/background 工作逃离 owned session。已有 v2 若 marker 缺失或内容被改动，插件启动失败，不覆盖外部内容。
 4. 会话创建后、`goals.create` 前，插件把该专属会话的 `approvalPolicy` 固化为 `never`，持久化并回读验证。失败时不投递 goal，并尝试取消该会话。
 5. 任务正文只通过一次完整的 `goals.create.objective` 入场。不会调用 `workspace.create`、不会调用 `session.selectModel`，也不会再发送一条重复的初始 queue prompt。
-6. 每轮读取 `sessions.list`。只要存在活跃的非 autoqueue 会话，或者列表 RPC/返回结构无法可靠判断，队列就不再派发；已经运行的 owned goal 会先持久化 pause intent，再 `goals.pause` 并协作取消当前 turn。只有连续两次可信空闲观察后才无 prompt 地 `goals.resume`。
-7. 默认最大并发为 `1`、终态自动归档开启、浏览器通知关闭。Host 普通会话中的 `autoqueue_*` AI 工具也默认关闭，避免改变其 prompt 与 tool catalog。
+6. DSH 原生 `agent/status`、owned `goal/changed` 与 `session/disposed` 事件只负责唤醒权威对账；每轮仍读取 `sessions.list` / history。存在活跃普通会话或列表不可信时拒绝新派发，运行中的 owned goal 先持久 pause、再暂停并协作取消 turn；连续两次可信空闲后才无 prompt 恢复。
+7. 手动停止、deadline、超时和清理先持久化取消意图。`sessions.cancel` 成功只代表 DSH 受理请求；ownership 会一直保留到受理之后连续两次权威 idle/缺席观察，再结算或重试。
+8. 默认最大并发为 `1`、终态自动归档开启、浏览器通知关闭。Host 普通会话中的 `autoqueue_*` AI 工具也默认关闭，避免改变其 prompt 与 tool catalog。
 
 DSH rc.2 的公开选择接口会持久化 Host 默认路由，因此任务和运行时配置都不能覆盖模型、工作区或任意 Agent preset。`GET /api/queue/options` 会明确返回三类空数组和隔离锁，而不是枚举 Host 状态。
+
+这里的“不影响主进程”是会话、选择状态、审批和调度边界：插件不修改或取消普通会话，并在前台活动时让行。插件仍加载在同一个 DSH Host 进程内，不是 cgroup/容器级资源隔离；若要求对 CPU、内存或插件崩溃做内核级硬隔离，应把队列运行时部署到独立 DSH Host。
 
 ## 快速开始
 
@@ -72,13 +75,14 @@ echo "# 生成日报" > ~/.dsh/queue/tasks/daily-report.md
 
 React 看板已暴露安全业务能力的完整操作面：
 
-- 导航：全部任务、正在推进、循环调度、定时执行、执行记录；状态二级筛选覆盖运行中、待执行、失败、中断和完成，并支持关键词搜索。
-- 运行态：严格隔离/前台让行契约条、后台工作位占用、前台暂停状态、执行中、待派发、需关注、24 小时完成数、成功率和未读结果 KPI。
+- 导航：任务队列、正在推进、循环调度、定时执行、归档记录是五个独立范围工作区，各自拥有标题、说明、范围统计、状态计数、空态和上下文动作；范围内仍可按状态与关键词二次筛选。
+- 运行态：严格隔离/前台让行契约条、后台工作位占用、前台暂停或停止收口状态、执行中、待派发、需关注、24 小时完成数、成功率和未读结果 KPI。
+- 原生监控：正在推进工作区显示 DSH runtime 原生事件、权威 session 对账、收件箱扫描、foreground gate 与 10 秒 watchdog；SSE 连接状态单独展示，不拿网络在线冒充核心隔离健康。
 - 任务列表：摘要、任务类型、状态/隔离告警、计划、优先级、轮次进度、尝试次数；支持多选批量归档。
 - 任务动作：新建、编辑 pending 任务、停止、重跑、归档、恢复、删除 pending 任务、标记未读、跳转插件自有 DSH 会话、立即扫描收件箱。
 - 任务详情：概览、执行轨迹、Goal/结果/最终报告、调度与韧性策略；打开终态详情会标记已读。
 - 运行设置：并发、任务超时、Goal 轮数、反阻塞次数、派发尝试、不可达阈值、退避、默认优先级、默认截止、Webhook、自动归档和浏览器通知；队列目录只读。
-- 外部接入：独立的「AI / API 接入」抽屉展示 Capabilities、OpenAPI 3.1、compact 查询示例和已开放动作；页面从不回显 token。
+- 外部接入：独立的「AI / API 接入」抽屉实时读取 Capabilities，展示正式名称/别称、16 个工具、资源、限制、隔离证据、OpenAPI 3.1 和 compact 查询示例；鉴权文案会区分本机 loopback 直连与远程 token 契约，页面从不回显 token。
 - 交互与可访问性：响应式导航、抽屉/弹窗、危险操作确认、键盘焦点锁定与恢复、ESC 关闭、实时错误提示、空状态插图。
 
 隔离字段不会出现在新建、编辑或运行设置表单中；UI 只展示“已锁定”的安全说明。
@@ -86,6 +90,8 @@ React 看板已暴露安全业务能力的完整操作面：
 ## 外部 AI 与 HTTP API
 
 外部 AI 的稳定边界是带鉴权的 HTTP API，而不是 Host 普通会话的工具注入：
+
+AI 自然语言中的正式名称是「任务队列」，「老登」是同一能力的别称；例如“交给老登执行”和“加入任务队列”都会映射到现有 `autoqueue_*` 工具。别称不新增工具名、HTTP 路径或第二套控制面。
 
 ```bash
 # 1. 发现能力

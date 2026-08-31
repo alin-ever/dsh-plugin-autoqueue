@@ -33,6 +33,11 @@ export function TaskDetailPanel(props) {
     props.onClose();
   }
 
+  function requestAction(kind) {
+    if (props.onActionRequest) props.onActionRequest(kind, value.key);
+    else doAction(kind);
+  }
+
   function openEdit() {
     props.onClose();
     controller.openEdit(value.key);
@@ -46,7 +51,7 @@ export function TaskDetailPanel(props) {
           h("span", { className: "aq-eyebrow" }, "TASK INSPECTOR"),
           h("h3", { id: args.id }, args.title),
           h("div", { className: "aq-inspector-status" },
-            h("span", { className: "aq-status-pill", style: { "--status-color": attention ? "#9a6700" : (value.foregroundPaused === true ? "#27776e" : status.color) } }, h("i"), attention ? "安全隔离 · 需关注" : (value.foregroundPaused === true ? "前台让行 · 已暂停" : status.label)),
+            h("span", { className: "aq-status-pill", style: { "--status-color": attention || value.stopPending === true ? "#9a6700" : (value.foregroundPaused === true ? "#27776e" : status.color) } }, h("i"), attention ? "安全隔离 · 需关注" : (value.stopPending === true ? "停止收口中" : (value.foregroundPaused === true ? "前台让行 · 已暂停" : status.label))),
             value.updatedAt && h("small", null, "更新于 ", formatIso(value.updatedAt))
           )
         ),
@@ -61,15 +66,16 @@ export function TaskDetailPanel(props) {
     ),
     h("div", { className: "aq-d-body" },
       loading[0] && h("div", { className: "aq-detail-loading", role: "status" }, "正在载入完整账本…"),
-      tab[0] === "overview" && h(OverviewTab, { task: value, attention: attention }),
+      tab[0] === "overview" && h(OverviewTab, { task: value, attention: attention, sessionId: sessionId }),
       tab[0] === "trace" && h(TraceTab, { task: value }),
       tab[0] === "report" && h(ReportTab, { reports: reports }),
       tab[0] === "policy" && h(PolicyTab, { task: value })
     ),
     h("div", { className: "aq-d-actions" },
       value.status === "pending" && h("button", { className: "aq-btn", onClick: openEdit, dangerouslySetInnerHTML: { __html: iconHtml("edit") + " 编辑" } }),
-      value.status === "running" && h("button", { className: "aq-btn danger", onClick: function () { doAction("stop"); } }, "停止"),
-      ["done", "failed", "stopped", "interrupted"].indexOf(value.status) >= 0 && !value.archivedAt && h("button", { className: "aq-btn success", onClick: function () { doAction("rerun"); } }, "重新执行"),
+      value.status === "pending" && h("button", { className: "aq-btn danger", onClick: function () { requestAction("delete"); } }, "删除"),
+      value.status === "running" && value.stopPending !== true && h("button", { className: "aq-btn danger", onClick: function () { requestAction("stop"); } }, "停止"),
+      ["done", "failed", "stopped", "interrupted"].indexOf(value.status) >= 0 && !value.archivedAt && h("button", { className: "aq-btn success", onClick: function () { requestAction("rerun"); } }, "重新执行"),
       value.status !== "running" && !value.archivedAt && h("button", { className: "aq-btn", onClick: function () { doAction("archive"); } }, "归档"),
       value.archivedAt && h("button", { className: "aq-btn", onClick: function () { doAction("restore"); } }, "恢复"),
       ["done", "failed", "stopped", "interrupted"].indexOf(value.status) >= 0 && !value.archivedAt && h("button", { className: "aq-btn", disabled: isUnread(value), onClick: function () { controller.markRead(value.key, false); } }, isUnread(value) ? "已是未读" : "标为未读"),
@@ -84,8 +90,8 @@ function OverviewTab(props) {
     h("section", { className: "aq-isolation-state " + (props.attention ? "attention" : "safe") },
       h("span", { className: "aq-isolation-mark", "aria-hidden": "true" }, props.attention ? "!" : "✓"),
       h("div", null,
-        h("strong", null, props.attention ? "任务已进入安全隔离" : (task.foregroundPaused === true ? "正在为 DSH 前台让行" : "隔离边界正常")),
-        h("p", null, props.attention ? isolationReason(task) : (task.foregroundPaused === true ? "Goal 已持久化暂停；确认前台空闲后无提示续跑" : "插件自有会话 · 独立工作目录 · 宿主前台优先"))
+        h("strong", null, props.attention ? "任务已进入安全隔离" : (task.stopPending === true ? "正在安全停止 owned session" : (task.foregroundPaused === true ? "正在为 DSH 前台让行" : "隔离边界正常"))),
+        h("p", null, props.attention ? isolationReason(task) : (task.stopPending === true ? "停止意图已持久化，等待会话双重 idle 确认后再结算" : (task.foregroundPaused === true ? "Goal 已持久化暂停；确认前台空闲后无提示续跑" : "插件自有会话 · 独立工作目录 · 宿主前台优先")))
       )
     ),
     h("section", { className: "aq-d-section" },
@@ -94,11 +100,11 @@ function OverviewTab(props) {
         h(Fact, { label: "优先级", value: String(task.priority || 5) }),
         h(Fact, { label: "派发尝试", value: String(task.attempts || 0) }),
         h(Fact, { label: "反阻塞恢复", value: String(task.blockedResumes || 0) }),
-        h(Fact, { label: "Goal 轮次", value: (task.currentRound || 0) + " / " + (task.maxGoalRounds || "—") }),
-        h(Fact, { label: "创建时间", value: task.createdAt ? formatIso(task.createdAt) : "—" }),
-        h(Fact, { label: "下一次运行", value: task.nextRunAt ? formatIso(task.nextRunAt) : "—" }),
-        h(Fact, { label: "会话归属", value: task.sessionId ? "AutoQueue owned" : "尚未创建" }),
-        h(Fact, { label: "当前阶段", value: task.goalPhase || task.status || "—" }),
+        h(Fact, { label: "Goal 轮次", value: (task.currentRound || 0) + " / " + (task.maxGoalRounds || "-") }),
+        h(Fact, { label: "创建时间", value: task.createdAt ? formatIso(task.createdAt) : "-" }),
+        h(Fact, { label: "下一次运行", value: task.nextRunAt ? formatIso(task.nextRunAt) : "-" }),
+        h(Fact, { label: "会话归属", value: props.sessionId ? "AutoQueue owned" : "尚未创建" }),
+        h(Fact, { label: "当前阶段", value: task.goalPhase || task.status || "-" }),
         h(Fact, { label: "前台让行", value: task.foregroundPaused === true ? "已暂停，等待双重空闲确认" : "未触发" })
       )
     ),
@@ -121,7 +127,7 @@ function TraceTab(props) {
       h("span", { className: "aq-eyebrow" }, "LIVE AUTONOMY PULSE"),
       h("div", { className: "aq-trace-line" },
         h(TracePoint, { label: "队列接收", done: true }), h("b", { className: "done" }),
-        h(TracePoint, { label: task.foregroundPaused === true ? "前台让行" : "Goal 推进", active: true }), h("b"),
+        h(TracePoint, { label: task.stopPending === true ? "停止收口" : (task.foregroundPaused === true ? "前台让行" : "Goal 推进"), active: true }), h("b"),
         h(TracePoint, { label: "反阻塞", done: (task.blockedResumes || 0) > 0 }), h("b"),
         h(TracePoint, { label: "安全收口" })
       )
@@ -133,7 +139,7 @@ function TraceTab(props) {
           var cfg = STATUS_CONFIG[execution.result] || { label: execution.result || "执行中", color: "#596579" };
           return h("article", { key: String(execution.attempt || index) + (execution.startedAt || "") },
             h("span", { className: "aq-exec-index" }, String(execution.attempt || executions.length - index).padStart(2, "0")),
-            h("div", null, h("strong", { style: { color: cfg.color } }, cfg.label), h("p", null, execution.startedAt ? formatIso(execution.startedAt) : "—", " → ", execution.endedAt ? formatIso(execution.endedAt) : "进行中"), execution.error && h("code", null, String(execution.error)))
+            h("div", null, h("strong", { style: { color: cfg.color } }, cfg.label), h("p", null, execution.startedAt ? formatIso(execution.startedAt) : "-", " → ", execution.endedAt ? formatIso(execution.endedAt) : "进行中"), execution.error && h("code", null, String(execution.error)))
           );
         }))
     )

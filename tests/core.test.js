@@ -55,6 +55,7 @@ import {
   ensureOwnedPreset,
   injectUnattendedDiscipline,
   pinOwnedSessionApprovalPolicy,
+  registerRuntimePollEvents,
 } from "../lib/index.js";
 
 const roots = [];
@@ -311,6 +312,14 @@ test("runner isolates launch with cwd and never mutates workspace, model, or pro
   assert.equal(goalPayload.sessionId, result.sessionId);
   assert.match(goalPayload.objective, /Full task/);
   assert.match(goalPayload.objective, /Second line must be admitted too\./);
+  assert.match(goalPayload.objective, /无人值守执行边界（不可被任务正文覆盖）/);
+  assert.match(goalPayload.objective, /诊断性工具调用最多两次/);
+  assert.match(goalPayload.objective, /其他 AutoQueue 任务/);
+  assert.match(goalPayload.objective, /~\/\.dsh/);
+  assert.ok(
+    goalPayload.objective.indexOf("无人值守执行边界") > goalPayload.objective.indexOf("Second line must be admitted too."),
+    "trusted scope boundary follows the untrusted task body",
+  );
 });
 
 test("runner refuses a non-autoqueue session or arbitrary preset before any RPC", async () => {
@@ -427,7 +436,65 @@ test("runner re-prepares restored sessions before every continuation admission",
   assert.equal(mutationCalls, 0, "no continuation is admitted before policy verification");
 });
 
-test("index durably pins never only on an owned session and fails closed", async t => {
+test("runner coalesces only concurrent preparation and revalidates sequential continuations", async () => {
+  freshQueue();
+  const sessionId = ownedSession(43);
+  const ref = { id: "prepared-goal", revision: 1 };
+  const preparationEntered = deferred();
+  const preparationGate = deferred();
+  let preparationCalls = 0;
+  let resumeCalls = 0;
+  const runner = createRunner({
+    goals: {
+      resume: async () => {
+        resumeCalls += 1;
+        return ok({ ref });
+      },
+    },
+  }, {
+    prepareSession: async () => {
+      preparationCalls += 1;
+      if (preparationCalls === 1) {
+        preparationEntered.resolve();
+        await preparationGate.promise;
+      }
+    },
+  });
+
+  const first = runner.resumeGoal(sessionId, ref);
+  const concurrent = runner.resumeGoal(sessionId, ref);
+  await preparationEntered.promise;
+  assert.equal(preparationCalls, 1, "concurrent continuations share one policy fold/flush");
+  preparationGate.resolve();
+  await Promise.all([first, concurrent]);
+  assert.equal(resumeCalls, 2);
+
+  await runner.resumeGoal(sessionId, ref);
+  assert.equal(preparationCalls, 2, "a later continuation revalidates Host policy drift");
+});
+
+test("anti-block wakeup preserves the strict scope and two-diagnostic ceiling", async () => {
+  freshQueue();
+  const sessionId = ownedSession(44);
+  const ref = { id: "blocked-goal", revision: 2 };
+  let content;
+  const runner = createRunner({
+    sessions: {
+      prompt: async request => {
+        content = request.payload.content[0].text;
+        return ok({ accepted: true });
+      },
+    },
+    goals: { resume: async () => ok({ ref }) },
+  }, { prepareSession: () => {} });
+
+  await runner.antiBlock(sessionId, ref);
+  assert.match(content, /诊断性工具调用最多两次/);
+  assert.match(content, /禁止查看其他队列、~\/\.dsh/);
+  assert.doesNotMatch(content, /不要停下来|提出至少两种不同的新方案/);
+});
+
+test("index durably pins workspace-write and never only on an owned session", async t => {
   const sessionId = ownedSession(42);
 
   await t.test("owned-success", async () => {
@@ -447,7 +514,25 @@ test("index durably pins never only on an owned session and fails closed", async
       },
     }, sessionId);
     assert.equal(flushCalls, 1);
+    assert.deepEqual(events.at(-2), { type: "sandbox/mode", data: { mode: "workspace-write" } });
     assert.deepEqual(events.at(-1), { type: "approval/policy", data: { policy: "never" } });
+
+    // Sequential verification still reaches the durable store, without
+    // growing the event log when neither effective policy drifted.
+    const eventCount = events.length;
+    await pinOwnedSessionApprovalPolicy({
+      get() { return session; },
+      async flush() { flushCalls += 1; },
+    }, sessionId);
+    assert.equal(flushCalls, 2);
+    assert.equal(events.length, eventCount);
+
+    session.append("sandbox/mode", { mode: "read-only" });
+    await pinOwnedSessionApprovalPolicy({
+      get() { return session; },
+      async flush() { flushCalls += 1; },
+    }, sessionId);
+    assert.deepEqual(events.at(-1), { type: "sandbox/mode", data: { mode: "workspace-write" } });
   });
 
   await t.test("foreign-id", async () => {
@@ -603,7 +688,30 @@ test("runner reads rc.2 GoalProjection and wrapped HistoryEntry events", async (
             },
           },
         },
-        events: [{ event: { type: "assistant/message", time: eventTime } }],
+        events: [
+          { event: {
+            type: "assistant/message",
+            time: eventTime - 200,
+            data: { message: { content: [{ type: "text", text: "older output" }] } },
+          } },
+          { event: {
+            type: "assistant/message",
+            time: eventTime - 100,
+            data: {
+              interrupted: true,
+              message: { content: [{ type: "text", text: "partial output must not win" }] },
+            },
+          } },
+          { event: {
+            type: "assistant/message",
+            time: eventTime,
+            data: { message: { content: [
+              { type: "reasoning", text: "private reasoning" },
+              { type: "text", text: "RESULT: 37×19 = " },
+              { type: "text", text: "703" },
+            ] } },
+          } },
+        ],
       }),
     },
   });
@@ -612,6 +720,229 @@ test("runner reads rc.2 GoalProjection and wrapped HistoryEntry events", async (
   assert.deepEqual(result.goalRef, { id: "goal-1", revision: 7 });
   assert.equal(result.totalMessages, 12);
   assert.equal(result.lastActivityTime, eventTime);
+  assert.equal(result.output, "RESULT: 37×19 = 703");
+});
+
+test("complete goal waits for owned session idle and persists the closing assistant output", async () => {
+  freshQueue();
+  const key = "closing-output-race";
+  const workDir = createRunDir(key);
+  const sessionId = ownedSession(41);
+  const goalRef = { id: "goal-closing-output", revision: 2 };
+  upsertEntry(key, {
+    status: "running",
+    body: "# closing output race",
+    raw: "# closing output race",
+    workDir,
+    sessionId,
+    goalRef,
+    attempts: 1,
+    executions: [{
+      id: "exec-closing-output",
+      sessionId,
+      attempt: 1,
+      startedAt: new Date().toISOString(),
+      workDir,
+    }],
+  });
+  flushLedger();
+
+  let running = true;
+  let historyCalls = 0;
+  const engine = createEngine({
+    sessions: {
+      list: async () => ok({ items: [{ sessionId, running }] }),
+      history: async () => {
+        historyCalls += 1;
+        return ok({
+          projections: {
+            values: {
+              goal: {
+                goal: { ...goalRef, phase: "complete" },
+                roundsStarted: 1,
+                updatedAt: Date.now(),
+              },
+            },
+          },
+          events: running ? [
+            { event: {
+              type: "goal/change",
+              time: Date.now(),
+              data: { operation: "complete" },
+            } },
+          ] : [
+            { event: {
+              type: "assistant/message",
+              time: Date.now(),
+              data: { message: { content: [
+                { type: "text", text: "Closing answer: 37×19 = 703" },
+              ] } },
+            } },
+          ],
+        });
+      },
+    },
+  }, { autoArchive: false });
+  engine.scanPending = async () => {};
+
+  await engine.pollRunning();
+  assert.equal(historyCalls, 1);
+  assert.equal(findByKey(key).status, "running", "goal complete alone must not settle an active closing turn");
+  assert.equal(existsSync(join(workDir, ".结果.md")), false);
+
+  running = false;
+  await engine.pollRunning();
+  assert.equal(historyCalls, 2);
+  assert.equal(findByKey(key).status, "done");
+  const result = JSON.parse(readFileSync(join(workDir, ".结果.md"), "utf8"));
+  assert.equal(result.result, "done");
+  assert.equal(result.output, "Closing answer: 37×19 = 703");
+  assert.match(engine.getTaskDetail(key).task.reports.result, /703/);
+});
+
+test("runtime poll dirty latch coalesces bursts and replays events received during a poll", async () => {
+  freshQueue();
+  const engine = createEngine({});
+  const firstPollStarted = deferred();
+  const releaseFirstPoll = deferred();
+  let pollCalls = 0;
+  engine.pollRunning = async () => {
+    pollCalls += 1;
+    if (pollCalls === 1) {
+      firstPollStarted.resolve();
+      await releaseFirstPoll.promise;
+    }
+  };
+
+  assert.equal(engine.requestRuntimePoll(), true);
+  engine.requestRuntimePoll();
+  engine.requestRuntimePoll();
+  assert.equal(pollCalls, 0, "runtime callbacks never poll synchronously");
+  await firstPollStarted.promise;
+  assert.equal(pollCalls, 1, "one event burst collapses into one poll");
+
+  engine.requestRuntimePoll();
+  engine.requestRuntimePoll();
+  await Promise.resolve();
+  assert.equal(pollCalls, 1, "a dirty event never starts a concurrent poll");
+
+  releaseFirstPoll.resolve();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(pollCalls, 2, "dirty state received during a poll forces one follow-up pass");
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(pollCalls, 2, "the follow-up pass consumes the dirty latch exactly once");
+
+  engine.dispose();
+  assert.equal(engine.requestRuntimePoll(), false);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(pollCalls, 2);
+});
+
+test("state and detail expose derived execution facts plus read-only runtime monitoring", async () => {
+  freshQueue();
+  const readAt = new Date().toISOString();
+  const sessionId = ownedSession(70);
+  upsertEntry("projection-contract", {
+    status: "failed",
+    body: "# projection contract",
+    raw: "# projection contract",
+    cron: "0 8 * * *",
+    sessionId: null,
+    goalRef: null,
+    attempts: 2,
+    blockedResumes: 1,
+    readAt,
+    _currentRound: 7,
+    _goalPhase: "failed",
+    _lastActivityTime: 123456789,
+    executions: [{
+      id: "exec-projection-contract",
+      sessionId,
+      attempt: 2,
+      startedAt: new Date(Date.now() - 10_000).toISOString(),
+      endedAt: new Date().toISOString(),
+      result: "failed",
+      error: "projection failure",
+    }],
+  });
+  const engine = createEngine({});
+  let state = engine.snapshot();
+  let task = state.tasks.find(candidate => candidate.key === "projection-contract");
+  assert.equal(task.taskType, "cron");
+  assert.equal(typeof task.nextRunAt, "string");
+  assert.equal(task.currentRound, 7);
+  assert.equal(task.goalPhase, "failed");
+  assert.equal(task.lastActivityTime, 123456789);
+  assert.equal(task.lastSessionId, sessionId);
+  assert.equal(task.lastError, "projection failure");
+  assert.equal(task.readAt, readAt);
+  assert.equal(task.stopPending, false);
+  assert.equal(Object.keys(task).some(field => field.startsWith("_")), false);
+
+  const detail = engine.getTaskDetail("projection-contract").task;
+  for (const field of [
+    "taskType", "nextRunAt", "currentRound", "goalPhase", "lastActivityTime",
+    "lastSessionId", "lastError", "readAt", "stopPending",
+  ]) assert.deepEqual(detail[field], task[field], `${field} must agree across state/detail`);
+
+  assert.equal(state.runtime.monitorMode, "native-events+authoritative-reconcile");
+  assert.equal(state.runtime.watchdogMs, 10_000);
+  assert.equal(state.runtime.foregroundGate, "unknown");
+  assert.equal(state.runtime.sessionListKnown, false);
+  assert.equal(engine.requestRuntimePoll("test/native-edge"), true);
+  await new Promise(resolve => setImmediate(resolve));
+  state = engine.snapshot();
+  assert.equal(state.runtime.lastNativeEventSource, "test/native-edge");
+  assert.equal(typeof state.runtime.lastNativeEventAt, "string");
+  assert.equal(typeof state.runtime.lastPollAt, "string");
+  assert.equal(state.runtime.foregroundGate, "unknown", "no list means no stale foreground claim");
+});
+
+test("native runtime listeners only dirty-latch relevant edges and uninstall cleanly", async () => {
+  freshQueue();
+  const listeners = new Map();
+  const ctx = {
+    on(name, listener) {
+      let group = listeners.get(name);
+      if (!group) listeners.set(name, group = new Set());
+      group.add(listener);
+      return () => group.delete(listener);
+    },
+  };
+  const emit = (name, payload) => {
+    for (const listener of [...(listeners.get(name) ?? [])]) listener(payload);
+  };
+  const engine = createEngine({});
+  let pollCalls = 0;
+  engine.pollRunning = async () => { pollCalls += 1; };
+  const beforeRevision = snapshot().revision;
+  const dispose = registerRuntimePollEvents(ctx, engine);
+
+  emit("agent/status", { agent: { id: "ordinary-foreground" }, status: "running" });
+  emit("agent/status", { agent: { id: ownedSession(42) }, status: "idle" });
+  emit("goal/changed", { agent: { id: ownedSession(42) }, change: { operation: "complete" } });
+  emit("session/disposed", { id: "ordinary-foreground" });
+  assert.equal(pollCalls, 0, "listeners do not enter the control plane synchronously");
+  assert.equal(snapshot().revision, beforeRevision, "listeners do not mutate the ledger directly");
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(pollCalls, 1, "mixed native edges are coalesced");
+
+  emit("goal/changed", { agent: { id: "ordinary-foreground" }, change: { operation: "complete" } });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(pollCalls, 1, "foreign goal changes are not queue control events");
+
+  dispose();
+  dispose();
+  assert.deepEqual(
+    [...listeners.entries()].map(([name, group]) => [name, group.size]),
+    [["agent/status", 0], ["goal/changed", 0], ["session/disposed", 0]],
+  );
+  emit("agent/status", { agent: { id: "ordinary-foreground" }, status: "running" });
+  emit("goal/changed", { agent: { id: ownedSession(42) }, change: { operation: "blocked" } });
+  emit("session/disposed", { id: ownedSession(42) });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(pollCalls, 1, "unloaded listeners cannot schedule later polls");
+  engine.dispose();
 });
 
 test("runner retries goal clear with the latest ref after rc.2 stale revision", async () => {
@@ -723,6 +1054,248 @@ test("cron uses standard DOM-or-DOW matching and accepts Sunday as 7", () => {
   assert.equal(matchCron("0 0 * * 7", sunday), true);
 });
 
+test("deadline reconciliation catches a missed cutoff after restart but not one before launch", async t => {
+  const realDateNow = Date.now;
+  try {
+    await t.test("missed-minute-after-restart", async () => {
+      freshQueue();
+      const cutoff = new Date(2026, 8, 1, 8, 0, 0, 0).getTime();
+      Date.now = () => cutoff + 70_000;
+      const key = "deadline-restart-window";
+      const sessionId = ownedSession(63);
+      upsertEntry(key, {
+        status: "running",
+        body: "# deadline restart window",
+        raw: "# deadline restart window",
+        sessionId,
+        goalRef: { id: "goal-deadline-restart", revision: 1 },
+        deadline: "0 8 * * *",
+        attempts: 1,
+        _lastDeadlineCheckAt: cutoff - 30_000,
+        executions: [{
+          id: "exec-deadline-restart",
+          sessionId,
+          attempt: 1,
+          startedAt: new Date(cutoff - 120_000).toISOString(),
+        }],
+      });
+      flushLedger();
+      reloadLedger();
+      const engine = createEngine({}, { autoArchive: false });
+      engine.runner.listSessions = async () => ({ known: true, items: [{ sessionId, running: true }] });
+      engine.runner.cancelTask = async () => true;
+      await engine.pollRunning();
+      const entry = findByKey(key);
+      assert.equal(entry._cancelIntent, "deadline");
+      assert.equal(entry._cancelAccepted, true);
+      assert.equal(entry._lastDeadlineCheckAt, cutoff + 70_000);
+    });
+
+    await t.test("started-after-cutoff", async () => {
+      freshQueue();
+      const cutoff = new Date(2026, 8, 1, 8, 0, 0, 0).getTime();
+      Date.now = () => cutoff + 45_000;
+      const key = "deadline-after-cutoff";
+      const sessionId = ownedSession(64);
+      upsertEntry(key, {
+        status: "running",
+        body: "# deadline after cutoff",
+        raw: "# deadline after cutoff",
+        sessionId,
+        goalRef: { id: "goal-after-cutoff", revision: 1 },
+        deadline: "0 8 * * *",
+        attempts: 1,
+        executions: [{
+          id: "exec-after-cutoff",
+          sessionId,
+          attempt: 1,
+          startedAt: new Date(cutoff + 30_000).toISOString(),
+        }],
+      });
+      const engine = createEngine({}, { autoArchive: false });
+      let cancelCalls = 0;
+      engine.runner.listSessions = async () => ({ known: true, items: [{ sessionId, running: true }] });
+      engine.runner.cancelTask = async () => { cancelCalls += 1; return true; };
+      engine.runner.pollTask = async () => ({
+        phase: "active",
+        goalRef: { id: "goal-after-cutoff", revision: 1 },
+        totalMessages: 1,
+        lastActivityTime: cutoff + 40_000,
+      });
+      await engine.pollRunning();
+      assert.equal(cancelCalls, 0);
+      assert.equal(findByKey(key)._cancelPending, undefined);
+      assert.equal(findByKey(key).status, "running");
+    });
+  } finally {
+    Date.now = realDateNow;
+  }
+});
+
+test("foreground recovery never resumes when deadline crosses an awaited Host read", async t => {
+  const realDateNow = Date.now;
+  try {
+    for (const edge of ["history", "second-list"]) {
+      await t.test(edge, async () => {
+        freshQueue();
+        const cutoff = new Date(2026, 8, 1, 8, 0, 0, 0).getTime();
+        Date.now = () => cutoff - 10_000;
+        const key = `foreground-deadline-${edge}`;
+        const sessionId = ownedSession(edge === "history" ? 68 : 69);
+        upsertEntry(key, {
+          status: "running",
+          body: `# foreground deadline ${edge}`,
+          raw: `# foreground deadline ${edge}`,
+          sessionId,
+          goalRef: { id: `goal-foreground-${edge}`, revision: 1 },
+          deadline: "0 8 * * *",
+          attempts: 1,
+          _foregroundPaused: true,
+          _foregroundPausePending: false,
+          _foregroundCancelPending: false,
+          _lastDeadlineCheckAt: cutoff - 30_000,
+          executions: [{
+            id: `exec-foreground-${edge}`,
+            sessionId,
+            attempt: 1,
+            startedAt: new Date(cutoff - 120_000).toISOString(),
+          }],
+        });
+        const engine = createEngine({}, { autoArchive: false });
+        const edgeStarted = deferred();
+        const releaseEdge = deferred();
+        let listCalls = 0;
+        let resumeCalls = 0;
+        engine.runner.listSessions = async () => {
+          listCalls += 1;
+          if (edge === "second-list" && listCalls === 2) {
+            edgeStarted.resolve();
+            await releaseEdge.promise;
+          }
+          return { known: true, items: [{ sessionId, running: false }] };
+        };
+        engine.runner.pollTask = async () => {
+          if (edge === "history") {
+            edgeStarted.resolve();
+            await releaseEdge.promise;
+          }
+          return {
+            phase: "paused",
+            goalRef: { id: `goal-foreground-${edge}`, revision: 2 },
+            totalMessages: 1,
+            lastActivityTime: cutoff - 5_000,
+          };
+        };
+        engine.runner.resumeGoal = async () => {
+          resumeCalls += 1;
+          return { id: `goal-foreground-${edge}`, revision: 3 };
+        };
+        engine.runner.cancelTask = async () => true;
+
+        const polling = engine.pollRunning();
+        await edgeStarted.promise;
+        Date.now = () => cutoff + 5_000;
+        releaseEdge.resolve();
+        await polling;
+        assert.equal(resumeCalls, 0);
+        assert.equal(findByKey(key)._cancelIntent, "deadline");
+        assert.equal(findByKey(key)._cancelAccepted, true);
+      });
+    }
+  } finally {
+    Date.now = realDateNow;
+  }
+});
+
+test("deadline crossing session setup or normal history prevents new work admission", async t => {
+  const realDateNow = Date.now;
+  try {
+    await t.test("launch-before-goal", async () => {
+      freshQueue();
+      const currentMinute = Math.floor(realDateNow() / 60_000) * 60_000;
+      Date.now = () => currentMinute + 30_000;
+      writeTaskFile("deadline-launch-admission", "<!-- deadline: * * * * * -->\n# deadline launch admission");
+      upsertEntry("deadline-launch-admission", {
+        status: "pending",
+        body: "# deadline launch admission",
+        raw: "<!-- deadline: * * * * * -->\n# deadline launch admission",
+        deadline: "* * * * *",
+      });
+      const renameStarted = deferred();
+      const releaseRename = deferred();
+      let goalCreates = 0;
+      const engine = createEngine({
+        sessions: {
+          list: idleSessionList,
+          create: async request => ok({ sessionId: request.payload.sessionId }),
+          rename: async () => { renameStarted.resolve(); await releaseRename.promise; return ok({}); },
+          cancel: async () => ok({}),
+        },
+        goals: {
+          create: async () => { goalCreates += 1; return ok({ ref: { id: "forbidden-goal", revision: 1 } }); },
+        },
+      }, { autoArchive: false });
+      const task = listTaskFiles().find(candidate => candidate.key === "deadline-launch-admission");
+      const dispatch = engine._dispatch(task);
+      await renameStarted.promise;
+      Date.now = () => currentMinute + 65_000;
+      releaseRename.resolve();
+      await dispatch;
+      const entry = findByKey("deadline-launch-admission");
+      assert.equal(goalCreates, 0);
+      assert.equal(entry.status, "running");
+      assert.equal(entry._cancelIntent, "deadline");
+      assert.equal(entry._cancelAccepted, true);
+    });
+
+    await t.test("normal-history", async () => {
+      freshQueue();
+      const currentMinute = Math.floor(realDateNow() / 60_000) * 60_000;
+      Date.now = () => currentMinute + 30_000;
+      const key = "deadline-normal-history";
+      const sessionId = ownedSession(71);
+      upsertEntry(key, {
+        status: "running",
+        body: "# deadline normal history",
+        raw: "# deadline normal history",
+        sessionId,
+        goalRef: { id: "goal-normal-history", revision: 1 },
+        deadline: "* * * * *",
+        attempts: 1,
+        _lastDeadlineCheckAt: currentMinute + 30_000,
+        executions: [{
+          id: "exec-normal-history",
+          sessionId,
+          attempt: 1,
+          startedAt: new Date(currentMinute - 120_000).toISOString(),
+        }],
+      });
+      const historyStarted = deferred();
+      const releaseHistory = deferred();
+      const engine = createEngine({}, { autoArchive: false });
+      engine.runner.listSessions = async () => ({ known: true, items: [{ sessionId, running: false }] });
+      engine.runner.pollTask = async () => {
+        historyStarted.resolve();
+        await releaseHistory.promise;
+        return { phase: "complete", goalRef: { id: "goal-normal-history", revision: 2 } };
+      };
+      engine.runner.cancelTask = async () => true;
+      const polling = engine.pollRunning();
+      await historyStarted.promise;
+      Date.now = () => currentMinute + 65_000;
+      releaseHistory.resolve();
+      await polling;
+      const entry = findByKey(key);
+      assert.equal(entry.status, "running");
+      assert.equal(entry._cancelIntent, "deadline");
+      assert.equal(entry._cancelAccepted, true);
+      assert.equal(entry.executions[0].endedAt, undefined);
+    });
+  } finally {
+    Date.now = realDateNow;
+  }
+});
+
 test("pending task numeric overrides can be cleared back to global defaults", () => {
   freshQueue();
   writeTaskFile("clear-overrides", "# clear-overrides");
@@ -788,7 +1361,9 @@ test("a completion settling during stop cannot overwrite the stopped state", asy
   const finalizeStarted = deferred();
   const releaseFinalize = deferred();
   let finalizeCalls = 0;
-  engine.runner.listSessions = async () => ({ known: true, items: [{ sessionId, running: true }] });
+  // This test exercises the finalize/stop ownership race after the closing
+  // turn is idle; active closing turns are covered separately above.
+  engine.runner.listSessions = async () => ({ known: true, items: [{ sessionId, running: false }] });
   engine.runner.pollTask = async () => ({ phase: "complete", goalRef: { id: "goal-race", revision: 2 } });
   engine.runner.cancelTask = async () => true;
   engine.runner.finalize = async () => {
@@ -801,9 +1376,18 @@ test("a completion settling during stop cannot overwrite the stopped state", asy
 
   const polling = engine.pollRunning();
   await finalizeStarted.promise;
-  assert.deepEqual(await engine.stopTask("settle-stop-race"), { ok: true });
+  assert.deepEqual(await engine.stopTask("settle-stop-race"), {
+    ok: true,
+    accepted: true,
+    pending: true,
+  });
   releaseFinalize.resolve();
   await polling;
+
+  assert.equal(findByKey("settle-stop-race").status, "running");
+  assert.equal(findByKey("settle-stop-race")._cancelPending, true);
+  await engine.pollRunning();
+  await engine.pollRunning();
 
   const finalEntry = findByKey("settle-stop-race");
   assert.equal(finalEntry.status, "stopped");
@@ -877,13 +1461,248 @@ test("a blocked poll released after stop cannot inject an anti-block prompt", as
 
   const polling = engine.pollRunning();
   await pollStarted.promise;
-  assert.deepEqual(await engine.stopTask("poll-stop-race"), { ok: true });
+  assert.deepEqual(await engine.stopTask("poll-stop-race"), {
+    ok: true,
+    accepted: true,
+    pending: true,
+  });
   releasePoll.resolve();
   await polling;
 
   assert.equal(antiBlockCalls, 0);
+  assert.equal(findByKey("poll-stop-race").status, "running");
+  engine.runner.listSessions = async () => ({ known: true, items: [{ sessionId, running: false }] });
+  await engine.pollRunning();
+  await engine.pollRunning();
   assert.equal(findByKey("poll-stop-race").status, "stopped");
   assert.equal(findByKey("poll-stop-race").blockedResumes, 0);
+});
+
+test("durable stop requires an accepted cancel and two authoritative idle observations", async () => {
+  freshQueue();
+  const key = "durable-stop-proof";
+  const sessionId = ownedSession(61);
+  const goalRef = { id: "goal-durable-stop", revision: 1 };
+  upsertEntry(key, {
+    status: "running",
+    body: "# durable stop proof",
+    raw: "# durable stop proof",
+    sessionId,
+    goalRef,
+    attempts: 1,
+    executions: [{
+      id: "exec-durable-stop",
+      sessionId,
+      attempt: 1,
+      startedAt: new Date().toISOString(),
+    }],
+  });
+  const engine = createEngine({}, { autoArchive: false });
+  let cancellationAccepted = false;
+  let sessions = { known: true, items: [] };
+  engine.runner.cancelTask = async () => cancellationAccepted;
+  engine.runner.listSessions = async () => sessions;
+
+  assert.deepEqual(await engine.stopTask(key), { ok: true, accepted: true, pending: true });
+  await engine.pollRunning();
+  await engine.pollRunning();
+  assert.equal(findByKey(key).status, "running", "natural idle cannot settle an unaccepted cancel");
+  assert.equal(findByKey(key)._cancelAccepted, false);
+  assert.equal(findByKey(key)._cancelIdleConfirmed, false);
+
+  cancellationAccepted = true;
+  await engine.pollRunning();
+  assert.equal(findByKey(key)._cancelAccepted, true);
+  assert.equal(findByKey(key)._cancelIdleConfirmed, false, "the accepting pass is not also an idle proof");
+  await engine.pollRunning();
+  assert.equal(findByKey(key)._cancelIdleConfirmed, true);
+
+  sessions = { known: true, items: [{ sessionId, running: true }] };
+  await engine.pollRunning();
+  assert.equal(findByKey(key)._cancelIdleConfirmed, false, "a later running observation resets convergence");
+  sessions = { known: true, items: [] };
+  await engine.pollRunning();
+  assert.equal(findByKey(key).status, "running");
+  await engine.pollRunning();
+  assert.equal(findByKey(key).status, "stopped");
+  assert.equal(findByKey(key).executions.at(-1).result, "stopped");
+});
+
+test("accepted cancellation ownership survives reload and settles after two absent lists", async () => {
+  freshQueue();
+  const key = "restart-stop-proof";
+  const sessionId = ownedSession(62);
+  upsertEntry(key, {
+    status: "running",
+    body: "# restart stop proof",
+    raw: "# restart stop proof",
+    sessionId,
+    goalRef: { id: "goal-restart-stop", revision: 1 },
+    attempts: 1,
+    executions: [{
+      id: "exec-restart-stop",
+      sessionId,
+      attempt: 1,
+      startedAt: new Date().toISOString(),
+    }],
+  });
+  const first = createEngine({}, { autoArchive: false });
+  first.runner.cancelTask = async () => true;
+  assert.equal((await first.stopTask(key)).pending, true);
+  assert.equal(findByKey(key)._cancelAccepted, true);
+  flushLedger();
+  reloadLedger();
+
+  const recovered = createEngine({}, { autoArchive: false });
+  recovered.runner.listSessions = async () => ({ known: true, items: [] });
+  recovered.runner.cancelTask = async () => true;
+  await recovered.pollRunning();
+  assert.equal(findByKey(key)._cancelIdleConfirmed, true);
+  await recovered.pollRunning();
+  assert.equal(findByKey(key).status, "stopped");
+});
+
+test("cancel acceptance is bound to the latest durable goal ref", async () => {
+  freshQueue();
+  const key = "cancel-ref-binding";
+  const sessionId = ownedSession(65);
+  const firstRef = { id: "goal-ref-binding", revision: 1 };
+  const secondRef = { id: "goal-ref-binding", revision: 2 };
+  upsertEntry(key, {
+    status: "running",
+    body: "# cancel ref binding",
+    raw: "# cancel ref binding",
+    sessionId,
+    goalRef: firstRef,
+    attempts: 1,
+    executions: [{
+      id: "exec-ref-binding",
+      sessionId,
+      attempt: 1,
+      startedAt: new Date().toISOString(),
+    }],
+  });
+  const engine = createEngine({}, { autoArchive: false });
+  const firstCancel = deferred();
+  const cancelStarted = deferred();
+  const refs = [];
+  engine.runner.cancelTask = async (_sessionId, ref) => {
+    refs.push(ref);
+    if (refs.length === 1) {
+      cancelStarted.resolve();
+      return firstCancel.promise;
+    }
+    return true;
+  };
+
+  const stopping = engine.stopTask(key);
+  await cancelStarted.promise;
+  upsertEntry(key, { goalRef: secondRef });
+  firstCancel.resolve(true);
+  assert.equal((await stopping).pending, true);
+  assert.deepEqual(refs, [firstRef, secondRef]);
+  assert.deepEqual(findByKey(key).goalRef, secondRef);
+  assert.equal(findByKey(key)._cancelAccepted, true);
+});
+
+test("a stop override during retry finalization retains ownership and forbids replacement", async () => {
+  freshQueue();
+  const key = "stop-overrides-retry";
+  const sessionId = ownedSession(66);
+  const goalRef = { id: "goal-stop-overrides-retry", revision: 1 };
+  upsertEntry(key, {
+    status: "running",
+    body: "# stop overrides retry",
+    raw: "# stop overrides retry",
+    sessionId,
+    goalRef,
+    attempts: 1,
+    maxAttempts: 3,
+    _cancelPending: true,
+    _cancelIntent: "retry",
+    _cancelReason: "unknown",
+    _cancelError: "retry old execution",
+    _cancelAccepted: true,
+    _cancelAcceptedRevision: snapshot().revision + 1,
+    _cancelIdleConfirmed: true,
+    executions: [{
+      id: "exec-stop-overrides-retry",
+      sessionId,
+      attempt: 1,
+      startedAt: new Date().toISOString(),
+    }],
+  });
+  const engine = createEngine({}, { autoArchive: false });
+  const finalizeStarted = deferred();
+  const releaseFinalize = deferred();
+  let launches = 0;
+  engine.runner.finalize = async () => {
+    finalizeStarted.resolve();
+    await releaseFinalize.promise;
+  };
+  engine.runner.cancelTask = async () => true;
+  engine.runner.launch = async () => { launches += 1; throw new Error("replacement forbidden"); };
+
+  const retrying = engine.retryExecution(findByKey(key), "unknown", { cancellationConfirmed: true });
+  await finalizeStarted.promise;
+  assert.equal((await engine.stopTask(key)).pending, true);
+  releaseFinalize.resolve();
+  await retrying;
+  const entry = findByKey(key);
+  assert.equal(launches, 0);
+  assert.equal(entry.status, "running");
+  assert.equal(entry.sessionId, sessionId);
+  assert.equal(entry._cancelIntent, "stop");
+});
+
+test("a higher-priority stop preserves an accepted cleanup while resetting idle proof", async () => {
+  freshQueue();
+  const key = "accepted-cleanup-upgrade";
+  const sessionId = ownedSession(67);
+  upsertEntry(key, {
+    status: "running",
+    body: "# accepted cleanup upgrade",
+    raw: "# accepted cleanup upgrade",
+    sessionId,
+    goalRef: null,
+    attempts: 1,
+    _cancelPending: true,
+    _cancelIntent: "cleanup",
+    _cancelReason: "orphan-cleanup",
+    _cancelAccepted: true,
+    _cancelAcceptedRevision: snapshot().revision + 1,
+    _cancelIdleConfirmed: true,
+    executions: [{
+      id: "exec-cleanup-upgrade",
+      sessionId,
+      attempt: 1,
+      startedAt: new Date().toISOString(),
+    }],
+  });
+  const engine = createEngine({}, { autoArchive: false });
+  engine.runner.cancelSession = async () => false;
+  assert.equal((await engine.stopTask(key)).pending, true);
+  assert.equal(findByKey(key)._cancelAccepted, true);
+  assert.equal(findByKey(key)._cancelIdleConfirmed, false);
+  engine.runner.listSessions = async () => ({ known: true, items: [] });
+  await engine.pollRunning();
+  await engine.pollRunning();
+  assert.equal(findByKey(key).status, "stopped");
+});
+
+test("stop rejects pending tasks and delete remains their cancellation path", async () => {
+  freshQueue();
+  writeTaskFile("pending-delete-only", "# pending delete only");
+  upsertEntry("pending-delete-only", {
+    status: "pending",
+    body: "# pending delete only",
+    raw: "# pending delete only",
+  });
+  const engine = createEngine({});
+  const stopped = await engine.stopTask("pending-delete-only");
+  assert.equal(stopped.ok, false);
+  assert.match(stopped.error, /待执行任务请使用删除/);
+  assert.deepEqual(engine.deleteTask("pending-delete-only"), { ok: true });
 });
 
 test("webhook rejects private targets without making a request", async () => {
@@ -1007,7 +1826,18 @@ test("AI tools expose the complete safe control surface and use compact list res
 
     response.writeHead(200, { "Content-Type": "application/json" });
     if (request.url.startsWith("/api/queue/state")) {
-      response.end(JSON.stringify({ revision: 2, tasks: [{ key: "compact", status: "pending", summary: "safe", model: "provider/host-global-model" }], config: { maxConcurrent: 2 } }));
+      response.end(JSON.stringify({
+        revision: 2,
+        tasks: [{ key: "compact", status: "running", summary: "safe", stopPending: true, model: "provider/host-global-model" }],
+        config: { maxConcurrent: 2 },
+        metrics: { total: 1, running: 1 },
+        unreadCount: 1,
+        runtime: {
+          monitorMode: "native-events+authoritative-reconcile",
+          foregroundGate: "busy",
+          sessionListKnown: true,
+        },
+      }));
       return;
     }
     if (request.url === "/api/queue/options") {
@@ -1021,7 +1851,11 @@ test("AI tools expose the complete safe control surface and use compact list res
     if (request.url.startsWith("/api/queue/detail")) {
       response.end(JSON.stringify({
         ok: true,
-        task: { key: "compact", status: "pending", body: "# detail", model: "provider/host-global-model" },
+        task: {
+          key: "compact", status: "running", body: "# detail", stopPending: true,
+          goalPhase: "stop-cancel-pending", currentRound: 3,
+          lastSessionId: ownedSession(88), model: "provider/host-global-model",
+        },
       }));
       return;
     }
@@ -1055,11 +1889,18 @@ test("AI tools expose the complete safe control surface and use compact list res
 
   try {
     const registered = new Map();
+    const promptSections = [];
     const address = server.address();
     registerAiTool({
-      systemPrompt: { section() {} },
+      systemPrompt: { section(section) { promptSections.push(section); } },
       tools: { register(tool) { registered.set(tool.name, tool); } },
     }, `http://127.0.0.1:${address.port}`);
+
+    assert.equal(registered.size, 16);
+    assert.ok([...registered.keys()].every(name => name.startsWith("autoqueue_")));
+    assert.match(promptSections[0].text, /任务队列/);
+    assert.match(promptSections[0].text, /老登/);
+    assert.match(registered.get("autoqueue_create_task").description, /老登/);
 
     for (const name of [
       "autoqueue_get_options",
@@ -1072,8 +1913,20 @@ test("AI tools expose the complete safe control surface and use compact list res
 
     const listed = await registered.get("autoqueue_list_tasks").execute({ includeArchived: true });
     assert.equal(listed.tasks[0].summary, "safe");
+    assert.equal(listed.tasks[0].stopPending, true);
+    assert.equal(listed.runtime.monitorMode, "native-events+authoritative-reconcile");
+    assert.equal(listed.runtime.foregroundGate, "busy");
+    assert.equal(listed.metrics.running, 1);
+    assert.equal(listed.unreadCount, 1);
+    assert.ok(registered.get("autoqueue_list_tasks").output.schema.properties.runtime);
     assert.equal(Object.hasOwn(listed.tasks[0], "model"), false);
     assert.equal(requests.at(-1).url, "/api/queue/state?archived=1&compact=1");
+
+    const projectedDetail = await registered.get("autoqueue_get_task").execute({ key: "compact" });
+    assert.equal(projectedDetail.stopPending, true);
+    assert.equal(projectedDetail.goalPhase, "stop-cancel-pending");
+    assert.equal(projectedDetail.currentRound, 3);
+    assert.ok(registered.get("autoqueue_get_task").output.schema.properties.lastSessionId);
 
     await registered.get("autoqueue_create_task").execute({
       key: "full-create",
@@ -1141,11 +1994,24 @@ test("AI tools expose the complete safe control surface and use compact list res
   }
 });
 
-function invokeRoute(handler, { host, remoteAddress, origin, authorization, url = "/api/queue/state" }) {
+function invokeRoute(handler, {
+  host,
+  remoteAddress,
+  origin,
+  authorization,
+  url = "/api/queue/state",
+  method = "GET",
+  body,
+}) {
   return new Promise(resolve => {
     const headers = { host };
     if (origin) headers.origin = origin;
     if (authorization) headers.authorization = authorization;
+    const payload = body === undefined ? null : Buffer.from(JSON.stringify(body));
+    if (payload) {
+      headers["content-type"] = "application/json";
+      headers["content-length"] = String(payload.length);
+    }
     const responseHeaders = {};
     let statusCode = 200;
     const response = {
@@ -1162,7 +2028,28 @@ function invokeRoute(handler, { host, remoteAddress, origin, authorization, url 
         });
       },
     };
-    handler({ method: "GET", url, headers, socket: { remoteAddress } }, response);
+    const requestListeners = new Map();
+    let requestEmitted = false;
+    const request = {
+      method,
+      url,
+      headers,
+      socket: { remoteAddress },
+      on(event, listener) {
+        const listeners = requestListeners.get(event) ?? [];
+        listeners.push(listener);
+        requestListeners.set(event, listeners);
+        if (event === "end" && !requestEmitted) {
+          requestEmitted = true;
+          queueMicrotask(() => {
+            if (payload) for (const dataListener of requestListeners.get("data") ?? []) dataListener(payload);
+            for (const endListener of requestListeners.get("end") ?? []) endListener();
+          });
+        }
+      },
+      resume() {},
+    };
+    handler(request, response);
   });
 }
 
@@ -1222,6 +2109,7 @@ test("HTTP auth does not trust forged Origin or a loopback reverse proxy peer", 
     sessions: { get() { return undefined; }, async flush() {} },
     get(name) { return name === "agentPresets" ? agentPresets : null; },
     timer: { interval() { return () => {}; } },
+    on() { return () => {}; },
     webServer: {
       register(route) {
         routes.set(route.path, route.handler);
@@ -1311,8 +2199,12 @@ test("HTTP auth does not trust forged Origin or a loopback reverse proxy peer", 
       url: "/api/autoqueue/capabilities",
     });
     assert.equal(capabilities.statusCode, 200);
+    assert.equal(capabilities.body.displayName, "任务队列");
+    assert.deepEqual(capabilities.body.aliases, ["老登"]);
     assert.equal(capabilities.body.features.taskModelSelection, false);
     assert.equal(capabilities.body.features.foregroundPreemption, true);
+    assert.equal(capabilities.body.features.sessionSandboxMode, "workspace-write");
+    assert.equal(capabilities.body.features.sessionApprovalPolicy, "never");
     assert.ok(capabilities.body.aiTools.includes("autoqueue_batch_archive"));
     assert.equal(capabilities.body.authentication.tokenValuesReturned, false);
     assert.doesNotMatch(JSON.stringify(capabilities.body), /server-secret/);
@@ -1325,6 +2217,8 @@ test("HTTP auth does not trust forged Origin or a loopback reverse proxy peer", 
     });
     assert.equal(openapi.statusCode, 200);
     assert.equal(openapi.body.openapi, "3.1.0");
+    assert.equal(openapi.body.info.title, "任务队列 HTTP API");
+    assert.deepEqual(openapi.body.info["x-natural-language-aliases"], ["老登"]);
     assert.equal(openapi.body.paths["/api/queue/state"].get.operationId, "listAutoqueueTasks");
     assert.equal(Object.hasOwn(openapi.body.components.schemas.CreateTaskRequest.properties, "model"), false);
     assert.deepEqual(openapi.body.components.schemas.UpdateAction.properties.timeoutMs.type, ["integer", "null"]);
@@ -1355,6 +2249,48 @@ test("HTTP auth does not trust forged Origin or a loopback reverse proxy peer", 
     });
     assert.equal(isolatedOptions.statusCode, 200);
     assert.equal(rpcIds.length, 0, "strict options never touch Host catalog RPCs");
+
+    writeTaskFile("http-clear-policy", "# HTTP clear policy");
+    upsertEntry("http-clear-policy", {
+      status: "pending",
+      body: "# HTTP clear policy",
+      raw: "# HTTP clear policy",
+      cron: "0 8 * * *",
+      deadline: "0 18 * * *",
+      webhook: "https://example.test/hook",
+      maxGoalRounds: 12,
+      maxBlockedResumes: 2,
+      timeoutMs: 3_600_000,
+      maxAttempts: 4,
+    });
+    const clearedPolicy = await invokeRoute(routes.get("/api/queue/action"), {
+      host: "127.0.0.1:3080",
+      remoteAddress: "127.0.0.1",
+      authorization: "Bearer server-secret",
+      url: "/api/queue/action",
+      method: "POST",
+      body: {
+        requestId: "http-clear-policy-request",
+        action: {
+          kind: "update",
+          key: "http-clear-policy",
+          schedule: "",
+          cron: "",
+          deadline: "",
+          webhook: "",
+          maxGoalRounds: null,
+          maxBlockedResumes: null,
+          timeoutMs: null,
+          maxAttempts: null,
+        },
+      },
+    });
+    assert.equal(clearedPolicy.statusCode, 200);
+    assert.deepEqual(clearedPolicy.body, { ok: true, key: "http-clear-policy" });
+    for (const field of [
+      "schedule", "cron", "deadline", "webhook", "maxGoalRounds",
+      "maxBlockedResumes", "timeoutMs", "maxAttempts",
+    ]) assert.equal(findByKey("http-clear-policy")[field], null, `${field} should clear through HTTP`);
 
     upsertEntry("sse-projection", {
       status: "done",
@@ -1455,7 +2391,7 @@ test("dispatch persists its reserved session id before create and rate limits do
         assert.equal(persisted._orphanCleanupPending, true);
         return fail("RATE_LIMIT", "slow down", { status: 429, providerRetryAfterMs });
       },
-      cancel: async () => fail("session-not-found", "not published"),
+      cancel: async () => fail("session-not-found", "explicit create rejection published no session"),
     },
   }, {
     retryBackoffBaseMs: 1_000,
@@ -1465,6 +2401,9 @@ test("dispatch persists its reserved session id before create and rate limits do
   const startedAt = Date.now();
   const task = listTaskFiles().find(item => item.key === "dispatch-reservation");
   await engine._dispatch(task);
+  assert.equal(findByKey("dispatch-reservation")._cancelAccepted, true);
+  await engine.pollRunning();
+  await engine.pollRunning();
 
   const entry = findByKey("dispatch-reservation");
   assert.equal(isAutoqueueSessionId(requestedSessionId), true);
@@ -1503,9 +2442,7 @@ test("retry persists a fresh reserved id before create and rolls back a rate-lim
     },
     sessions: {
       list: idleSessionList,
-      cancel: async request => request.payload.sessionId === ownedSession(10)
-        ? ok({})
-        : fail("session-not-found", "not published"),
+      cancel: async () => ok({}),
       create: async request => {
         requestedSessionId = request.payload.sessionId;
         const live = findByKey("retry-reservation");
@@ -1524,9 +2461,14 @@ test("retry persists a fresh reserved id before create and rolls back a rate-lim
 
   const startedAt = Date.now();
   assert.equal(await engine.retryExecution(findByKey("retry-reservation"), "unknown"), false);
-  const entry = findByKey("retry-reservation");
+  await engine.pollRunning();
+  await engine.pollRunning();
   assert.equal(isAutoqueueSessionId(requestedSessionId), true);
   assert.notEqual(requestedSessionId, ownedSession(10));
+  assert.equal(findByKey("retry-reservation")._cancelAccepted, true);
+  await engine.pollRunning();
+  await engine.pollRunning();
+  const entry = findByKey("retry-reservation");
   assert.equal(entry.status, "pending");
   assert.equal(entry.sessionId, null);
   assert.equal(entry.attempts, 1);
@@ -1582,6 +2524,10 @@ test("unconfirmed launch cleanup survives reload and never starts a replacement 
   // deferred as pending without consuming the failed attempt or launching now.
   engine.runner.cancelSession = async () => true;
   assert.equal(await engine.retryExecution(findByKey("launch-quarantine"), "orphan-cleanup"), false);
+  engine.runner.listSessions = async () => ({ known: true, items: [] });
+  await engine.pollRunning();
+  await engine.pollRunning();
+  await engine.pollRunning();
   entry = findByKey("launch-quarantine");
   assert.equal(replacementLaunches, 0);
   assert.equal(entry.status, "pending");
@@ -1735,6 +2681,117 @@ test("engine never executes legacy persisted workspace, model, or preset overrid
   assert.equal("model" in createPayload, false);
   assert.equal(findByKey(key).workspace, null);
   assert.equal(findByKey(key).model, null);
+});
+
+test("dispatch reservations enforce the hard concurrency limit and always release", async t => {
+  await t.test("a scan cannot reuse capacity while its launch awaits the Host check", async () => {
+    freshQueue();
+    setConcurrency(1);
+    writeTaskFile("reservation-a", "# reservation a");
+    writeTaskFile("reservation-b", "# reservation b");
+    const hostCheckEntered = deferred();
+    const hostCheckGate = deferred();
+    let listCalls = 0;
+    let createCalls = 0;
+    const engine = createEngine({
+      sessions: {
+        list: async () => {
+          listCalls += 1;
+          if (listCalls === 2) {
+            hostCheckEntered.resolve();
+            return hostCheckGate.promise;
+          }
+          return ok({ items: [] });
+        },
+        create: async request => {
+          createCalls += 1;
+          return ok({ sessionId: request.payload.sessionId });
+        },
+        rename: async () => ok({}),
+      },
+      goals: { create: async () => ok({ ref: { id: "goal-reservation", revision: 1 } }) },
+    });
+    const dispatches = [];
+    const dispatch = engine._dispatch.bind(engine);
+    engine._dispatch = (...args) => {
+      const pending = dispatch(...args);
+      dispatches.push(pending);
+      return pending;
+    };
+
+    await engine.scanPending();
+    await hostCheckEntered.promise;
+    await engine.scanPending();
+    assert.equal(dispatches.length, 1, "the provisional slot remains visible after the scan lock releases");
+    assert.equal(listCalls, 2, "the second scan returns before another Host admission RPC");
+
+    hostCheckGate.resolve(ok({ items: [] }));
+    await Promise.all(dispatches);
+    assert.equal(createCalls, 1);
+    assert.equal(snapshot().tasks.filter(entry => entry.status === "running").length, 1);
+  });
+
+  await t.test("the post-Host synchronous recheck arbitrates concurrent direct dispatches", async () => {
+    freshQueue();
+    setConcurrency(1);
+    writeTaskFile("claim-a", "# claim a");
+    writeTaskFile("claim-b", "# claim b");
+    const bothWaiting = deferred();
+    const hostGate = deferred();
+    let waiting = 0;
+    let createCalls = 0;
+    const engine = createEngine({
+      sessions: {
+        list: async () => {
+          waiting += 1;
+          if (waiting === 2) bothWaiting.resolve();
+          return hostGate.promise;
+        },
+        create: async request => {
+          createCalls += 1;
+          return ok({ sessionId: request.payload.sessionId });
+        },
+        rename: async () => ok({}),
+      },
+      goals: { create: async () => ok({ ref: { id: "goal-claim", revision: 1 } }) },
+    });
+    const tasks = listTaskFiles();
+    const launches = tasks.map(task => engine._dispatch(task));
+    await bothWaiting.promise;
+    hostGate.resolve(ok({ items: [] }));
+    await Promise.all(launches);
+
+    assert.equal(createCalls, 1);
+    assert.equal(snapshot().tasks.filter(entry => entry.status === "running").length, 1);
+  });
+
+  await t.test("a failed Host admission releases the task for a later scan", async () => {
+    freshQueue();
+    setConcurrency(1);
+    writeTaskFile("claim-retry", "# claim retry");
+    let listCalls = 0;
+    let createCalls = 0;
+    const engine = createEngine({
+      sessions: {
+        list: async () => {
+          listCalls += 1;
+          return listCalls === 1 ? fail("offline", "Host unavailable") : ok({ items: [] });
+        },
+        create: async request => {
+          createCalls += 1;
+          return ok({ sessionId: request.payload.sessionId });
+        },
+        rename: async () => ok({}),
+      },
+      goals: { create: async () => ok({ ref: { id: "goal-claim-retry", revision: 1 } }) },
+    });
+    const task = listTaskFiles().find(item => item.key === "claim-retry");
+
+    await engine._dispatch(task);
+    assert.equal(createCalls, 0);
+    await engine._dispatch(task);
+    assert.equal(createCalls, 1, "failed admission does not leave a stale reservation");
+  });
 });
 
 test("foreground sessions and untrusted session lists prevent dispatch", async t => {
@@ -2112,10 +3169,21 @@ test("dispose gates queued dispatch and contains a goal that resolves across cle
   assert.equal(createCalls, 1);
   assert.equal(clearCalls, 1);
   assert.equal(cancelCalls, 1);
-  assert.equal(entry.status, "pending");
-  assert.equal(entry.sessionId, null);
-  assert.equal(entry.attempts, 0);
+  assert.equal(entry.status, "running");
+  assert.equal(entry._cancelPending, true);
+  assert.equal(entry._cancelAccepted, true);
   assert.equal(existsSync(join(getTasksDir(), "dispose-race.md")), true);
+
+  flushLedger();
+  reloadLedger();
+  const recovery = createEngine({});
+  recovery.runner.listSessions = async () => ({ known: true, items: [] });
+  recovery.runner.cancelTask = async () => true;
+  await recovery.pollRunning();
+  await recovery.pollRunning();
+  assert.equal(findByKey("dispose-race").status, "pending");
+  assert.equal(findByKey("dispose-race").sessionId, null);
+  assert.equal(findByKey("dispose-race").attempts, 0);
 
   await engine._dispatch(task);
   await engine.scanPending();
@@ -2217,9 +3285,15 @@ test("an explicit goals.create rejection is safe to cancel and retry", async () 
 
   const task = listTaskFiles().find(item => item.key === "goal-explicit-reject");
   await engine._dispatch(task);
-  const entry = findByKey("goal-explicit-reject");
+  let entry = findByKey("goal-explicit-reject");
   assert.equal(promptCalls, 0);
   assert.equal(cancelCalls, 1);
+  assert.equal(entry.status, "running");
+  assert.equal(entry._cancelPending, true);
+  assert.equal(entry._cancelAccepted, true);
+  await engine.pollRunning();
+  await engine.pollRunning();
+  entry = findByKey("goal-explicit-reject");
   assert.equal(entry.status, "pending");
   assert.equal(entry.sessionId, null);
   assert.equal(entry.goalRef, null);
@@ -2274,6 +3348,8 @@ test("retry goals.create transport uncertainty uses the same permanent quarantin
     await engine.retryExecution(findByKey("retry-goal-uncertain"), "unknown"),
     false,
   );
+  await engine.pollRunning();
+  await engine.pollRunning();
   let entry = findByKey("retry-goal-uncertain");
   const quarantinedSessionId = entry.sessionId;
   assert.equal(createCalls, 1);
@@ -2329,7 +3405,9 @@ test("a second engine claims goal containment before await and defeats a stale s
   let entry = findByKey("dual-engine-goal");
   assert.equal(entry._generation, claimed._generation);
   assert.equal(entry._goalAdmissionUncertain, true);
-  assert.equal(entry.executions.length, 0);
+  assert.equal(entry.executions.length, 1);
+  assert.equal(entry.executions[0].sessionId, entry.sessionId);
+  assert.equal(entry.executions[0].endedAt, undefined);
 
   containmentResult.resolve(true);
   await containment;
@@ -2383,9 +3461,18 @@ test("pre-admission retry, stop, and deadline claim generation before deferred c
       const task = listTaskFiles().find(item => item.key === key);
       const oldDispatch = engineA._dispatch(task);
       await renameStarted.promise;
-      const beforeClaim = findByKey(key);
+      let beforeClaim = findByKey(key);
       assert.equal(beforeClaim._goalAdmissionUncertain, false);
       assert.equal(beforeClaim._promptAdmissionUncertain, false);
+      if (mode === "deadline") {
+        const currentMinute = Math.floor(Date.now() / 60_000) * 60_000;
+        beforeClaim = upsertEntry(key, {
+          _lastDeadlineCheckAt: currentMinute - 30_000,
+          executions: beforeClaim.executions.map((execution, index) => index === beforeClaim.executions.length - 1
+            ? { ...execution, startedAt: new Date(currentMinute - 120_000).toISOString() }
+            : execution),
+        });
+      }
 
       const cancelResult = deferred();
       let replacementLaunches = 0;
@@ -2412,9 +3499,15 @@ test("pre-admission retry, stop, and deadline claim generation before deferred c
         });
       }
 
+      // retryExecution first performs an authoritative foreground check;
+      // allow that resolved list promise to advance into the durable marker.
+      if (mode === "retry") await new Promise(resolve => setImmediate(resolve));
+
       const claimed = findByKey(key);
       assert.ok(claimed._generation > beforeClaim._generation);
-      assert.match(claimed._goalPhase, /containment-attempt/);
+      assert.equal(claimed._cancelPending, true);
+      assert.equal(claimed._cancelIntent, mode === "retry" ? "cleanup" : mode);
+      assert.match(claimed._goalPhase, /cancel-pending/);
 
       // The old launch resumes while cancellation is still pending. The claim
       // must make beforeGoal fail before any remote goal or prompt mutation.
@@ -2425,13 +3518,17 @@ test("pre-admission retry, stop, and deadline claim generation before deferred c
 
       cancelResult.resolve(true);
       const result = await action;
+      if (mode === "retry") assert.equal(result, false);
+      if (mode === "stop") {
+        assert.deepEqual(result, { ok: true, accepted: true, pending: true });
+      }
+      await engineB.pollRunning();
+      await engineB.pollRunning();
       const finalEntry = findByKey(key);
       if (mode === "retry") {
-        assert.equal(result, true);
         assert.equal(replacementLaunches, 1);
         assert.equal(finalEntry.status, "running");
       } else {
-        if (mode === "stop") assert.equal(result.ok, true);
         assert.equal(replacementLaunches, 0);
         assert.equal(finalEntry.status, "stopped");
       }

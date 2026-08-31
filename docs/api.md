@@ -98,6 +98,7 @@ Capabilities 与 OpenAPI 使用和业务接口相同的鉴权。Capabilities 中
       "blockedResumes": 0,
       "goalPhase": "active",
       "foregroundPaused": false,
+      "stopPending": false,
       "autoArchive": true,
       "enableNotifications": false,
       "createdAt": "2026-08-31T08:00:00.000Z",
@@ -116,9 +117,21 @@ Capabilities 与 OpenAPI 使用和业务接口相同的鉴权。Capabilities 中
   "config": {
     "maxConcurrent": 1,
     "enableNotifications": false
+  },
+  "runtime": {
+    "monitorMode": "native-events+authoritative-reconcile",
+    "watchdogMs": 10000,
+    "lastNativeEventAt": "2026-08-31T08:00:59.000Z",
+    "lastNativeEventSource": "agent/status",
+    "lastPollAt": "2026-08-31T08:01:00.000Z",
+    "lastScanAt": "2026-08-31T08:00:58.000Z",
+    "foregroundGate": "open",
+    "sessionListKnown": true
   }
 }
 ```
+
+`runtime` 是只读、进程内观测：DSH 原生事件负责低延迟唤醒，`sessions.list` / history 权威对账负责控制决策，10 秒 watchdog 负责补漏。`foregroundGate` 为 `open`、`busy` 或 `unknown`；未知时引擎 fail closed。
 
 ### 状态枚举
 
@@ -132,6 +145,8 @@ Capabilities 与 OpenAPI 使用和业务接口相同的鉴权。Capabilities 中
 | `interrupted` | 兼容旧账本/迁移数据的中断终态；可以显式 rerun |
 
 `done`、`failed`、`stopped`、`interrupted` 都是 terminal。`archivedAt` 是独立标志；归档不会创造新状态。
+
+运行任务还可能带 `stopPending=true`：停止或 deadline 意图已经持久化，但 owned session 尚未完成 DSH 受理后的双重 idle 收口，因此仍保留 `status=running` 和并发占位。
 
 ## 5. `POST /api/queue/task`
 
@@ -200,7 +215,7 @@ Capabilities 与 OpenAPI 使用和业务接口相同的鉴权。Capabilities 中
 
 | `kind` | 关键字段 | 前置条件/效果 |
 |---|---|---|
-| `stop` | `key` | 安全 clear goal + cancel 专属 session；运行中或前台暂停任务可用 |
+| `stop` | `key` | 仅 running；持久化异步停止意图并取消 owned session，pending 请用 delete |
 | `archive` | `key` | 非 running；隐藏任务并归档其插件自有 sessions |
 | `archive` | `keys` | 1-100 个唯一 key，逐项返回结果 |
 | `restore` | `key` | 清除 `archivedAt` |
@@ -209,6 +224,8 @@ Capabilities 与 OpenAPI 使用和业务接口相同的鉴权。Capabilities 中
 | `update` | `key` + patch | 仅 pending 且未归档 |
 | `force-scan` | 无 | 立即扫描 Markdown 收件箱 |
 | `set-concurrency` | `maxConcurrent` | 设置 1-8，持久化到账本 |
+
+停止成功响应为 `{ "ok": true, "accepted": true, "pending": true }`，表示停止意图已持久化且正在等待 DSH 权威 idle 收口，不代表 session 已在该 HTTP 响应前终止。调用方应继续读取 state/detail，直到状态变为 `stopped`。`sessions.cancel` 受理后必须有连续两次因果上晚于该受理的可信 idle/缺席观察，ownership 才会释放。
 
 ### 批量归档
 
@@ -408,13 +425,13 @@ Capabilities 与 OpenAPI 使用和业务接口相同的鉴权。Capabilities 中
 SSE 查询支持 `archived=0|1`，快照始终是 compact 投影：
 
 ```text
-data: {"revision":42,"tasks":[...],"config":{...}}
+data: {"revision":42,"tasks":[...],"config":{...},"runtime":{...}}
 
 : heartbeat
 ```
 
 - 连接建立后立即推送一份快照。
-- 每 10 秒推送快照，每 25 秒发送 heartbeat。
+- ledger 变化时推送，另每 10 秒推送包含最新进程内 `runtime` 观测的快照；每 25 秒发送 heartbeat。
 - 每实例最多 8 个 SSE 连接。
 - 写端持续背压达到 30 秒后，巡检会主动断开。
 - SSE 不包含 `body` / `executions`；需要完整内容时调用 detail。
@@ -423,13 +440,15 @@ data: {"revision":42,"tasks":[...],"config":{...}}
 
 启动配置 `enableHostAiTools` 默认是 `false`，因此普通 DSH 会话默认不会看到额外系统提示或工具。只有明确设置为 `true` 时才注册以下 16 个 HTTP 薄客户端工具：
 
+工具的正式自然语言名称是「任务队列」，并识别「老登」这个别称。别称只参与意图识别；机器协议仍只有下表的 `autoqueue_*` 名称，不注册重复 alias tool。
+
 | 工具 | 能力 |
 |---|---|
 | `autoqueue_create_task` | 创建安全字段范围内的任务 |
-| `autoqueue_list_tasks` | 使用 compact state 列表 |
-| `autoqueue_get_task` | 获取详情和报告 |
+| `autoqueue_list_tasks` | 使用 compact state 列表，并返回 metrics/unreadCount/runtime |
+| `autoqueue_get_task` | 获取详情、报告和轮次/Goal/最近会话/错误/停止收口投影 |
 | `autoqueue_update_task` | 更新 pending 任务 |
-| `autoqueue_stop_task` | 停止任务 |
+| `autoqueue_stop_task` | 提交异步停止；返回 accepted/pending 后继续查询终态 |
 | `autoqueue_archive_task` | 归档单任务 |
 | `autoqueue_batch_archive` | 批量归档 1-100 个任务 |
 | `autoqueue_restore_task` | 恢复归档任务 |
@@ -448,13 +467,14 @@ data: {"revision":42,"tasks":[...],"config":{...}}
 
 | UI 区域 | 使用的能力 |
 |---|---|
-| 导航、KPI、筛选、搜索、任务表 | state + compact SSE |
+| 任务队列、正在推进、循环调度、定时执行、归档记录工作区 | state + compact SSE 的范围投影 |
+| 正在推进的原生 runtime 监控、前台门控与 watchdog | state/SSE `runtime` |
 | 新建任务 | task |
 | 编辑、停止、重跑、归档、恢复、删除、立即扫描 | action |
 | 多选批量归档 | action `archive + keys` |
 | 详情四页签 | detail |
 | 已读/未读 | mark-read |
 | 运行设置 | config + `set-concurrency` |
-| AI / API 接入抽屉 | capabilities + OpenAPI + compact state 示例 |
+| AI / API 接入抽屉 | 实时 capabilities + options 隔离证据 + OpenAPI + compact state 示例 |
 
 UI 不提供隔离覆盖控件。任务表支持跳转到该任务的插件自有 DSH session；runner 的 ownership guard 仍然是最终安全边界。

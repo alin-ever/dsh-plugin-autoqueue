@@ -61,10 +61,53 @@ async function mockApi(page, setup = {}) {
     stateConfig: { maxConcurrent: 2, ...(setup.stateConfig || {}) },
     config: { ...defaultConfig(), ...(setup.config || {}) },
     options: setup.options || {
-      workspaces: [{ workspaceId: "workspace-1", title: "Host workspace" }],
-      presets: [{ id: "unattended", name: "Unattended" }],
-      models: [{ value: "provider/private-model", label: "Private model" }],
-      isolation: { strict: true },
+      workspaces: [], presets: [], models: [],
+      isolation: {
+        strict: true,
+        overridesLocked: ["workspace", "agentPreset", "model"],
+        reason: "Task-local cwd and versioned owned preset",
+      },
+    },
+    capabilities: setup.capabilities || {
+      name: "autoqueue",
+      displayName: "任务队列",
+      aliases: ["老登"],
+      apiVersion: "1.0.0",
+      pluginVersion: "0.3.0",
+      dshCompatibility: ">=0.1.1-rc.2 <0.1.2",
+      basePath: "/api/queue",
+      openapi: "/api/autoqueue/openapi.json",
+      authentication: {
+        schemes: ["Authorization: Bearer <token>", "X-Autoqueue-Token: <token>"],
+        tokenValuesReturned: false,
+        loopbackDirectAccess: false,
+        remoteTokenRequired: true,
+      },
+      features: {
+        unattendedExecution: true,
+        scheduling: ["immediate", "schedule", "cron", "deadline"],
+        antiBlock: true,
+        retries: true,
+        webhook: true,
+        serverSentEvents: true,
+        batchArchive: true,
+        readTracking: true,
+        externalAiHttpApi: true,
+        strictHostIsolation: true,
+        foregroundPreemption: true,
+        nativeRuntimeMonitoring: true,
+        sessionSandboxMode: "workspace-write",
+        sessionApprovalPolicy: "never",
+        hostAiToolsDefaultEnabled: false,
+      },
+      limits: { taskContentBytes: 2_000_000, batchArchiveTasks: 100, maxConcurrent: 8, sseConnections: 8 },
+      resources: {
+        state: "/api/queue/state", task: "/api/queue/task", action: "/api/queue/action",
+        detail: "/api/queue/detail", options: "/api/queue/options", config: "/api/queue/config",
+        markRead: "/api/queue/mark-read", events: "/api/queue/events",
+      },
+      aiTools: Array.from({ length: 16 }, (_, index) => "autoqueue_tool_" + String(index + 1)),
+      aiToolRegistration: { defaultEnabled: false, optInConfig: "enableHostAiTools" },
     },
     stateUrls: [],
     configPatches: [],
@@ -72,6 +115,19 @@ async function mockApi(page, setup = {}) {
     actions: [],
     markReadRequests: [],
   };
+
+  await page.route("**/api/autoqueue/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/capabilities")) {
+      if (setup.capabilitiesFailure) {
+        await route.fulfill({ status: setup.capabilitiesFailure.status || 503, json: { error: setup.capabilitiesFailure.message || "capabilities unavailable" } });
+      } else {
+        await route.fulfill({ json: model.capabilities });
+      }
+      return;
+    }
+    await route.fulfill({ status: 404, json: { error: "unmocked discovery route" } });
+  });
 
   await page.route("**/api/queue/**", async (route) => {
     const request = route.request();
@@ -85,6 +141,7 @@ async function mockApi(page, setup = {}) {
         tasks: model.tasks,
         config: model.stateConfig,
         metrics: setup.metrics || metricsFor(model.tasks),
+        ...(setup.runtime ? { runtime: setup.runtime } : {}),
       } });
       return;
     }
@@ -109,7 +166,8 @@ async function mockApi(page, setup = {}) {
     }
 
     if (path.endsWith("/options")) {
-      await route.fulfill({ json: model.options });
+      if (setup.optionsFailure) await route.fulfill({ status: setup.optionsFailure.status || 503, json: { error: setup.optionsFailure.message || "options unavailable" } });
+      else await route.fulfill({ json: model.options });
       return;
     }
 
@@ -157,7 +215,11 @@ async function mockApi(page, setup = {}) {
 
       if (action.kind === "archive") {
         const keys = Array.isArray(action.keys) ? action.keys : [action.key];
-        model.tasks = model.tasks.map((item) => keys.includes(item.key)
+        const batchResults = Array.isArray(action.keys) && setup.batchArchiveResults
+          ? setup.batchArchiveResults
+          : keys.map((key) => ({ key, ok: true }));
+        const successfulKeys = batchResults.filter((item) => item.ok).map((item) => item.key);
+        model.tasks = model.tasks.map((item) => successfulKeys.includes(item.key)
           ? { ...item, archivedAt: "2026-08-31T09:30:00.000Z" }
           : item);
       } else if (action.kind === "restore") {
@@ -171,7 +233,10 @@ async function mockApi(page, setup = {}) {
       }
       model.revision += 1;
       await route.fulfill({ json: action.kind === "archive" && Array.isArray(action.keys)
-        ? { ok: true, results: action.keys.map((key) => ({ key, ok: true })) }
+        ? {
+          ok: (setup.batchArchiveResults || action.keys.map((key) => ({ key, ok: true }))).every((item) => item.ok),
+          results: setup.batchArchiveResults || action.keys.map((key) => ({ key, ok: true })),
+        }
         : { ok: true } });
       return;
     }
@@ -220,34 +285,139 @@ function richTasks() {
   ];
 }
 
+test("each navigation group is a scoped workspace with honest counts, copy, and actions", async ({ page }) => {
+  const tasks = richTasks().concat(task({
+    key: "archived-result", status: "done", archivedAt: "2026-08-30T10:00:00.000Z",
+    readAt: "2026-08-30T09:00:00.000Z", summary: "已归档的最终结果",
+  }));
+  const model = await mockApi(page, { tasks });
+  await openHarness(page);
+
+  await page.getByRole("navigation").getByRole("button", { name: /正在推进/ }).click();
+  const activeWorkspace = page.getByRole("region", { name: "正在推进" });
+  await expect(activeWorkspace).toContainText("等待首轮运行时观测");
+  await expect(page.getByRole("tab", { name: /全部/ })).toContainText("3");
+  await expect(page.getByRole("tab", { name: /运行中/ })).toContainText("1");
+  await expect(page.getByRole("tab", { name: /待执行/ })).toContainText("1");
+  await expect(page.getByRole("button", { name: "查看任务 release-notes-0831" })).toHaveCount(0);
+
+  await page.evaluate(({ tasks: nextTasks, stateConfig }) => {
+    globalThis.__eventSources[0].onmessage({ data: JSON.stringify({
+      revision: 2,
+      tasks: nextTasks,
+      config: stateConfig,
+      runtime: {
+        monitorMode: "native-events+authoritative-reconcile",
+        foregroundGate: "open",
+        lastNativeEventAt: "2026-08-31T09:01:00.000Z",
+        lastPollAt: "2026-08-31T09:01:01.000Z",
+        lastScanAt: "2026-08-31T09:00:30.000Z",
+        watchdogMs: 10_000,
+      },
+    }) });
+  }, { tasks: model.tasks, stateConfig: model.stateConfig });
+  await expect(activeWorkspace).toContainText("原生事件唤醒 + 权威对账");
+  await expect(activeWorkspace).toContainText("前台空闲，可受控派发");
+  await expect(activeWorkspace).toContainText("Watchdog");
+  await expect(activeWorkspace).toContainText("10 秒");
+
+  await page.getByRole("navigation").getByRole("button", { name: /循环调度/ }).click();
+  await expect(page.getByRole("region", { name: "循环调度" })).toContainText("cron 任务");
+  await expect(page.getByRole("tab", { name: /全部/ })).toContainText("1");
+  await expect(page.getByRole("tab", { name: /运行中/ })).toContainText("1");
+  await expect(page.getByRole("button", { name: "新建循环任务" })).toBeVisible();
+
+  await page.getByRole("navigation").getByRole("button", { name: /定时执行/ }).click();
+  await expect(page.getByRole("region", { name: "定时执行" })).toContainText("一次性定时任务");
+  await expect(page.getByRole("tab", { name: /全部/ })).toContainText("1");
+  await expect(page.getByRole("tab", { name: /待执行/ })).toContainText("1");
+  await expect(page.getByRole("button", { name: "新建定时任务" })).toBeVisible();
+
+  await page.getByRole("navigation").getByRole("button", { name: /归档记录/ }).click();
+  const archivedWorkspace = page.getByRole("region", { name: "归档记录" });
+  await expect(archivedWorkspace).toContainText("不冒充完整执行历史");
+  await expect(archivedWorkspace).toContainText("归档任务1");
+  await expect(page.getByRole("button", { name: "查看任务 archived-result" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "查看任务 release-notes-0831" })).toHaveCount(0);
+});
+
+test("SSE health and options isolation are reported independently from real evidence", async ({ page }) => {
+  await mockApi(page);
+  await openHarness(page);
+
+  await expect(page.locator(".aq-host-state")).toContainText("实时通道连接中");
+  await expect(page.getByRole("region", { name: "运行契约" })).toContainText("隔离覆盖已锁定");
+  await page.evaluate(() => globalThis.__eventSources[0].onopen());
+  await expect(page.locator(".aq-host-state")).toContainText("实时通道已连接");
+
+  const health = await page.evaluate(() => {
+    globalThis.__eventSources[0].onmessage({ data: JSON.stringify({ revision: 9, tasks: [], config: { maxConcurrent: 2 } }) });
+    return globalThis.__aq.controller.getSnapshot().runtimeHealth;
+  });
+  expect(health.connected).toBe(true);
+  expect(health.reconnecting).toBe(false);
+  expect(health.revision).toBe(9);
+  expect(health.lastEventAt).toBeTruthy();
+
+  const afterStale = await page.evaluate(() => {
+    globalThis.__eventSources[0].onmessage({ data: JSON.stringify({ revision: 8, tasks: [{ key: "stale", status: "failed" }], config: {} }) });
+    return globalThis.__aq.controller.getSnapshot();
+  });
+  expect(afterStale.revision).toBe(9);
+  expect(afterStale.runtimeHealth.revision).toBe(9);
+  expect(afterStale.tasks).toEqual([]);
+
+  await page.evaluate(() => globalThis.__eventSources[0].onerror());
+  await expect(page.locator(".aq-host-state")).toContainText("实时通道重连中");
+  await expect(page.getByRole("region", { name: "运行契约" })).toContainText("隔离覆盖已锁定");
+});
+
+test("unknown or failed isolation options never render as verified", async ({ page }) => {
+  await mockApi(page, { optionsFailure: { message: "isolation contract unavailable" } });
+  await openHarness(page);
+
+  const contract = page.getByRole("region", { name: "运行契约" });
+  await expect(contract).toContainText("隔离覆盖待验证");
+  await expect(contract).toContainText("isolation contract unavailable");
+  await expect(contract.locator(".aq-contract-item").first()).toHaveClass(/danger/);
+  await expect(page.locator(".aq-sb-foot p")).toContainText("隔离：isolation contract unavailable");
+});
+
 test("new task exposes every safe advanced field and never sends host-global overrides", async ({ page }) => {
   const model = await mockApi(page);
   await openHarness(page);
 
   await page.getByRole("button", { name: "新建任务" }).click();
   const dialog = page.getByRole("dialog", { name: "新建无人值守任务" });
+  await expect(fieldInput(dialog, "优先级")).toHaveValue("6");
   await dialog.getByLabel("任务内容（Markdown）").fill("# Weekly insight\n\nSummarize customer evidence.");
   await dialog.getByRole("button", { name: /高级执行策略/ }).click();
+  await expect(fieldInput(dialog, "最大 Goal 轮数")).toHaveValue("77");
+  await expect(fieldInput(dialog, "最大反阻塞")).toHaveValue("7");
+  await expect(fieldInput(dialog, "最长执行")).toHaveValue("120");
+  await expect(fieldInput(dialog, "最大派发尝试")).toHaveValue("8");
   await fieldInput(dialog, "最大 Goal 轮数").fill("55");
   await fieldInput(dialog, "最大反阻塞").fill("4");
   await fieldInput(dialog, "最长执行").fill("45");
   await fieldInput(dialog, "最大派发尝试").fill("6");
   await dialog.getByRole("button", { name: /通知与回调/ }).click();
+  await expect(dialog.getByRole("checkbox", { name: /完成后自动归档/ })).not.toBeChecked();
+  await expect(dialog.getByRole("checkbox", { name: /浏览器结果通知/ })).toBeChecked();
   await fieldInput(dialog, "Webhook URL").fill("https://hooks.example.test/queue");
-  await dialog.getByRole("checkbox", { name: /浏览器结果通知/ }).check();
   await dialog.getByRole("button", { name: "创建任务" }).click();
 
   await expect(dialog).toHaveCount(0);
   expect(model.createdTasks).toHaveLength(1);
   expect(model.createdTasks[0]).toMatchObject({
     content: "# Weekly insight\n\nSummarize customer evidence.",
-    priority: 5,
+    priority: 6,
+    deadline: "0 22 * * *",
     maxGoalRounds: 55,
     maxBlockedResumes: 4,
     timeoutMs: 2_700_000,
     maxAttempts: 6,
     webhook: "https://hooks.example.test/queue",
-    autoArchive: true,
+    autoArchive: false,
     enableNotifications: true,
   });
   for (const forbidden of ["model", "workspace", "agentPreset"]) expect(model.createdTasks[0]).not.toHaveProperty(forbidden);
@@ -336,6 +506,33 @@ test("detail uses the selected task, rejects a late stale response, and opens th
   await expect(dialog).not.toContainText("FIRST_REPORT");
   await dialog.getByRole("button", { name: "跳转会话" }).click();
   expect(await page.evaluate(() => globalThis.__aq.openedSessions)).toEqual(["session-second"]);
+});
+
+test("terminal detail resolves owned-session fallback and pending detail exposes confirmed deletion", async ({ page }) => {
+  const model = await mockApi(page, { tasks: [
+    task({
+      key: "terminal-fallback", status: "done", sessionId: null, lastSessionId: "session-from-last-attempt",
+      readAt: "2026-08-31T09:00:00.000Z",
+    }),
+    task({ key: "pending-detail-delete", status: "pending" }),
+  ] });
+  await openHarness(page);
+
+  await page.getByRole("button", { name: "查看任务 terminal-fallback" }).click();
+  const terminal = page.getByRole("dialog", { name: "terminal-fallback" });
+  await expect(terminal).toContainText("AutoQueue owned");
+  await terminal.getByRole("button", { name: "跳转会话" }).click();
+  expect(await page.evaluate(() => globalThis.__aq.openedSessions)).toEqual(["session-from-last-attempt"]);
+
+  await page.evaluate(() => globalThis.__aq.controller.openBoard());
+  await page.getByRole("button", { name: "查看任务 pending-detail-delete" }).click();
+  const pending = page.getByRole("dialog", { name: "pending-detail-delete" });
+  await expect(pending.getByRole("button", { name: "删除", exact: true })).toBeVisible();
+  await pending.getByRole("button", { name: "删除", exact: true }).click();
+  const confirmation = page.getByRole("dialog", { name: "删除任务" });
+  await expect(confirmation).toContainText("不可恢复");
+  await confirmation.getByRole("button", { name: "删除", exact: true }).click();
+  expect(model.actions).toContainEqual({ kind: "delete", key: "pending-detail-delete" });
 });
 
 test("SSE starts once, disposes cleanly, and an older revision cannot roll state back", async ({ page }) => {
@@ -509,6 +706,24 @@ test("foreground preemption is visible in the contract, row, and task inspector"
   await expect(dialog).toContainText("等待双重空闲确认");
 });
 
+test("a stop-pending task shows containment progress and cannot be stopped twice", async ({ page }) => {
+  await mockApi(page, { tasks: [task({
+    key: "stopping-owned-session", status: "running", sessionId: "autoqueue-session-owned",
+    stopPending: true, goalPhase: "stop-pending", currentRound: 9, maxGoalRounds: 40,
+  })] });
+  await openHarness(page);
+
+  const row = page.getByRole("button", { name: "查看任务 stopping-owned-session" });
+  await expect(row).toContainText("停止收口中");
+  await expect(row).toContainText("等待 owned session 双重 idle 确认");
+  await expect(page.getByRole("button", { name: "停止 stopping-owned-session" })).toHaveCount(0);
+  await row.click();
+  const detail = page.getByRole("dialog", { name: "stopping-owned-session" });
+  await expect(detail).toContainText("正在安全停止 owned session");
+  await expect(detail).toContainText("停止意图已持久化");
+  await expect(detail.getByRole("button", { name: "停止", exact: true })).toHaveCount(0);
+});
+
 test("interrupted tasks expose both rerun and archive actions", async ({ page }) => {
   const model = await mockApi(page, { tasks: [
     task({ key: "interrupt-rerun", status: "interrupted", readAt: null }),
@@ -517,6 +732,9 @@ test("interrupted tasks expose both rerun and archive actions", async ({ page })
   await openHarness(page);
 
   await page.getByRole("button", { name: "重新执行 interrupt-rerun" }).click();
+  const rerunConfirm = page.getByRole("dialog", { name: "重新执行任务" });
+  await expect(rerunConfirm).toContainText("再次消耗模型与工具资源");
+  await rerunConfirm.getByRole("button", { name: "重新执行", exact: true }).click();
   await page.getByRole("button", { name: "归档 interrupt-archive" }).click();
   expect(model.actions).toEqual(expect.arrayContaining([
     expect.objectContaining({ kind: "rerun", key: "interrupt-rerun" }),
@@ -542,7 +760,7 @@ test("core action parity reaches confirmations, restore, scan, and concurrency w
   await expect(deleteConfirm).toContainText("不可恢复");
   await deleteConfirm.getByRole("button", { name: "删除", exact: true }).click();
 
-  await page.getByRole("navigation").getByRole("button", { name: /执行记录/ }).click();
+  await page.getByRole("navigation").getByRole("button", { name: /归档记录/ }).click();
   await page.getByRole("button", { name: "还原 archived-restore" }).click();
   await page.getByRole("button", { name: "立即扫描" }).click();
 
@@ -579,6 +797,30 @@ test("batch archive sends one action envelope with the selected keys", async ({ 
   expect(model.actions).toContainEqual({ kind: "archive", keys: ["batch-a", "batch-b"] });
 });
 
+test("partial batch archive keeps failed tasks selected and reports both outcomes", async ({ page }) => {
+  const model = await mockApi(page, {
+    tasks: [
+      task({ key: "batch-success", status: "done", readAt: null }),
+      task({ key: "batch-failed", status: "failed", readAt: null }),
+    ],
+    batchArchiveResults: [
+      { key: "batch-success", ok: true },
+      { key: "batch-failed", ok: false, error: "DSH 会话归档失败" },
+    ],
+  });
+  await openHarness(page);
+
+  await page.getByRole("checkbox", { name: "选择 batch-success" }).check();
+  await page.getByRole("checkbox", { name: "选择 batch-failed" }).check();
+  await page.getByRole("button", { name: "批量归档" }).click();
+  await page.getByRole("dialog", { name: "批量归档" }).getByRole("button", { name: "归档" }).click();
+
+  await expect(page.locator(".aq-toast")).toContainText("已归档 1 个，1 个未归档并保留选择");
+  await expect(page.getByRole("checkbox", { name: "选择 batch-failed" })).toBeChecked();
+  await expect(page.getByRole("button", { name: "查看任务 batch-success" })).toHaveCount(0);
+  expect(model.actions).toContainEqual({ kind: "archive", keys: ["batch-success", "batch-failed"] });
+});
+
 test("a read terminal task can be marked unread explicitly", async ({ page }) => {
   const model = await mockApi(page, { tasks: [task({
     key: "read-result", status: "done", updatedAt: "2026-08-31T08:00:00.000Z", readAt: "2026-08-31T08:30:00.000Z",
@@ -589,7 +831,7 @@ test("a read terminal task can be marked unread explicitly", async ({ page }) =>
   expect(model.markReadRequests).toEqual([{ key: "read-result", read: false }]);
 });
 
-test("the API drawer publishes stable capabilities and OpenAPI discovery paths", async ({ page }) => {
+test("the API drawer reads the live machine contract and keeps stable discovery paths", async ({ page }) => {
   await mockApi(page);
   await openHarness(page);
 
@@ -597,9 +839,58 @@ test("the API drawer publishes stable capabilities and OpenAPI discovery paths",
   const dialog = page.getByRole("dialog", { name: "AI / API 接入" });
   await expect(dialog).toContainText("/api/autoqueue/capabilities");
   await expect(dialog).toContainText("/api/autoqueue/openapi.json");
+  await expect(dialog).toContainText("任务队列");
+  await expect(dialog).toContainText("老登");
+  await expect(dialog).toContainText("AUTH REQUIRED");
+  await expect(dialog).toContainText("Authorization: Bearer <token>");
+  await expect(dialog.locator(".aq-code-block")).toContainText("Authorization: Bearer $AUTOQUEUE_TOKEN");
+  await expect(dialog).toContainText("16 个");
+  await expect(dialog).toContainText("默认注册");
+  await expect(dialog).toContainText("关闭");
+  await expect(dialog).toContainText("workspace-write");
+  await expect(dialog).toContainText("原生 Runtime 监控");
+  await expect(dialog).toContainText("enableHostAiTools");
+  await expect(dialog).toContainText("/api/queue/events");
   await expect(dialog).toContainText("插件不会向页面回显 token");
   await expect(dialog.getByRole("button", { name: "复制 Capabilities" })).toBeVisible();
   await expect(dialog.getByRole("button", { name: "复制 OpenAPI 3.1" })).toBeVisible();
+});
+
+test("the API drawer reports capability discovery failures without hiding manual endpoints", async ({ page }) => {
+  await mockApi(page, { capabilitiesFailure: { message: "discovery temporarily unavailable" } });
+  await openHarness(page);
+
+  await page.getByRole("button", { name: "AI / API 接入" }).click();
+  const dialog = page.getByRole("dialog", { name: "AI / API 接入" });
+  await expect(dialog.getByRole("alert")).toContainText("discovery temporarily unavailable");
+  await expect(dialog.getByRole("button", { name: "重新读取" })).toBeVisible();
+  await expect(dialog).toContainText("/api/autoqueue/capabilities");
+  await expect(dialog).toContainText("/api/autoqueue/openapi.json");
+});
+
+test("the API drawer renders loopback direct access without a fake token requirement", async ({ page }) => {
+  const model = await mockApi(page);
+  model.capabilities.authentication.loopbackDirectAccess = true;
+  await openHarness(page);
+
+  await page.getByRole("button", { name: "AI / API 接入" }).click();
+  const dialog = page.getByRole("dialog", { name: "AI / API 接入" });
+  await expect(dialog).toContainText("LOCAL DIRECT");
+  await expect(dialog).toContainText("本机 loopback 直连免 token");
+  await expect(dialog.locator(".aq-code-block")).toContainText("curl 'http://127.0.0.1:4173/api/queue/state?archived=1&compact=1'");
+  await expect(dialog.locator(".aq-code-block")).not.toContainText("AUTOQUEUE_TOKEN");
+});
+
+test("an older capability document without authentication stays explicitly unresolved", async ({ page }) => {
+  const model = await mockApi(page);
+  delete model.capabilities.authentication;
+  await openHarness(page);
+
+  await page.getByRole("button", { name: "AI / API 接入" }).click();
+  const dialog = page.getByRole("dialog", { name: "AI / API 接入" });
+  await expect(dialog).toContainText("AUTH CONTRACT");
+  await expect(dialog).toContainText("未声明认证方案");
+  await expect(dialog.locator(".aq-code-block")).toContainText("authentication from deployment contract");
 });
 
 test("rich workstation visual artifacts render at desktop and mobile breakpoints", async ({ page }) => {
@@ -618,6 +909,12 @@ test("rich workstation visual artifacts render at desktop and mobile breakpoints
   await expect(page.getByRole("button", { name: "打开导航" })).toBeVisible();
   await page.screenshot({ path: VISUAL_DIR + "/workstation-mobile-390x844.png", animations: "disabled" });
 
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.evaluate(() => document.documentElement.setAttribute("data-theme", "dark"));
+  await expect(page.locator("[data-dsh-autoqueue-view]")).toHaveCSS("color", "rgb(243, 246, 248)");
+  await page.screenshot({ path: VISUAL_DIR + "/workstation-dark-1280x900.png", animations: "disabled" });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
