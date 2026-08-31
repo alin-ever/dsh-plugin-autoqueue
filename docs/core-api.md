@@ -1,465 +1,398 @@
 # autoqueue 核心层 API
 
-核心层是纯逻辑模块，不依赖 DSH 运行时。上层（HTTP、AI 工具、视图）都通过它操作队列。
+本文描述 `files`、`ledger`、`runner`、`engine` 及 Host 装配边界。实现和测试逐项对照的精确基线是 **`@deepseek-ai/dsh 0.1.1-rc.2`**；清单虽允许 `>=0.1.1-rc.2 <0.1.2`，安全语义仍以 rc.2 为准。
 
-## 模块
+## 1. 模块边界
 
 | 模块 | 文件 | 职责 |
 |---|---|---|
-| files | `lib/files.js` | 文件 I/O、调度解析 |
-| ledger | `lib/ledger.js` | 任务账本（持久化状态机） |
-| runner | `lib/runner.js` | 会话生命周期（创建/轮询/干预/归档） |
-| engine | `lib/engine.js` | 编排层（派发/轮询/动作/配置） |
+| files | `lib/files.js` | 私有目录、原子文件 I/O、任务 key/调度校验、收件箱和报告安全读取 |
+| ledger | `lib/ledger.js` | 权威账本、schema/容量校验、原子事务、CAS generation、requestId 去重、并发和恢复 |
+| runner | `lib/runner.js` | 唯一的 `apiProxy` 调用层；专属 session/goal 生命周期和 ownership 守卫 |
+| engine | `lib/engine.js` | 扫描、派发、前台让行、轮询、反阻塞、重试、动作、配置和结算 |
+| Host 入口 | `lib/index.js` | DSH 服务装配、approval policy、owned presets、HTTP/SSE、鉴权和可选 AI 工具 |
 
----
+依赖方向是 `index/UI/AI → HTTP → engine → runner/ledger/files`。Host AI 工具是 HTTP 薄客户端，不能绕过 HTTP 校验直接调用 engine 或 ledger。
 
-## engine — 编排层
+## 2. 不可破坏的隔离不变量
 
-### `createEngine(apiProxy, options)`
+### 2.1 Session ownership
 
-创建引擎实例。所有上层操作都通过返回的 `engine` 对象。
+- `createAutoqueueSessionId()` 只生成 `autoqueue-session-<uuid>`。
+- `isAutoqueueSessionId()` 同时校验固定前缀和 UUID 形状。
+- runner 对 history、prompt、goal 变更、cancel 和 archive 先校验 ownership。
+- 批量归档先验证全部 session ID；只要出现一个外部 ID，整批远端 mutation fail closed。
 
-**options:**
+### 2.2 独立 cwd
 
-| 参数 | 类型 | 默认 | 说明 |
-|---|---|---|---|
-| `maxGoalRounds` | number | 40 | 单个任务最多 goal 轮数 |
-| `maxBlockedResumes` | number | 3 | 阻塞后最多重试次数 |
-| `autoArchive` | boolean | false | 全局默认：done/failed 是否自动归档 |
-| `unknownThreshold` | number | 3 | 连续 unknown 轮数阈值，判定任务不可达 |
-| `maxAttempts` | number | 3 | 派发失败重试次数 |
-| `agentPreset` | string\|null | null | 全局默认 Agent 预设 |
-| `model` | string\|null | null | 全局默认执行模型 |
-| `priority` | number | 5 | 全局默认优先级 1-10 |
-| `webhook` | string\|null | null | 全局 webhook URL |
-| `workspace` | string\|null | null | DSH 工作区 UUID |
-| `queueDir` | string\|null | null | 队列根目录，默认 `$DSH_HOME/queue` |
+每次 attempt 都创建新的 `runs/YYYY-MM/...-a<attempt>-<random>/`。启动只使用：
 
-**返回:**
+```js
+apiProxy.sessions.create({
+  sessionId: reservedSessionId,
+  cwd: entry.workDir,
+  agentPreset: engineSelectedOwnedPreset,
+})
+```
+
+其中 preset 是引擎内部派生值，不是调用参数。runner 不创建或选择 Host 全局工作区。
+
+### 2.3 Versioned owned presets
+
+引擎只能选择：
+
+- `autoqueue-unattended-v2`
+- `autoqueue-ptc-unattended-v2`
+
+`ensureOwnedPreset()` 从 Host 内置来源复制首次版本，并注入 `[autoqueue:unattended-discipline:v2]` 与完整无人值守纪律。v2 的可收口约束是：
+
+- 直接禁用 `tool-ask-user`、`tool-jobs`、`tool-subagent-control`、`tool-subagent-list-agents`、`tool-subagent`、`tool-subagent-fork`、`tool-subagent-codex`、`tool-subagent-claude-code`、`tool-workflow`、`tool-ralph`。
+- `tool-bash` 与 `tool-pwsh` 必须配置 `enableRunInBackground: false`。
+- persona 明确禁止 detached、daemon、background-job、workflow、Ralph 和 child-agent 工作；命令必须在当前 owned foreground turn 内完成。
+
+原因是这些高扇出/后台工作不会继承 autoqueue owned session ID，Host 前台抢占时无法可靠 pause/cancel。已存在的 v2 只有在 marker、工具禁用、shell 配置和纪律都精确匹配时才接受；缺失或被修改会 fail closed。旧 v1 preset 保留在 Host 上且绝不覆盖，但 runner 的 allowlist 只接受 v2。
+
+### 2.4 Approval policy before goal
+
+`index.apply()` 强制把 runner 的 `prepareSession` 绑定到 `pinOwnedSessionApprovalPolicy()`，不接受调用方替换：
+
+1. 校验 session 属于 autoqueue。
+2. 通过同进程 session store 取到完全相同的 session。
+3. `setApprovalPolicy(session, "never")`。
+4. `sessions.flush(session)` 持久化。
+5. `effectiveApprovalPolicy(session.events)` 必须回读为 `never`。
+
+runner 在 `sessions.create` / `sessions.rename` 之后、`goals.create` 之前执行该步骤。任何失败都会阻止 goal admission，并尝试取消刚创建的专属 session。恢复、反阻塞、唤醒和 resume 前也会再次确保 session 已准备；Host 重启后的新 runner 不沿用进程内缓存。
+
+### 2.5 Host selection locks
+
+DSH rc.2 的选择接口会持久化 Host 默认状态。核心层通过 `assertNoIsolationOverrides()` 在 engine 构造、任务创建、任务更新和运行时配置更新边界拒绝这类覆盖；HTTP schema 也不接受这些字段。内部遗留账本值可以被读取用于迁移诊断，但不能驱动执行。
+
+### 2.6 Foreground cooperative yield
+
+`engine._hostAllowsDispatch()` 通过 `runner.listSessions()` 判断 Host 是否可用：
+
+- 发现活跃且不属于 autoqueue 的 session：返回 `false`。
+- RPC 失败、列表缺失或 item 形状不可信：`known=false`，返回 `false`。
+- 只有列表可信且没有活跃前台 session 时才允许新派发、重试 replacement、wakeup 或 anti-block mutation。
+
+已经运行的 owned task 由 `pollRunning()` 协作暂停：
+
+1. 先持久化 `_foregroundPausePending` 和当前 ownership generation。
+2. `runner.pauseGoal()` 调用 `goals.pause`，处理 stale revision 和不确定响应。
+3. 先持久化 paused ref、`_foregroundPaused` 与 `_foregroundCancelPending`，再取消当前 turn；绝不 cancel 一个仍 armed 的 goal。
+4. 在 `sessions.list` 明确报告该 owned session `running=false` 前，保留 cancel-pending 并重试。
+5. 前台消失后先检查 history，再做第二次紧邻 resume 的可信 session list；两次都空闲且 owned turn 仍 idle 才 `goals.resume`。
+6. resume 不注入 prompt；恢复后原子清除 foreground markers。
+
+列表未知同样进入 pause 路径。默认并发仍是 1。整个流程只 pause/cancel autoqueue 自有 session，不修改用户会话。
+
+## 3. `createEngine(apiProxy, options)`
+
+### 安全业务选项
+
+| 选项 | 默认值 | 说明 |
+|---|---|---|
+| `maxGoalRounds` | `40` | 每个 Goal 最大轮数 |
+| `maxBlockedResumes` | `3` | blocked 后 steering + resume 上限 |
+| `autoArchive` | `true` | terminal 后默认自动归档 |
+| `unknownThreshold` | `3` | 连续不可达阈值 |
+| `maxAttempts` | `3` | attempt 上限 |
+| `taskTimeoutMs` | `10800000` | 180 分钟，允许 10 分钟至 24 小时 |
+| `priority` | `5` | 默认优先级 1-10 |
+| `webhook` | `null` | 默认终态 Webhook |
+| `queueDir` | `null` | 启动时队列根目录；运行时不可切换 |
+| `defaultDeadline` | `null` | 默认 5 字段截止 cron |
+| `enableNotifications` | `false` | 浏览器终态通知默认关闭 |
+| `retryBackoffBaseMs` | `30000` | 重试退避基数 |
+| `retryBackoffMaxMs` | `300000` | 重试退避上限 |
+| `rpcTimeoutMs` | `30000` | runner RPC 等待上限，钳位 1-120 秒 |
+
+`prepareSession` 是 Host 入口注入的内部安全回调，不是配置 API 字段。
+
+### 返回对象
 
 ```js
 const engine = {
-  // 快照
   snapshot(includeArchived),
-  // 配置
   getConfig(),
   setConfig(patch),
-  // 任务操作
   createTask(requestId, key, content, opts),
   applyAction(requestId, action, key, opts),
-  // 详情
   getTaskDetail(key),
-  // 生命周期
+  scanPending(),
+  pollRunning(),
+  retryExecution(entry, reason),
+  stopTask(key),
+  archiveTask(key),
+  archiveTasks(keys),
+  restoreTask(key),
+  deleteTask(key),
+  updateTask(key, patch),
   startScanning(timer, intervalMs),
   startPolling(timer),
+  dispose(),
 }
 ```
 
----
+## 4. 任务创建与更新
 
 ### `engine.createTask(requestId, key, content, opts)`
 
-创建任务并写入收件箱和账本，立即尝试派发。
+安全 `opts`：
 
-**参数:**
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `priority` | integer 1-10 | 越高越先派发 |
+| `schedule` | ISO 8601 string | 一次性调度，与 cron 互斥 |
+| `cron` | 5-field cron | 循环调度，与 schedule 互斥 |
+| `deadline` | 5-field cron | 截止窗口 |
+| `maxGoalRounds` | integer 1-100 | 任务级轮数 |
+| `maxBlockedResumes` | integer 0-10 | 任务级反阻塞上限 |
+| `timeoutMs` | integer | 600000-86400000 |
+| `maxAttempts` | integer 1-10 | attempt 上限 |
+| `webhook` | string/null | 终态回调 |
+| `autoArchive` | boolean | 覆盖全局自动归档 |
+| `enableNotifications` | boolean | 覆盖全局浏览器通知 |
 
-| 参数 | 类型 | 必填 | 说明 |
-|---|---|---|---|
-| `requestId` | string | 是 | 去重 ID |
-| `key` | string | 是 | 唯一任务标识 |
-| `content` | string | 是 | Markdown 任务内容 |
-| `opts` | object | 否 | 可选配置 |
+创建顺序：校验/预留 requestId → 生成唯一 key → 原子写收件箱 → 原子写账本 → 完成 requestId → 触发一次 `scanPending()`。若账本事务失败，会回滚本次创建的收件箱文件。
 
-**opts:**
+### `engine.updateTask(key, patch)`
 
-| 参数 | 类型 | 默认 | 说明 |
-|---|---|---|---|
-| `priority` | number | 5 | 优先级 1-10，越高越先派发 |
-| `schedule` | string | - | ISO 8601 一次性定时，如 `2026-08-26T08:00:00Z` |
-| `cron` | string | - | cron 表达式循环定时，如 `0 8 * * *` |
-| `webhook` | string | - | 任务级 webhook URL |
-| `workspace` | string | - | 任务级工作区 UUID |
-| `agentPreset` | string | - | 指定 Agent 预设 |
-| `maxGoalRounds` | number | - | 任务级 goal 轮数上限 |
-| `maxBlockedResumes` | number | - | 任务级阻塞重试上限 |
-| `timeoutMs` | number | - | 任务级超时毫秒 |
-| `autoArchive` | boolean | - | 任务级自动归档，覆盖全局配置 |
-| `deadline` | string | - | 5 字段 cron 截止时间 |
-| `maxAttempts` | number | - | 任务级派发重试次数，覆盖全局 |
+只允许更新未归档的 `pending` 任务。字段范围与 HTTP update 相同：正文、调度、优先级、轮数、反阻塞、超时、尝试、Webhook、自动归档和通知；`maxGoalRounds`、`maxBlockedResumes`、`timeoutMs`、`maxAttempts` 传 `null` 可恢复全局默认。收件箱文件先原子更新，账本事务若失败会恢复旧文件。
 
-**返回:**
-
-```json
-{ "ok": true, "key": "my-task" }
-```
-
-**调度方式:**
-
-| 方式 | 格式 | 示例 | 行为 |
-|---|---|---|---|
-| 不传 | - | - | 立即执行 |
-| `schedule` | ISO 8601 | `2026-08-26T08:00:00Z` | 到时间执行一次 |
-| `cron` | 5 字段 | `0 8 * * *` | 每次匹配时执行 |
-
-**cron 常用示例:**
-
-| cron | 含义 |
-|---|---|
-| `0 8 * * *` | 每天 08:00 |
-| `0 8 * * 1-5` | 工作日 08:00 |
-| `0 8 * * 1` | 每周一 08:00 |
-| `0 8 1 * *` | 每月 1 日 08:00 |
-| `*/30 * * * *` | 每 30 分钟 |
-| `0 * * * *` | 每小时整点 |
-| `0 */2 * * *` | 每 2 小时 |
-| `0 8,20 * * *` | 每天 08:00 和 20:00 |
-| `0 9-17 * * 1-5` | 工作日 9-17 点整点 |
-| `*/5 9-17 * * 1-5` | 工作日 9-17 点每 5 分钟 |
-
----
+## 5. 动作层
 
 ### `engine.applyAction(requestId, action, key, opts)`
 
-对任务执行操作。异步方法。
-
-**action:**
-
-| action | 说明 | 前置条件 |
+| action | 前置条件 | 核心行为 |
 |---|---|---|
-| `stop` | 停止运行中任务 | status=running |
-| `archive` | 归档任务 + 归档 DSH 会话 | status≠running |
-| `restore` | 恢复归档任务 | 已归档 |
-| `delete` | 永久删除待执行任务及记录 | status=pending |
-| `rerun` | 重跑失败/已停止任务 | status=failed/stopped |
-| `update` | 修改任务内容/配置 | status≠running |
-| `force-scan` | 立即扫描收件箱 | 无 |
-| `set-concurrency` | 调整并发数 | 无 |
+| `stop` | running | clear goal、cancel owned session、finalize stopped |
+| `archive` | 非 running | archive owned sessions，设置 `archivedAt` |
+| `restore` | 已归档 | 清除 `archivedAt` |
+| `delete` | pending | 删除收件箱与账本项 |
+| `rerun` | 非 running、未归档 | 回到 pending 并重新创建收件箱源 |
+| `update` | pending、未归档 | 调用 `updateTask` |
+| `force-scan` | 无 | 立即 `scanPending` |
+| `set-concurrency` | 1-8 | 调用 ledger `setConcurrency` |
 
-**批量归档:**
+`archive` 支持 `opts.keys` 1-100 个任务并逐项返回结果。requestId 使用 fingerprint 区分同 ID 同操作、inflight 重复和冲突复用。
 
-```json
-{
-  "requestId": "x",
-  "action": { "kind": "archive", "keys": ["a", "b", "c"] }
-}
-```
-
-**返回:**
-
-```json
-{ "ok": true }
-// 批量归档:
-{ "ok": true, "results": [{ "key": "a", "ok": true }, { "key": "b", "ok": false, "error": "运行中" }] }
-```
-
----
+## 6. 快照、详情与配置
 
 ### `engine.snapshot(includeArchived = false)`
 
-获取任务列表快照。默认不包含已归档任务。
+返回：
 
-**返回:**
-
-```json
+```js
 {
-  "revision": 13,
-  "tasks": [{ "key": "...", "status": "running", ... }],
-  "config": {
-    "maxConcurrent": 2,
-    "autoArchive": false,
-    "webhook": null,
-    "queueDir": null,
-    "workspace": null
-  }
+  revision,
+  tasks,
+  unreadCount,
+  metrics: { total, running, pending, done24h, failed24h, successRate },
+  config: { maxConcurrent, webhook, queueDir, enableNotifications, unknownThreshold }
 }
 ```
 
----
-
-### `engine.getConfig()` / `engine.setConfig(patch)`
-
-读写运行时配置。
-
-**setConfig 支持的字段:**
-
-| 字段 | 类型 | 范围 |
-|---|---|---|
-| `maxGoalRounds` | number | 1-100 |
-| `maxBlockedResumes` | number | 0-10 |
-| `autoArchive` | boolean | 默认 false；true 时 done/failed 自动归档 |
-| `unknownThreshold` | number | 1-10，默认 3；连续 poll 返回 unknown 触发 retry |
-| `maxAttempts` | number | 1-10，默认 3；派发失败重试次数 |
-| `agentPreset` | string\|null | Agent 预设名称 |
-| `priority` | number | 1-10，默认 5；全局默认优先级 |
-| `webhook` | string\|null | - |
-| `workspace` | string\|null | - |
-| `queueDir` | string\|null | - |
-| `defaultDeadline` | string\|null | 全局截止时间 cron |
-
----
+任务按 `updatedAt` 倒序。投影会删除 `raw` 和所有下划线内部字段，并派生 `taskType`、`nextRunAt`、`startedAt`、`currentRound`、`goalPhase`、`lastActivityTime`、`foregroundPaused`。
 
 ### `engine.getTaskDetail(key)`
 
-获取任务详情，含执行记录和报告。
+返回任务正文、公开策略、execution 历史，以及安全读取的：
 
-**返回:**
+- `.目标.md`
+- `.结果.md`
+- `执行报告.md`
 
-```json
-{
-  "ok": true,
-  "task": {
-    "key": "my-task",
-    "status": "done",
-    "archivedAt": null,
-    "autoArchive": null,
-    "maxAttempts": null,
-    "priority": 5,
-    "schedule": null,
-    "cron": null,
-    "deadline": null,
-    "executions": [
-      {
-        "sessionId": "session-xxx",
-        "startedAt": "2026-08-25T...",
-        "endedAt": "2026-08-25T...",
-        "result": "done",
-        "error": null
-      }
-    ],
-    "reports": {
-      "goal": "目标: # 每日报告\n结果: done\n时间: ...",
-      "result": "{ \"result\": \"done\", ... }",
-      "report": "## 执行报告\n..."
-    }
-  }
+报告路径必须仍位于当前 attempt 的 workDir 内，文件必须是普通文件且大小不超过 2 MiB。
+
+### `engine.getConfig()` / `engine.setConfig(patch)`
+
+运行时可更新：
+
+| 字段 | 范围 |
+|---|---|
+| `maxGoalRounds` | 1-100 |
+| `maxBlockedResumes` | 0-10 |
+| `unknownThreshold` | 1-10 |
+| `maxAttempts` | 1-10 |
+| `taskTimeoutMs` | 600000-86400000 |
+| `autoArchive` | boolean，默认 true |
+| `webhook` | string/null |
+| `enableNotifications` | boolean，默认 false |
+| `priority` | 1-10 |
+| `defaultDeadline` | cron/null |
+| `retryBackoffBaseMs` | 5000-600000 |
+| `retryBackoffMaxMs` | 10000-3600000 |
+
+`queueDir` 只允许启动时设置；请求切换到不同路径会失败。并发数是 ledger 配置，通过 `setConcurrency` 单独更新。
+
+## 7. 派发与前台让行
+
+### `engine.scanPending()`
+
+1. 扫描 `.md` 收件箱。
+2. 计算 `maxConcurrent - runningCount`；默认最大并发为 1。
+3. 无空位或无任务时返回。
+4. 调用 `_hostAllowsDispatch()`；前台活跃或列表未知时返回，不占用任务。
+5. 按 priority 降序处理。
+6. 检查 schedule / cron、分钟级 cron 去重、归档、退避和 admission quarantine。
+7. 为每个被接纳的任务异步 `_dispatch()`；`inFlight` 防止同 key 重入。
+
+### `engine.pollRunning()` 的前台分支
+
+一次可信或未知的 session list 供本轮所有 running task 共用。若检测到前台活跃或列表未知，则每个 owned task 进入 `_yieldForForeground()`；若任务已经带 foreground marker 且 Host 当前可信空闲，则进入 `_resumeAfterForeground()`；其余才执行普通 `_pollOne()`。前台暂停任务仍保留 `status=running` 和并发占位，不能走 wakeup/replacement retry。
+
+### `_dispatch(task)`
+
+派发前再次检查 Host，避免扫描与真正 admission 之间的竞态。每个 attempt：
+
+1. 引擎根据正文判定 standard 或 PTC owned preset。
+2. 创建独立 workDir 和专属 session ID。
+3. 在任何远端 create 前把 `status=running`、workDir、session ID、attempt 和 launch marker 持久化。
+4. 调用 `runner.launch()`；`beforeGoal` 在不可中止的 `goals.create` 前持久化 goal admission marker。
+5. `goals.create` 返回有效 ref 后，`afterGoal` 原子持久化 ref 并清除 marker。
+6. 远端调用 timeout/畸形响应无法证明 mutation 未发生时，保持 ownership/quarantine，不自动启动 replacement。
+
+## 8. `createRunner(apiProxy, options)`
+
+### 返回能力
+
+```js
+const runner = {
+  launch(entry, { beforeGoal, afterGoal }),
+  pollTask(sessionId),
+  listSessions(),
+  antiBlock(sessionId, goalRef),
+  wakeup(sessionId, goalRef),
+  pauseGoal(sessionId, goalRef),
+  resumeGoal(sessionId, goalRef),
+  finalize(entry, result, error),
+  cancelLaunch(sessionId, goalRef),
+  cancelTask(sessionId, goalRef),
+  cancelSession(sessionId),
+  archiveSessions(entry),
+  maxBlockedResumes,
+  taskTimeoutMs,
+  rpcTimeoutMs,
 }
 ```
 
----
+### `launch` 的唯一入场流程
 
-## files — 文件 I/O
-
-### 目录结构
-
-```
-$QUEUE_DIR/
-├── tasks/           # 收件箱 .md 文件
-├── runs/
-│   └── YYYY-MM/     # 按月分组
-│       └── key-ISO时间/
-│           ├── .task.md
-│           ├── .目标.md
-│           ├── .结果.md
-│           └── 执行报告.md
-└── queue-ledger.json
+```text
+ensure runDir + write .task.md
+→ validate reserved autoqueue session ID
+→ validate engine-selected owned preset
+→ sessions.create({ sessionId, cwd, owned preset })
+→ verify returned session ID is exactly reserved ID
+→ sessions.rename
+→ persist + verify session approvalPolicy=never
+→ beforeGoal: persist goal-admission marker
+→ goals.create({ objective: full task, maxGoalRounds })
+→ afterGoal: persist exact goal ref
+→ return { sessionId, goalRef }
 ```
 
-### `setQueueDir(dir)`
+rc.2 的 goal driver 在 `goals.create` 后自行开始工作。因此新 launch 没有 `sessions.prompt(mode:'queue')`，也没有第二个 prompt admission boundary。账本里保留的 prompt quarantine 字段只用于旧版本数据的 fail-closed 兼容，不是当前启动流程。
 
-设置队列根目录。必须在其他操作前调用。
+### Goal 轮询与干预
 
-### `getQueueDir()`
+| phase | engine 行为 |
+|---|---|
+| `active` / `running` | 静默等待并更新轮次/活动信息 |
+| `complete` | finalize 为 done，Webhook，按策略归档 |
+| `blocked` | Host 可用时 steering + resume；超过上限则 failed |
+| `paused` | 前台暂停任务双重空闲确认后 resume；其他 dormant 在 Host 可用时恢复，均无重复 prompt |
+| `unknown` | 连续计数，达到阈值后 wakeup 或 bounded retry |
 
-返回当前队列根目录。
+`pauseGoal`/`resumeGoal` 是前台协作让行的 durable transition；pause 接纳后必须先持久化新 revision 才能 cancel turn，resume 前需要两次可信空闲观察。`antiBlock` 和 `wakeup` 是故障恢复干预，允许发送 steering/恢复提示；这些都不等于启动时的重复初始 prompt。每次继续前仍重新确保 `approvalPolicy=never`。
 
-### `getTasksDir()` / `getRunsDir()`
+### 停止和归档
 
-返回收件箱/运行目录路径。
+- `cancelTask` 先 clear goal，再 cancel session；只 cancel 当前 turn 不足以停止 durable goal。
+- stale goal revision 会从 history 读取最新 ref 后重试 clear。
+- `cancelLaunch` 在 ref 未持久化时尝试从 history 恢复 ref，再做 clear/cancel。
+- `archiveSessions` 只归档 entry 中全部通过 ownership 校验的 session。
 
-### `listTaskFiles()`
+## 9. ledger
 
-扫描收件箱所有 `.md` 文件，自动解析调度声明。
+### 文件与默认值
 
-**返回:**
-
-```js
-[
-  {
-    key: "my-task",       // 文件名去 .md
-    path: "...",          // 完整路径
-    raw: "...",           // 原始内容
-    body: "...",          // 去调度声明的正文
-    schedule: {           // 解析后的调度
-      schedule: "2026-...", // ISO 时间
-      cron: "0 8 * * *",   // cron 表达式
-      deadline: "0 21 * * *" // 截止时间
-    }
-  }
-]
-```
-
-### `readTaskFile(key)` / `removeTaskFile(key)` / `writeTaskFile(key, content)`
-
-单个任务文件的读写删。注意：`readTaskFile` 当前未实现（内部使用 `readFileSync` 直接读取），`removeTaskFile` 和 `writeTaskFile` 可用。
-
-### `createRunDir(key)`
-
-创建运行目录，返回路径。
-
-### `writeTaskCopy(workDir, body)` / `writeGoalSnapshot(workDir, content)` / `writeResult(workDir, content)`
-
-向运行目录写入 `.task.md`（任务副本）、`.目标.md`（目标快照）、`.结果.md`（执行结果）。Agent 自行写入 `执行报告.md`。
-
-### `matchCron(expr, now?)`
-
-检查 cron 表达式是否匹配当前时间（本地时间，与 task-board 一致）。
-
-**cron 格式:** 5 字段，空格分隔：`分 时 日 月 周`
-
-| 字段 | 范围 | 说明 |
-|---|---|---|
-| 分 | 0-59 | |
-| 时 | 0-23 | 本地时间 |
-| 日 | 1-31 | |
-| 月 | 1-12 | |
-| 周 | 0-6 | 0=周日 |
-
-**支持的语法:**
-
-| 语法 | 示例 | 含义 |
-|---|---|---|
-| `*` | `* * * * *` | 每分钟 |
-| 数字 | `0 8 * * *` | 每天 8:00 |
-| `*/step` | `*/15 * * * *` | 每 15 分钟 |
-| `a-b` | `0 9-17 * * 1-5` | 工作日 9-17 点整点 |
-| 逗号 | `0 8,20 * * *` | 每天 8:00 和 20:00 |
-
----
-
-## ledger — 任务账本
-
-持久化到 `queue-ledger.json`，原子写入。
-
-### 数据结构
+账本位于 `$QUEUE_DIR/queue-ledger.json`，schemaVersion 为 2。空账本默认：
 
 ```json
 {
   "schemaVersion": 2,
-  "revision": 13,
-  "tasks": [
-    {
-      "key": "my-task",
-      "status": "pending|running|done|failed|stopped|interrupted",
-      "workDir": "C:\\...",
-      "sessionId": "session-xxx",
-      "goalRef": { "id": "...", "revision": 1 },
-      "attempts": 1,
-      "blockedResumes": 0,
-      "executions": [{ "sessionId": "...", "startedAt": "...", "endedAt": "...", "result": "done|failed|stopped", "error": "..." }],
-      "createdAt": "2026-...",
-      "updatedAt": "2026-...",
-      "archivedAt": "2026-...",
-      "body": "# 任务内容",
-      "raw": "<!-- cron: ... -->\n# 任务内容",
-      "schedule": "2026-...",
-      "cron": "0 8 * * *",
-      "deadline": "0 21 * * *",
-      "priority": 5,
-      "webhook": "https://...",
-      "workspace": "uuid",
-      "agentPreset": "...",
-      "autoArchive": null,
-      "maxAttempts": null,
-      "maxGoalRounds": 40,
-      "maxBlockedResumes": 3,
-      "timeoutMs": 5400000
-    }
-  ],
-  "config": { "maxConcurrent": 2 },
-  "recentRequests": [{ "requestId": "...", "fingerprint": "..." }]
+  "revision": 0,
+  "tasks": [],
+  "config": { "maxConcurrent": 1 },
+  "recentRequests": []
 }
 ```
 
-### 任务状态机
+### 状态
 
-```
-pending ──→ running ──→ done
-   │           │
-   │           ├──→ failed
-   │           │
-   │           └──→ stopped
-   │
-   └──→ (archive: 手动归档 → archivedAt 打标 + 会话归档)
-```
+合法状态：`pending`、`running`、`done`、`failed`、`stopped`、`interrupted`。`done` / `failed` / `stopped` / `interrupted` 属于 terminal；`archivedAt` 是独立归档标志。
 
-**归档规则：** 手动调用 archive action 时，归档任务列表并同步归档 DSH 会话。
+每条 execution 包含稳定 `id`、专属 `sessionId`、attempt、起止时间、结果和可选错误。每任务最多保留 100 条 execution。账本总大小上限 64 MiB，并为活跃生命周期预留容量。
 
-**autoArchive 自动归档：** 全局配置 `autoArchive: true` 或单任务指定 `autoArchive: true` 时，done/failed 自动触发完整归档（列表隐藏 + 会话归档）。任务级优先于全局。
+### 事务与恢复
 
-**工作区隔离：** 每个任务自动创建独立 DSH 工作区（`entry.workDir` 注册为 workspace），防止并发任务文件冲突。若创建时指定了 `workspace` 则使用指定的。
+- 所有修改先克隆 document/request cache，在副本上校验 schema 和精确序列化容量，再一次性换入。
+- `upsertEntry` 总是增加 `_generation`，旧异步 continuation 用 generation CAS 识别 ownership 已失效。
+- 原子写使用私有临时文件和 rename；持久化失败后暂停后续写入，直到 `flushLedger()` 成功。
+- 账本损坏时保留原文件并尽力写只读诊断副本，插件 fail closed，不以空账本启动。
+- 重启时，只有 `running` 且没有 session ID 的 legacy 记录回到 pending；带专属 ID/goal/admission marker 的记录保留 ownership，由 poll/containment 继续处理。
+- foreground pause pending/paused/cancel-pending marker 同样持久化；重启后从 history/list 收敛，不 wakeup 或重建第二个 Agent。
 
-### 导出函数
+### 导出
 
 | 函数 | 说明 |
 |---|---|
-| `loadLedger()` | 从磁盘加载账本 |
-| `flushLedger()` | 强制写入磁盘 |
-| `snapshot()` | 返回 `{ revision, tasks, config }` |
-| `findByKey(key)` | 查找任务 |
-| `upsertEntry(key, patch)` | 创建或更新任务 |
-| `removeEntry(key)` | 删除任务 |
-| `getConcurrency()` / `setConcurrency(n)` | 并发数 |
-| `runningCount()` | 运行中任务数 |
-| `markRead(key)` | 标记任务为已读 |
-| `markUnread(key)` | 标记任务为未读 |
-| `unreadCount()` | 未读任务数 |
-| `checkRequest(requestId, meta)` | 请求去重 |
+| `initializeLedger()` / `reloadLedger()` | 初始化或显式切换账本 |
+| `loadLedger()` / `snapshot()` | 读取权威状态 |
+| `flushLedger()` | 同步持久化 |
+| `findByKey()` / `upsertEntry()` / `removeEntry()` | 任务事务 |
+| `getConcurrency()` / `setConcurrency()` / `runningCount()` | 并发控制 |
+| `checkRequest()` / `completeRequest()` / `releaseRequest()` | requestId 两阶段去重 |
+| `markRead()` / `markUnread()` / `unreadCount()` | 结果阅读状态 |
 
----
+## 10. files
 
-## runner — 会话生命周期
+### 目录
 
-### `createRunner(apiProxy, options)`
-
-**options:**
-
-| 参数 | 默认 | 说明 |
-|---|---|---|
-| `maxGoalRounds` | 40 | |
-| `maxBlockedResumes` | 3 | |
-| `taskTimeoutMs` | 5400000 | 90 分钟 |
-| `autoArchive` | false | 全局自动归档默认 |
-| `agentPreset` | null | 全局 Agent 预设 |
-| `model` | null | 全局执行模型 |
-| `model` | null | 全局执行模型 |
-| `priority` | 5 | 全局优先级 |
-| `unknownThreshold` | 3 | 不可达检测阈值 |
-| `maxAttempts` | 3 | 派发重试次数 |
-| `webhook` | null | 全局 webhook |
-| `workspace` | null | 默认工作区 |
-| `queueDir` | null | 队列根目录 |
-| `defaultDeadline` | null | 全局截止时间 |
-
-**返回:**
-
-```js
-const runner = {
-  launch(entry),           // 创建会话（自动创建独立 workspace）并启动
-  pollTask(sessionId),     // 轮询状态
-  antiBlock(sessionId, goalRef), // 发送解除阻塞提示
-  wakeup(sessionId, goalRef),    // 重启后唤醒会话
-  finalize(entry, result, error), // 写报告（done/failed）
-  cancelTask(sessionId, goalRef),  // 取消运行中任务
-  cancelSession(sessionId),       // 清理孤儿会话
-  archiveSessions(entry),  // 归档该任务所有会话
-  listSessions(),          // 列出所有活跃 session
-  maxBlockedResumes,       // 配置值
-  taskTimeoutMs,           // 配置值
-}
+```text
+$QUEUE_DIR/
+├── tasks/<key>.md
+├── runs/YYYY-MM/<key>-a<attempt>-<random>/
+│   ├── .task.md
+│   ├── .目标.md
+│   ├── .结果.md
+│   └── 执行报告.md
+└── queue-ledger.json
 ```
 
-### 轮询状态
+### 主要导出
 
-`pollTask` 返回 goal 的 phase：
+| 函数 | 说明 |
+|---|---|
+| `setQueueDir` / `getQueueDir` | 启动时设置/读取队列根目录 |
+| `ensurePrivateDir` / `atomicWrite` | 私有目录与原子写 |
+| `validateKey` | 拒绝路径穿越、控制字符、保留名和超长 key |
+| `validateSchedule` / `validateCronExpression` / `matchCron` | 调度验证和本地时间匹配 |
+| `listTaskFiles` | 扫描 `.md` 并解析 schedule/cron/deadline 文件头 |
+| `writeTaskFile` / `removeTaskFile` | 收件箱原子写删 |
+| `createRunDir` / `ensureRunDir` | 创建/验证 attempt 私有目录 |
+| `writeTaskCopy` / `writeGoalSnapshot` / `writeResult` | 运行工件 |
+| `safeReadReportFile` | 防 symlink/越界/超限的报告读取 |
 
-| phase | 含义 | 引擎行为 |
-|---|---|---|
-| `active` | 运行中 | agent 工作中，不做干预 |
-| `complete` | 完成 | 调用 finalize，若 `autoArchive` 则归档 |
-| `blocked` | 阻塞 | 调用 antiBlock，超限则标记失败 |
+cron 是 5 字段本地时间表达式，支持 `*`、数字、`*/step`、范围和逗号；日与周同时受限时采用标准 OR 语义。
 
-### 提示词
+## 11. 上层能力面
 
-- **queue 模式:** 告诉 Agent "不要提问，先自己解决，记录 GAP 不等于失败"
-- **anti-block 模式:** 告诉 Agent "换方案或记录 GAP 后继续"
-- **wakeup 模式:** 恢复中断任务，重新发送 queue 提示词
+- HTTP：完整契约见 `docs/api.md`。
+- 外部 AI：Capabilities → OpenAPI → compact state → detail。
+- Host AI：16 个工具，只有 `enableHostAiTools=true` 才注册；默认不改变普通会话 tool catalog。
+- UI：导航/筛选/KPI、完整安全任务表单、任务动作、批量归档、详情四页签、配置抽屉、AI/API 接入抽屉、SSE 和已读状态均已暴露。
+- `/api/queue/options` 返回 `workspaces: []`、`presets: []`、`models: []` 和 `isolation.overridesLocked`；它是锁声明，不是 Host 枚举接口。

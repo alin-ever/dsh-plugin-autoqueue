@@ -1,10 +1,10 @@
 ﻿export var STATUS_CONFIG = {
-  pending: { label: "\u5F85\u6267\u884C", color: "#6b7280" },
-  running: { label: "\u6267\u884C\u4E2D", color: "#3b82f6" },
-  done: { label: "\u5DF2\u5B8C\u6210", color: "#10b981" },
-  failed: { label: "\u5DF2\u5931\u8D25", color: "#ef4444" },
-  stopped: { label: "\u5DF2\u505C\u6B62", color: "#f59e0b" },
-  interrupted: { label: "\u5DF2\u4E2D\u65AD", color: "#8b5cf6" }
+  pending: { label: "\u5F85\u6267\u884C", color: "#596579" },
+  running: { label: "\u6267\u884C\u4E2D", color: "#175cd3" },
+  done: { label: "\u5DF2\u5B8C\u6210", color: "#067647" },
+  failed: { label: "\u5DF2\u5931\u8D25", color: "#b42318" },
+  stopped: { label: "\u5DF2\u505C\u6B62", color: "#9a6700" },
+  interrupted: { label: "\u5DF2\u4E2D\u65AD", color: "#7a5af8" }
 };
 
 export var CRON_PRESETS = [
@@ -85,7 +85,7 @@ export function elapseStr(startedAt) {
 }
 
 export function isUnread(task) {
-  if (task.status !== "done" && task.status !== "failed" && task.status !== "stopped") return false;
+  if (task.status !== "done" && task.status !== "failed" && task.status !== "stopped" && task.status !== "interrupted") return false;
   if (task.archivedAt) return false;
   if (!task.readAt) return true;
   return task.updatedAt > task.readAt;

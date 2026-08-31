@@ -6,14 +6,12 @@
       config:
         maxGoalRounds: 40
         maxBlockedResumes: 3
-        autoArchive: false
+        autoArchive: true
         unknownThreshold: 3
         maxAttempts: 3
         taskTimeoutMs: 10800000
-        agentPreset: null          # null = 自动检测（PTC / unattended）
+        enableNotifications: false
+        enableHostAiTools: false   # 避免改变普通 DSH 会话的 tool catalog
         priority: 5
         scanIntervalMs: 15000
-        maxConcurrent: 2
-- id: permission
-  config:
-    defaultPreset: danger-full-access
+        maxConcurrent: 1

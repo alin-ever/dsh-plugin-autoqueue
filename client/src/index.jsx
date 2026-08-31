@@ -170,6 +170,8 @@ function mountSidebarEntry(controller) {
 window.__ModuleLoader__.load({
   id: "@alintever/dsh-plugin-autoqueue",
   factory: function (require) {
+    var previousReact = window.__React;
+    var previousReactDOM = window.__ReactDOM;
     window.__React = require("react");
     window.__ReactDOM = require("react-dom/client");
     return {
@@ -179,13 +181,14 @@ window.__ModuleLoader__.load({
         var transport = createTransport();
         var controller = createController(transport);
         var boardDisposer = mountBoard(controller, transport, window.__React, window.__ReactDOM, sessions);
-        controller.init();
         var styleId = "dsh-autoqueue-styles";
+        var ownedStyle = null;
         if (!document.getElementById(styleId)) {
           var style = document.createElement("style");
           style.id = styleId;
           style.textContent = workstationCss;
           document.head.appendChild(style);
+          ownedStyle = style;
         }
         var sidebarDisposer = mountSidebarEntry(controller);
         return function () {
@@ -194,8 +197,11 @@ window.__ModuleLoader__.load({
           sidebarDisposer();
           controller.dispose();
           document.documentElement.removeAttribute(PANEL_ATTR);
-          delete window.__React;
-          delete window.__ReactDOM;
+          if (ownedStyle && ownedStyle.isConnected) ownedStyle.remove();
+          if (previousReact === undefined) delete window.__React;
+          else window.__React = previousReact;
+          if (previousReactDOM === undefined) delete window.__ReactDOM;
+          else window.__ReactDOM = previousReactDOM;
         };
       }
     };

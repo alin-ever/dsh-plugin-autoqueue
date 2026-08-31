@@ -1,7 +1,21 @@
 import { localDatetimeString, CRON_PRESETS, DEADLINE_PRESETS } from "../utils.js";
+import { DialogShell } from "./DialogShell.jsx";
+
+// The DSH module loader installs React inside the plugin factory. Keep this
+// wrapper lazy so evaluating the production bundle never touches the Host
+// React global before __ModuleLoader__.load has registered the plugin.
+function h() { return React.createElement.apply(React, arguments); }
+
+function numberOrUndefined(value) {
+  return value === "" ? undefined : parseInt(value, 10);
+}
+
+function requestNotificationPermission() {
+  if (typeof Notification === "undefined" || Notification.permission !== "default") return;
+  try { Notification.requestPermission(); } catch (error) {}
+}
 
 export function NewTaskModal(props) {
-  var options = props.options || {};
   var key = React.useState("");
   var content = React.useState("");
   var priority = React.useState("5");
@@ -10,91 +24,72 @@ export function NewTaskModal(props) {
   var deadline = React.useState("");
   var maxGoalRounds = React.useState("");
   var maxBlockedResumes = React.useState("");
-  var workspace = React.useState("");
-  var agentPreset = React.useState("");
-  var model = React.useState("");
-  var autoArchive = React.useState(false);
-  var enableNotifications = React.useState(true);
+  var timeoutMinutes = React.useState("180");
+  var maxAttempts = React.useState("3");
+  var webhook = React.useState("");
+  var autoArchive = React.useState(true);
+  var enableNotifications = React.useState(false);
+  var advancedOpen = React.useState(false);
+  var notifyOpen = React.useState(false);
   var error = React.useState("");
   var submitting = React.useState(false);
 
-  function handleSubmit(e) {
-    e.preventDefault();
-    if (!key[0].trim() || !content[0].trim()) { error[1]("\u8BF7\u586B\u5199\u4EFB\u52A1\u6807\u8BC6\u548C\u5185\u5BB9"); return; }
-    submitting[1](true);
-    error[1]("");
-    var data = { key: key[0].trim(), content: content[0].trim(), priority: parseInt(priority[0], 10) || 5 };
-    if (cron[0].trim()) data.cron = cron[0].trim();
-    if (schedule[0].trim()) data.schedule = new Date(schedule[0].trim()).toISOString();
-    if (deadline[0].trim()) data.deadline = deadline[0].trim();
+  function handleSubmit(event) {
+    event.preventDefault();
+    if (!content[0].trim()) { error[1]("请填写任务内容"); return; }
+    if (cron[0] && schedule[0]) { error[1]("循环调度和一次性定时不能同时设置"); return; }
+    var data = {
+      content: content[0].trim(), priority: parseInt(priority[0], 10),
+      autoArchive: autoArchive[0], enableNotifications: enableNotifications[0]
+    };
+    if (key[0].trim()) data.key = key[0].trim();
+    if (cron[0]) data.cron = cron[0];
+    if (schedule[0]) data.schedule = new Date(schedule[0]).toISOString();
+    if (deadline[0]) data.deadline = deadline[0];
     if (maxGoalRounds[0]) data.maxGoalRounds = parseInt(maxGoalRounds[0], 10);
     if (maxBlockedResumes[0]) data.maxBlockedResumes = parseInt(maxBlockedResumes[0], 10);
-    if (workspace[0]) data.workspace = workspace[0];
-    if (agentPreset[0]) data.agentPreset = agentPreset[0];
-    if (model[0]) data.model = model[0];
-    if (autoArchive[0]) data.autoArchive = true;
-    if (!enableNotifications[0]) data.enableNotifications = false;
-    props.onCreate(data).catch(function (err) { error[1](err.message); }).finally(function () { submitting[1](false); });
+    if (timeoutMinutes[0]) data.timeoutMs = parseInt(timeoutMinutes[0], 10) * 60000;
+    if (maxAttempts[0]) data.maxAttempts = parseInt(maxAttempts[0], 10);
+    if (webhook[0].trim()) data.webhook = webhook[0].trim();
+
+    submitting[1](true); error[1]("");
+    props.onCreate(data).catch(function (caught) {
+      error[1](caught && caught.message ? caught.message : "创建失败");
+    }).finally(function () { submitting[1](false); });
   }
 
-  return React.createElement("div", { className: "aq-m-overlay", onClick: function (e) { if (e.target === e.currentTarget) props.onClose(); } },
-    React.createElement("div", { className: "aq-modal" },
-      React.createElement("h3", null, "\u65B0\u5EFA\u4EFB\u52A1"),
-      error[0] && React.createElement("div", { style: { color: "#ef4444", fontSize: "13px", marginBottom: "8px" } }, error[0]),
-      React.createElement("label", null, "\u4EFB\u52A1\u6807\u8BC6 (key)*"),
-      React.createElement("input", { value: key[0], onChange: function (e) { key[1](e.target.value); }, placeholder: "\u4F8B\u5982: daily-report" }),
-      React.createElement("label", null, "\u4EFB\u52A1\u5185\u5BB9 (Markdown)*"),
-      React.createElement("textarea", { value: content[0], onChange: function (e) { content[1](e.target.value); }, placeholder: "# \u4EFB\u52A1\u6807\u9898\n\n\u4EFB\u52A1\u63CF\u8FF0..." }),
-      React.createElement("div", { className: "aq-row" },
-        React.createElement("div", null,
-          React.createElement("label", null, "\u4F18\u5148\u7EA7 (1-10)"),
-          React.createElement("input", { type: "number", min: "1", max: "10", value: priority[0], onChange: function (e) { priority[1](e.target.value); } })
+  return h(DialogShell, { title: "新建无人值守任务", onClose: props.onClose, className: "wide" },
+    h("form", { className: "aq-modal-content", onSubmit: handleSubmit },
+      h("p", { className: "aq-modal-subtitle" }, "任务会进入隔离工作目录；当前台会话活跃时，后台自动让行。"),
+      error[0] && h("div", { className: "aq-inline-error", role: "alert" }, error[0]),
+      h("label", { htmlFor: "aq-new-content" }, "任务内容（Markdown）"),
+      h("textarea", { id: "aq-new-content", "data-dialog-initial-focus": "", value: content[0], onChange: function (event) { content[1](event.target.value); }, placeholder: "例如：整理本周客户访谈，归纳三条产品机会并输出报告…", required: true }),
+      h("div", { className: "aq-row" },
+        h(Field, { label: "任务标识（可选）", help: "留空将自动生成" }, h("input", { value: key[0], onChange: function (event) { key[1](event.target.value); }, placeholder: "weekly-insight" })),
+        h(Field, { label: "优先级（1–10）" }, h("input", { type: "number", min: "1", max: "10", value: priority[0], onChange: function (event) { priority[1](event.target.value); } }))
+      ),
+      h("div", { className: "aq-row" },
+        h(CronField, { label: "循环调度", value: cron[0], onChange: cron[1], presets: CRON_PRESETS, placeholder: "0 8 * * *" }),
+        h(Field, { label: "一次性定时" }, h("input", { type: "datetime-local", value: schedule[0], onChange: function (event) { schedule[1](event.target.value); } }))
+      ),
+      h(CronField, { label: "执行截止窗口", value: deadline[0], onChange: deadline[1], presets: DEADLINE_PRESETS, placeholder: "0 21 * * *" }),
+      h(Disclosure, { title: "高级执行策略", hint: "轮数、超时与重试", open: advancedOpen[0], onToggle: function () { advancedOpen[1](!advancedOpen[0]); } },
+        h("div", { className: "aq-row three" },
+          h(Field, { label: "最大 Goal 轮数" }, h("input", { type: "number", min: "1", max: "100", value: maxGoalRounds[0], onChange: function (event) { maxGoalRounds[1](event.target.value); }, placeholder: "默认 40" })),
+          h(Field, { label: "最大反阻塞" }, h("input", { type: "number", min: "0", max: "10", value: maxBlockedResumes[0], onChange: function (event) { maxBlockedResumes[1](event.target.value); }, placeholder: "默认 3" })),
+          h(Field, { label: "最长执行（分钟）" }, h("input", { type: "number", min: "10", max: "1440", value: timeoutMinutes[0], onChange: function (event) { timeoutMinutes[1](event.target.value); } }))
         ),
-        React.createElement("div", null,
-          React.createElement("label", null, "\u6700\u5927\u8F6E\u6570"),
-          React.createElement("input", { type: "number", min: "1", max: "100", value: maxGoalRounds[0], onChange: function (e) { maxGoalRounds[1](e.target.value); }, placeholder: "\u9ED8\u8BA4 40" })
-        ),
-        React.createElement("div", null,
-          React.createElement("label", null, "\u6700\u5927\u53CD\u963B\u585E"),
-          React.createElement("input", { type: "number", min: "0", max: "10", value: maxBlockedResumes[0], onChange: function (e) { maxBlockedResumes[1](e.target.value); }, placeholder: "\u9ED8\u8BA4 3" })
-        )
+        h(Field, { label: "最大派发尝试（1–10）" }, h("input", { type: "number", min: "1", max: "10", value: maxAttempts[0], onChange: function (event) { maxAttempts[1](event.target.value); } })),
+        h("div", { className: "aq-safety-note" }, h("strong", null, "隔离锁定"), " DSH rc.2 的模型、工作区和预设覆盖会改变宿主全局状态，因此本任务台不开放这些字段。")
       ),
-      React.createElement(CronField, { label: "\u5FAA\u73AF\u8C03\u5EA6 (cron)", value: cron[0], onChange: function (v) { cron[1](v); }, presets: CRON_PRESETS, placeholder: "0 8 * * *" }),
-      React.createElement("label", { style: { marginTop: "8px" } }, "\u4E00\u6B21\u6027\u5B9A\u65F6"),
-      React.createElement("input", { type: "datetime-local", value: schedule[0], onChange: function (e) { schedule[1](e.target.value); } }),
-      React.createElement(CronField, { label: "\u622A\u6B62\u65F6\u95F4 (deadline)", value: deadline[0], onChange: function (v) { deadline[1](v); }, presets: DEADLINE_PRESETS, placeholder: "0 21 * * *" }),
-      React.createElement("div", { className: "aq-row" },
-        options.workspaces && options.workspaces.length > 0 && React.createElement("div", null,
-          React.createElement("label", null, "\u5DE5\u4F5C\u533A"),
-          React.createElement("select", { value: workspace[0], onChange: function (e) { workspace[1](e.target.value); } },
-            React.createElement("option", { value: "" }, "\u81EA\u52A8\u521B\u5EFA"),
-            options.workspaces.map(function (ws) { return React.createElement("option", { key: ws.workspaceId, value: ws.workspaceId }, ws.title || ws.path); })
-          )
-        ),
-        options.presets && options.presets.length > 0 && React.createElement("div", null,
-          React.createElement("label", null, "Agent \u9884\u8BBE"),
-          React.createElement("select", { value: agentPreset[0], onChange: function (e) { agentPreset[1](e.target.value); } },
-            React.createElement("option", { value: "" }, "\u9ED8\u8BA4"),
-            options.presets.map(function (p) { return React.createElement("option", { key: p.id, value: p.id }, p.name || p.id); })
-          )
-        )
+      h(Disclosure, { title: "通知与回调", hint: "默认完全静默", open: notifyOpen[0], onToggle: function () { notifyOpen[1](!notifyOpen[0]); } },
+        h(Field, { label: "Webhook URL" }, h("input", { type: "url", value: webhook[0], onChange: function (event) { webhook[1](event.target.value); }, placeholder: "https://example.com/hook" })),
+        h(CheckField, { checked: autoArchive[0], onChange: autoArchive[1], label: "完成后自动归档（推荐）" }),
+        h(CheckField, { checked: enableNotifications[0], onChange: function (checked) { enableNotifications[1](checked); if (checked) requestNotificationPermission(); }, label: "浏览器结果通知（仅在我主动开启后）" })
       ),
-      React.createElement("div", { className: "aq-row" },
-        React.createElement("div", null,
-          React.createElement("label", null, "\u6A21\u578B"),
-          React.createElement("select", { value: model[0], onChange: function (e) { model[1](e.target.value); } },
-            React.createElement("option", { value: "" }, "\u9ED8\u8BA4"),
-            (options.models || []).map(function (m) { return React.createElement("option", { key: m, value: m }, m); })
-          )
-        )
-      ),
-      React.createElement("label", { style: { display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" } },
-        React.createElement("input", { type: "checkbox", checked: autoArchive[0], onChange: function (e) { autoArchive[1](e.target.checked); }, style: { width: "auto", margin: 0 } }),
-        "\u5B8C\u6210\u540E\u81EA\u52A8\u5F52\u6863"
-      ),
-      React.createElement("div", { className: "aq-modal-actions" },
-        React.createElement("button", { className: "aq-btn", onClick: props.onClose }, "\u53D6\u6D88"),
-        React.createElement("button", { className: "aq-btn primary", onClick: handleSubmit, disabled: submitting[0] }, submitting[0] ? "\u63D0\u4EA4\u4E2D..." : "\u521B\u5EFA")
+      h("div", { className: "aq-modal-actions" },
+        h("button", { type: "button", className: "aq-btn", onClick: props.onClose, disabled: submitting[0] }, "取消"),
+        h("button", { type: "submit", className: "aq-btn primary", disabled: submitting[0] }, submitting[0] ? "创建中…" : "创建任务")
       )
     )
   );
@@ -107,67 +102,72 @@ export function EditTaskModal(props) {
   var deadline = React.useState(task.deadline || "");
   var schedule = React.useState(task.schedule ? localDatetimeString(task.schedule) : "");
   var priority = React.useState(String(task.priority || 5));
-  var autoArchive = React.useState(!!task.autoArchive);
-  var enableNotifications = React.useState(task.enableNotifications !== false);
-  var maxGoalRounds = React.useState(task.maxGoalRounds ? String(task.maxGoalRounds) : "");
-  var maxBlockedResumes = React.useState(task.maxBlockedResumes ? String(task.maxBlockedResumes) : "");
+  var autoArchive = React.useState(task.autoArchive !== false);
+  var enableNotifications = React.useState(task.enableNotifications === true);
+  var maxGoalRounds = React.useState(task.maxGoalRounds == null ? "" : String(task.maxGoalRounds));
+  var maxBlockedResumes = React.useState(task.maxBlockedResumes == null ? "" : String(task.maxBlockedResumes));
+  var timeoutMinutes = React.useState(task.timeoutMs ? String(Math.round(task.timeoutMs / 60000)) : "");
+  var maxAttempts = React.useState(task.maxAttempts == null ? "" : String(task.maxAttempts));
+  var webhook = React.useState(task.webhook || "");
+  var advancedOpen = React.useState(false);
+  var notifyOpen = React.useState(false);
   var error = React.useState("");
   var submitting = React.useState(false);
 
-  function handleSubmit(e) {
-    e.preventDefault();
-    submitting[1](true);
-    error[1]("");
+  function handleSubmit(event) {
+    event.preventDefault();
+    if (!content[0].trim()) { error[1]("任务内容不能为空"); return; }
+    if (cron[0] && schedule[0]) { error[1]("循环调度和一次性定时不能同时设置"); return; }
     var patch = {};
-    if (content[0] !== (task.body || "")) patch.content = content[0];
-    if (cron[0] !== (task.cron || "")) patch.cron = cron[0];
+    var add = function (name, next, previous) { if (next !== previous) patch[name] = next; };
+    add("content", content[0], task.body || "");
+    add("cron", cron[0], task.cron || "");
     var scheduleIso = schedule[0] ? new Date(schedule[0]).toISOString() : "";
-    if (scheduleIso !== (task.schedule || "")) patch.schedule = scheduleIso;
-    if (deadline[0] !== (task.deadline || "")) patch.deadline = deadline[0];
-    if (priority[0] !== String(task.priority || 5)) patch.priority = parseInt(priority[0], 10);
-    if (autoArchive[0] !== !!task.autoArchive) patch.autoArchive = autoArchive[0];
-    if (enableNotifications[0] !== (task.enableNotifications !== false)) patch.enableNotifications = enableNotifications[0];
-    if (maxGoalRounds[0] !== (task.maxGoalRounds ? String(task.maxGoalRounds) : "")) patch.maxGoalRounds = maxGoalRounds[0] ? parseInt(maxGoalRounds[0], 10) : undefined;
-    if (maxBlockedResumes[0] !== (task.maxBlockedResumes ? String(task.maxBlockedResumes) : "")) patch.maxBlockedResumes = maxBlockedResumes[0] ? parseInt(maxBlockedResumes[0], 10) : undefined;
-    if (Object.keys(patch).length === 0) { props.onClose(); return; }
-    props.onUpdate(task.key, patch).catch(function (err) { error[1](err.message); }).finally(function () { submitting[1](false); });
+    add("schedule", scheduleIso, task.schedule || "");
+    add("deadline", deadline[0], task.deadline || "");
+    add("priority", parseInt(priority[0], 10), task.priority || 5);
+    add("autoArchive", autoArchive[0], task.autoArchive !== false);
+    add("enableNotifications", enableNotifications[0], task.enableNotifications === true);
+    add("maxGoalRounds", numberOrUndefined(maxGoalRounds[0]) ?? null, task.maxGoalRounds ?? null);
+    add("maxBlockedResumes", numberOrUndefined(maxBlockedResumes[0]) ?? null, task.maxBlockedResumes ?? null);
+    add("timeoutMs", timeoutMinutes[0] ? parseInt(timeoutMinutes[0], 10) * 60000 : null, task.timeoutMs ?? null);
+    add("maxAttempts", numberOrUndefined(maxAttempts[0]) ?? null, task.maxAttempts ?? null);
+    add("webhook", webhook[0].trim() || null, task.webhook || null);
+    if (!Object.keys(patch).length) { props.onClose(); return; }
+    submitting[1](true); error[1]("");
+    props.onUpdate(task.key, patch).catch(function (caught) { error[1](caught.message || "保存失败"); }).finally(function () { submitting[1](false); });
   }
 
-  return React.createElement("div", { className: "aq-m-overlay", onClick: function (e) { if (e.target === e.currentTarget) props.onClose(); } },
-    React.createElement("div", { className: "aq-modal" },
-      React.createElement("h3", null, "\u7F16\u8F91\u4EFB\u52A1: " + task.key),
-      error[0] && React.createElement("div", { style: { color: "#ef4444", fontSize: "13px", marginBottom: "8px" } }, error[0]),
-      React.createElement("label", null, "\u4EFB\u52A1\u5185\u5BB9 (Markdown)"),
-      React.createElement("textarea", { value: content[0], onChange: function (e) { content[1](e.target.value); }, style: { minHeight: "150px" } }),
-      React.createElement("div", { className: "aq-row" },
-        React.createElement("div", null,
-          React.createElement("label", null, "\u4F18\u5148\u7EA7 (1-10)"),
-          React.createElement("input", { type: "number", min: "1", max: "10", value: priority[0], onChange: function (e) { priority[1](e.target.value); } })
+  return h(DialogShell, { title: "编辑任务 · " + task.key, onClose: props.onClose, className: "wide" },
+    h("form", { className: "aq-modal-content", onSubmit: handleSubmit },
+      h("p", { className: "aq-modal-subtitle" }, "仅待执行任务可编辑；运行中的任务请先停止。"),
+      error[0] && h("div", { className: "aq-inline-error", role: "alert" }, error[0]),
+      h("label", { htmlFor: "aq-edit-content" }, "任务内容（Markdown）"),
+      h("textarea", { id: "aq-edit-content", "data-dialog-initial-focus": "", value: content[0], onChange: function (event) { content[1](event.target.value); } }),
+      h("div", { className: "aq-row" },
+        h(Field, { label: "优先级（1–10）" }, h("input", { type: "number", min: "1", max: "10", value: priority[0], onChange: function (event) { priority[1](event.target.value); } })),
+        h(CronField, { label: "循环调度", value: cron[0], onChange: cron[1], presets: CRON_PRESETS, placeholder: "0 8 * * *" })
+      ),
+      h("div", { className: "aq-row" },
+        h(Field, { label: "一次性定时" }, h("input", { type: "datetime-local", value: schedule[0], onChange: function (event) { schedule[1](event.target.value); } })),
+        h(CronField, { label: "执行截止窗口", value: deadline[0], onChange: deadline[1], presets: DEADLINE_PRESETS, placeholder: "0 21 * * *" })
+      ),
+      h(Disclosure, { title: "高级执行策略", hint: "轮数、超时与重试", open: advancedOpen[0], onToggle: function () { advancedOpen[1](!advancedOpen[0]); } },
+        h("div", { className: "aq-row three" },
+          h(Field, { label: "最大 Goal 轮数" }, h("input", { type: "number", min: "1", max: "100", value: maxGoalRounds[0], onChange: function (event) { maxGoalRounds[1](event.target.value); }, placeholder: "默认 40" })),
+          h(Field, { label: "最大反阻塞" }, h("input", { type: "number", min: "0", max: "10", value: maxBlockedResumes[0], onChange: function (event) { maxBlockedResumes[1](event.target.value); }, placeholder: "默认 3" })),
+          h(Field, { label: "最长执行（分钟）" }, h("input", { type: "number", min: "10", max: "1440", value: timeoutMinutes[0], onChange: function (event) { timeoutMinutes[1](event.target.value); }, placeholder: "默认 180" }))
         ),
-        React.createElement("div", null,
-          React.createElement("label", null, "\u6700\u5927\u8F6E\u6570"),
-          React.createElement("input", { type: "number", min: "1", max: "100", value: maxGoalRounds[0], onChange: function (e) { maxGoalRounds[1](e.target.value); }, placeholder: "\u9ED8\u8BA4 40" })
-        ),
-        React.createElement("div", null,
-          React.createElement("label", null, "\u6700\u5927\u53CD\u963B\u585E"),
-          React.createElement("input", { type: "number", min: "0", max: "10", value: maxBlockedResumes[0], onChange: function (e) { maxBlockedResumes[1](e.target.value); }, placeholder: "\u9ED8\u8BA4 3" })
-        )
+        h(Field, { label: "最大派发尝试（1–10）" }, h("input", { type: "number", min: "1", max: "10", value: maxAttempts[0], onChange: function (event) { maxAttempts[1](event.target.value); }, placeholder: "默认 3" }))
       ),
-      React.createElement(CronField, { label: "\u5FAA\u73AF\u8C03\u5EA6 (cron)", value: cron[0], onChange: function (v) { cron[1](v); }, presets: CRON_PRESETS, placeholder: "0 8 * * *" }),
-      React.createElement("label", { style: { marginTop: "8px" } }, "\u4E00\u6B21\u6027\u5B9A\u65F6"),
-      React.createElement("input", { type: "datetime-local", value: schedule[0], onChange: function (e) { schedule[1](e.target.value); } }),
-      React.createElement(CronField, { label: "\u622A\u6B62\u65F6\u95F4 (deadline)", value: deadline[0], onChange: function (v) { deadline[1](v); }, presets: DEADLINE_PRESETS, placeholder: "0 21 * * *" }),
-      React.createElement("label", { style: { display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" } },
-        React.createElement("input", { type: "checkbox", checked: autoArchive[0], onChange: function (e) { autoArchive[1](e.target.checked); }, style: { width: "auto", margin: 0 } }),
-        "\u5B8C\u6210\u540E\u81EA\u52A8\u5F52\u6863"
+      h(Disclosure, { title: "通知与回调", hint: "默认完全静默", open: notifyOpen[0], onToggle: function () { notifyOpen[1](!notifyOpen[0]); } },
+        h(Field, { label: "Webhook URL" }, h("input", { type: "url", value: webhook[0], onChange: function (event) { webhook[1](event.target.value); }, placeholder: "https://example.com/hook" })),
+        h(CheckField, { checked: autoArchive[0], onChange: autoArchive[1], label: "完成后自动归档" }),
+        h(CheckField, { checked: enableNotifications[0], onChange: function (checked) { enableNotifications[1](checked); if (checked) requestNotificationPermission(); }, label: "浏览器结果通知" })
       ),
-      React.createElement("label", { style: { display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" } },
-        React.createElement("input", { type: "checkbox", checked: enableNotifications[0], onChange: function (e) { enableNotifications[1](e.target.checked); }, style: { width: "auto", margin: 0 } }),
-        "\u4EFB\u52A1\u5B8C\u6210\u65F6\u901A\u77E5"
-      ),
-      React.createElement("div", { className: "aq-modal-actions" },
-        React.createElement("button", { className: "aq-btn", onClick: props.onClose }, "\u53D6\u6D88"),
-        React.createElement("button", { className: "aq-btn primary", onClick: handleSubmit, disabled: submitting[0] }, submitting[0] ? "\u63D0\u4EA4\u4E2D..." : "\u4FDD\u5B58")
+      h("div", { className: "aq-modal-actions" },
+        h("button", { type: "button", className: "aq-btn", onClick: props.onClose, disabled: submitting[0] }, "取消"),
+        h("button", { type: "submit", className: "aq-btn primary", disabled: submitting[0] }, submitting[0] ? "保存中…" : "保存")
       )
     )
   );
@@ -175,176 +175,145 @@ export function EditTaskModal(props) {
 
 export function ConfigPanel(props) {
   var config = props.config || {};
-  var options = props.options || {};
-  var maxConcurrent = React.useState(String(config.maxConcurrent || 2));
-  var maxGoalRounds = React.useState(String(config.maxGoalRounds || 60));
-  var maxBlockedResumes = React.useState(String(config.maxBlockedResumes || 3));
-  var autoArchive = React.useState(!!config.autoArchive);
-  var unknownThreshold = React.useState(String(config.unknownThreshold || 3));
-  var taskTimeoutMin = React.useState(String(Math.round((config.taskTimeoutMs || 10800000) / 60000)));
-  var maxAttempts = React.useState(String(config.maxAttempts || 3));
+  var valueOr = function (value, fallback) { return value === undefined || value === null ? fallback : value; };
+  var maxConcurrent = React.useState(String(valueOr(config.maxConcurrent, 1)));
+  var maxGoalRounds = React.useState(String(valueOr(config.maxGoalRounds, 40)));
+  var maxBlockedResumes = React.useState(String(valueOr(config.maxBlockedResumes, 3)));
+  var autoArchive = React.useState(config.autoArchive !== false);
+  var unknownThreshold = React.useState(String(valueOr(config.unknownThreshold, 3)));
+  var taskTimeoutMin = React.useState(String(Math.round(valueOr(config.taskTimeoutMs, 10800000) / 60000)));
+  var maxAttempts = React.useState(String(valueOr(config.maxAttempts, 3)));
   var defaultDeadline = React.useState(config.defaultDeadline || "");
-  var queueDir = React.useState(config.queueDir || "");
-  var enableNotifications = React.useState(config.enableNotifications !== false);
+  var enableNotifications = React.useState(config.enableNotifications === true);
   var webhook = React.useState(config.webhook || "");
-  var workspace = React.useState(config.workspace || "");
-  var agentPreset = React.useState(config.agentPreset || "");
-  var model = React.useState(config.model || "");
-  var priority = React.useState(String(config.priority || 5));
+  var priority = React.useState(String(valueOr(config.priority, 5)));
+  var backoffBaseSec = React.useState(String(Math.round(valueOr(config.retryBackoffBaseMs, 30000) / 1000)));
+  var backoffMaxSec = React.useState(String(Math.round(valueOr(config.retryBackoffMaxMs, 300000) / 1000)));
+  var saving = React.useState(false);
+  var saveError = React.useState("");
 
-  function handleSave() {
+  function handleSave(event) {
+    event.preventDefault();
     var patch = {};
-    patch.maxGoalRounds = parseInt(maxGoalRounds[0], 10);
-    patch.maxBlockedResumes = parseInt(maxBlockedResumes[0], 10);
-    patch.autoArchive = autoArchive[0];
-    patch.unknownThreshold = parseInt(unknownThreshold[0], 10);
-    patch.taskTimeoutMs = parseInt(taskTimeoutMin[0], 10) * 60000;
-    patch.maxAttempts = parseInt(maxAttempts[0], 10);
-    patch.defaultDeadline = defaultDeadline[0] || null;
-    patch.webhook = webhook[0] || null;
-    patch.workspace = workspace[0] || null;
-    patch.queueDir = queueDir[0] || null;
-    patch.enableNotifications = enableNotifications[0];
-    patch.agentPreset = agentPreset[0] || null;
-    patch.model = model[0] || null;
-    patch.priority = parseInt(priority[0], 10) || 5;
-    var newMc = parseInt(maxConcurrent[0], 10);
-    if (newMc !== (config.maxConcurrent || 2)) props.onSetConcurrency(newMc);
-    props.onUpdate(patch);
-    props.onClose();
+    var add = function (name, next, previous) { if (next !== previous) patch[name] = next; };
+    add("maxGoalRounds", parseInt(maxGoalRounds[0], 10), valueOr(config.maxGoalRounds, 40));
+    add("maxBlockedResumes", parseInt(maxBlockedResumes[0], 10), valueOr(config.maxBlockedResumes, 3));
+    add("autoArchive", autoArchive[0], config.autoArchive !== false);
+    add("unknownThreshold", parseInt(unknownThreshold[0], 10), valueOr(config.unknownThreshold, 3));
+    add("taskTimeoutMs", parseInt(taskTimeoutMin[0], 10) * 60000, valueOr(config.taskTimeoutMs, 10800000));
+    add("maxAttempts", parseInt(maxAttempts[0], 10), valueOr(config.maxAttempts, 3));
+    add("defaultDeadline", defaultDeadline[0] || null, config.defaultDeadline || null);
+    add("webhook", webhook[0].trim() || null, config.webhook || null);
+    add("enableNotifications", enableNotifications[0], config.enableNotifications === true);
+    add("priority", parseInt(priority[0], 10), valueOr(config.priority, 5));
+    add("retryBackoffBaseMs", parseInt(backoffBaseSec[0], 10) * 1000, valueOr(config.retryBackoffBaseMs, 30000));
+    add("retryBackoffMaxMs", parseInt(backoffMaxSec[0], 10) * 1000, valueOr(config.retryBackoffMaxMs, 300000));
+    var operations = [];
+    var concurrency = parseInt(maxConcurrent[0], 10);
+    if (concurrency !== valueOr(config.maxConcurrent, 1)) operations.push(props.onSetConcurrency(concurrency));
+    if (Object.keys(patch).length) operations.push(props.onUpdate(patch));
+    if (!operations.length) { props.onClose(); return; }
+    saving[1](true); saveError[1]("");
+    Promise.all(operations).then(props.onClose).catch(function (caught) { saveError[1](caught.message || "保存失败"); }).finally(function () { saving[1](false); });
   }
 
-  var tip = function (text) { return React.createElement("span", { className: "aq-tip", title: text }, "\u24D8"); };
-
-  return React.createElement("div", { className: "aq-m-overlay", onClick: function (e) { if (e.target === e.currentTarget) props.onClose(); } },
-    React.createElement("div", { className: "aq-modal wide" },
-      React.createElement("h3", null, "\u8FD0\u884C\u65F6\u914D\u7F6E"),
-      React.createElement("div", { className: "aq-row" },
-        React.createElement("div", null,
-          React.createElement("label", null, "\u6700\u5927\u5E76\u53D1\u6570 (1-8)", tip("\u540C\u65F6\u8FD0\u884C\u7684\u6700\u5927\u4EFB\u52A1\u6570")),
-          React.createElement("input", { type: "number", min: "1", max: "8", value: maxConcurrent[0], onChange: function (e) { maxConcurrent[1](e.target.value); } })
+  return h(DialogShell, { variant: "drawer", title: "运行时设置", onClose: props.onClose, className: "aq-config-panel",
+    renderTitle: function (args) { return h("div", { className: "aq-d-hd" }, h("div", null, h("span", { className: "aq-eyebrow" }, "RUNTIME POLICY"), h("h3", { id: args.id }, args.title), h("p", null, "所有设置仅作用于 AutoQueue 自有任务")), h("button", { className: "aq-d-close", "aria-label": "关闭运行设置", onClick: props.onClose }, "×")); }
+  },
+    h("form", { className: "aq-config-body", onSubmit: handleSave },
+      saveError[0] && h("div", { className: "aq-inline-error", role: "alert" }, saveError[0]),
+      h("section", { className: "aq-config-contract" }, h("strong", null, "严格隔离已锁定"), h("p", null, "并发默认 1；前台活跃即持久化暂停后台 Goal 并取消其 turn；不修改宿主模型、工作区或预设。")),
+      h(ConfigSection, { title: "资源边界" },
+        h("div", { className: "aq-row" },
+          h(Field, { label: "最大并发（1–8）" }, h("input", { "data-dialog-initial-focus": "", type: "number", min: "1", max: "8", value: maxConcurrent[0], onChange: function (event) { maxConcurrent[1](event.target.value); } })),
+          h(Field, { label: "任务超时（分钟）" }, h("input", { type: "number", min: "10", max: "1440", value: taskTimeoutMin[0], onChange: function (event) { taskTimeoutMin[1](event.target.value); } }))
         ),
-        React.createElement("div", null,
-          React.createElement("label", null, "\u6700\u5927\u91CD\u8BD5 (1-10)", tip("\u4EFB\u52A1\u6D3E\u53D1\u5931\u8D25\u540E\u7684\u6700\u5927\u91CD\u8BD5\u6B21\u6570")),
-          React.createElement("input", { type: "number", min: "1", max: "10", value: maxAttempts[0], onChange: function (e) { maxAttempts[1](e.target.value); } })
+        h("div", { className: "aq-row" },
+          h(Field, { label: "最大 Goal 轮数" }, h("input", { type: "number", min: "1", max: "100", value: maxGoalRounds[0], onChange: function (event) { maxGoalRounds[1](event.target.value); } })),
+          h(Field, { label: "最大反阻塞" }, h("input", { type: "number", min: "0", max: "10", value: maxBlockedResumes[0], onChange: function (event) { maxBlockedResumes[1](event.target.value); } }))
         )
       ),
-      React.createElement("div", { className: "aq-row" },
-        React.createElement("div", null,
-          React.createElement("label", null, "\u6700\u5927 goal \u8F6E\u6570 (1-100)", tip("\u5355\u4E2A\u4EFB\u52A1\u81EA\u52A8\u7EED\u8DD1\u7684\u6700\u5927\u8F6E\u6570")),
-          React.createElement("input", { type: "number", min: "1", max: "100", value: maxGoalRounds[0], onChange: function (e) { maxGoalRounds[1](e.target.value); } })
+      h(ConfigSection, { title: "失败与退避" },
+        h("div", { className: "aq-row" },
+          h(Field, { label: "最大派发尝试" }, h("input", { type: "number", min: "1", max: "10", value: maxAttempts[0], onChange: function (event) { maxAttempts[1](event.target.value); } })),
+          h(Field, { label: "不可达阈值" }, h("input", { type: "number", min: "1", max: "10", value: unknownThreshold[0], onChange: function (event) { unknownThreshold[1](event.target.value); } }))
         ),
-        React.createElement("div", null,
-          React.createElement("label", null, "\u6700\u5927\u53CD\u963B\u585E (0-10)", tip("\u4EFB\u52A1\u5361\u4F4F\u65F6\u81EA\u52A8\u6062\u590D\u7684\u6700\u5927\u6B21\u6570")),
-          React.createElement("input", { type: "number", min: "0", max: "10", value: maxBlockedResumes[0], onChange: function (e) { maxBlockedResumes[1](e.target.value); } })
+        h("div", { className: "aq-row" },
+          h(Field, { label: "退避基数（秒）" }, h("input", { type: "number", min: "5", max: "600", value: backoffBaseSec[0], onChange: function (event) { backoffBaseSec[1](event.target.value); } })),
+          h(Field, { label: "退避上限（秒）" }, h("input", { type: "number", min: "10", max: "3600", value: backoffMaxSec[0], onChange: function (event) { backoffMaxSec[1](event.target.value); } }))
         )
       ),
-      React.createElement("div", { className: "aq-row" },
-        React.createElement("div", null,
-          React.createElement("label", null, "\u4E0D\u53EF\u8FBE\u9608\u503C (1-10)", tip("\u8FDE\u7EED\u8F6E\u8BE2\u5931\u8D25\u540E\u5224\u5B9A\u4EFB\u52A1\u4E0D\u53EF\u8FBE")),
-          React.createElement("input", { type: "number", min: "1", max: "10", value: unknownThreshold[0], onChange: function (e) { unknownThreshold[1](e.target.value); } })
+      h(ConfigSection, { title: "默认任务策略" },
+        h("div", { className: "aq-row" },
+          h(Field, { label: "默认优先级" }, h("input", { type: "number", min: "1", max: "10", value: priority[0], onChange: function (event) { priority[1](event.target.value); } })),
+          h(Field, { label: "默认截止 cron" }, h("input", { value: defaultDeadline[0], onChange: function (event) { defaultDeadline[1](event.target.value); }, placeholder: "0 21 * * *" }))
         ),
-        React.createElement("div", null,
-          React.createElement("label", null, "\u4EFB\u52A1\u8D85\u65F6 (\u5206\u949F)", tip("\u5355\u4E2A\u4EFB\u52A1\u7684\u6700\u5927\u6267\u884C\u65F6\u95F4")),
-          React.createElement("input", { type: "number", min: "10", max: "1440", value: taskTimeoutMin[0], onChange: function (e) { taskTimeoutMin[1](e.target.value); } })
-        )
+        h(Field, { label: "Webhook URL" }, h("input", { type: "url", value: webhook[0], onChange: function (event) { webhook[1](event.target.value); }, placeholder: "https://example.com/hook" })),
+        h(CheckField, { checked: autoArchive[0], onChange: autoArchive[1], label: "终态自动归档" }),
+        h(CheckField, { checked: enableNotifications[0], onChange: function (checked) { enableNotifications[1](checked); if (checked) requestNotificationPermission(); }, label: "浏览器结果通知" })
       ),
-      React.createElement("div", { className: "aq-row" },
-        React.createElement("div", null,
-          React.createElement("label", null, "\u9ED8\u8BA4\u4F18\u5148\u7EA7 (1-10)"),
-          React.createElement("input", { type: "number", min: "1", max: "10", value: priority[0], onChange: function (e) { priority[1](e.target.value); } })
-        ),
-        React.createElement("div", null,
-          React.createElement("label", null, "\u9ED8\u8BA4\u622A\u6B62\u65F6\u95F4"),
-          React.createElement("input", { value: defaultDeadline[0], onChange: function (e) { defaultDeadline[1](e.target.value); }, placeholder: "0 21 * * *" })
-        )
+      h(ConfigSection, { title: "存储" },
+        h(Field, { label: "收件箱目录", help: "启动参数，只读" }, h("input", { value: config.queueDir || "默认 ~/.dsh/queue/tasks", disabled: true, readOnly: true }))
       ),
-      React.createElement("div", { className: "aq-row" },
-        React.createElement("div", { style: { display: "flex", gap: "16px", alignItems: "center", paddingTop: "10px" } },
-          React.createElement("label", { style: { display: "flex", alignItems: "center", gap: "4px", cursor: "pointer", margin: 0, fontSize: "13px" } },
-            React.createElement("input", { type: "checkbox", checked: autoArchive[0], onChange: function (e) { autoArchive[1](e.target.checked); }, style: { width: "auto", margin: 0 } }),
-            "\u81EA\u52A8\u5F52\u6863"
-          ),
-          React.createElement("label", { style: { display: "flex", alignItems: "center", gap: "4px", cursor: "pointer", margin: 0, fontSize: "13px" } },
-            React.createElement("input", { type: "checkbox", checked: enableNotifications[0], onChange: function (e) { enableNotifications[1](e.target.checked); }, style: { width: "auto", margin: 0 } }),
-            "\u4EFB\u52A1\u901A\u77E5"
-          )
-        )
-      ),
-      React.createElement("label", null, "Webhook URL", tip("\u4EFB\u52A1\u5B8C\u6210\u65F6\u56DE\u8C03\u7684 URL")),
-      React.createElement("input", { value: webhook[0], onChange: function (e) { webhook[1](e.target.value); }, placeholder: "https://example.com/webhook" }),
-      React.createElement("div", { className: "aq-row" },
-        React.createElement("div", null,
-          React.createElement("label", null, "\u6536\u4EF6\u7BB1\u76EE\u5F55"),
-          React.createElement("input", { value: queueDir[0], onChange: function (e) { queueDir[1](e.target.value); }, placeholder: "\u9ED8\u8BA4 ~/.dsh/queue/tasks" })
-        ),
-        React.createElement("div", null,
-          React.createElement("label", null, "\u9ED8\u8BA4 Agent \u9884\u8BBE"),
-          options.presets && options.presets.length > 0
-            ? React.createElement("select", { value: agentPreset[0], onChange: function (e) { agentPreset[1](e.target.value); } },
-                React.createElement("option", { value: "" }, "\u81EA\u52A8\u5224\u5B9A"),
-                options.presets.map(function (p) { return React.createElement("option", { key: p.id, value: p.id }, p.name || p.id); }))
-            : React.createElement("input", { value: agentPreset[0], onChange: function (e) { agentPreset[1](e.target.value); }, placeholder: "\u4E0D\u8BBE\u7F6E\u5219\u81EA\u52A8\u5224\u5B9A" })
-        )
-      ),
-      React.createElement("div", { className: "aq-row" },
-        React.createElement("div", null,
-          React.createElement("label", null, "\u9ED8\u8BA4\u6A21\u578B"),
-          React.createElement("select", { value: model[0], onChange: function (e) { model[1](e.target.value); } },
-            React.createElement("option", { value: "" }, "\u9ED8\u8BA4\uFF08\u5F53\u524D\u4F1A\u8BDD\u6A21\u578B\uFF09"),
-            (options.models || []).map(function (m) { return React.createElement("option", { key: m, value: m }, m); })
-          )
-        )
-      ),
-      React.createElement("div", { className: "aq-modal-actions" },
-        React.createElement("button", { className: "aq-btn", onClick: props.onClose }, "\u53D6\u6D88"),
-        React.createElement("button", { className: "aq-btn primary", onClick: handleSave }, "\u4FDD\u5B58")
+      h("div", { className: "aq-d-actions aq-config-actions" },
+        h("button", { type: "button", className: "aq-btn", onClick: props.onClose, disabled: saving[0] }, "取消"),
+        h("button", { type: "submit", className: "aq-btn primary", disabled: saving[0] }, saving[0] ? "保存中…" : "保存设置")
       )
     )
   );
 }
 
 export function ConfirmModal(props) {
-  return React.createElement("div", { className: "aq-m-overlay", onClick: function (e) { if (e.target === e.currentTarget) props.onCancel(); } },
-    React.createElement("div", { className: "aq-modal", style: { width: "380px" } },
-      React.createElement("div", { style: { fontSize: "14px", marginBottom: "16px", lineHeight: "1.6" } }, props.message),
-      React.createElement("div", { className: "aq-modal-actions" },
-        React.createElement("button", { className: "aq-btn", onClick: props.onCancel }, "\u53D6\u6D88"),
-        React.createElement("button", { className: "aq-btn danger", onClick: props.onConfirm }, "\u786E\u8BA4")
+  return h(DialogShell, { title: props.title || "确认操作", onClose: props.onCancel, className: "aq-confirm", initialFocusSelector: "[data-confirm-cancel]" },
+    h("div", { className: "aq-modal-content" },
+      h("p", { className: "aq-confirm-message" }, props.message),
+      h("div", { className: "aq-modal-actions" },
+        h("button", { type: "button", className: "aq-btn", "data-confirm-cancel": "", onClick: props.onCancel }, "取消"),
+        h("button", { type: "button", className: "aq-btn danger", onClick: props.onConfirm }, props.confirmLabel || "确认")
       )
     )
   );
 }
 
-function CronField(props) {
-  var selectVal = React.useState(function () {
-    var matched = (props.presets || []).find(function (p) { return p.value === props.value && p.value !== "" && p.value !== "__custom__"; });
-    return matched ? matched.value : (props.value ? "__custom__" : "");
-  });
-  var isCustom = selectVal[0] === "__custom__";
+function Field(props) {
+  return h("div", { className: "aq-field" },
+    props.label && h("label", null, props.label), props.children,
+    props.help && h("p", { className: "aq-help" }, props.help)
+  );
+}
 
-  return React.createElement("div", null,
-    React.createElement("label", null, props.label, props.tip ? React.createElement("span", { className: "aq-tip", title: props.tip }, "\u24D8") : null),
-    React.createElement("div", { style: { display: "flex", gap: "8px", alignItems: "stretch", minWidth: 0 } },
-      React.createElement("select", {
-        value: selectVal[0],
-        onChange: function (e) {
-          var v = e.target.value;
-          selectVal[1](v);
-          if (v === "__custom__") return;
-          props.onChange(v);
-        },
-        style: { width: "50%", flexShrink: 0 }
-      },
-        (props.presets || []).map(function (p) { return React.createElement("option", { key: p.value, value: p.value }, p.label); })
+function CheckField(props) {
+  return h("label", { className: "aq-check-row" },
+    h("input", { type: "checkbox", checked: props.checked, onChange: function (event) { props.onChange(event.target.checked); } }),
+    h("span", null, props.label)
+  );
+}
+
+function Disclosure(props) {
+  return h("section", { className: "aq-form-section" },
+    h("button", { type: "button", onClick: props.onToggle, "aria-expanded": props.open },
+      h("span", null, props.title), h("span", null, props.hint, "  ", props.open ? "−" : "+")
+    ),
+    props.open && h("div", { className: "aq-disclosure-body" }, props.children)
+  );
+}
+
+function ConfigSection(props) {
+  return h("section", { className: "aq-config-section" }, h("h4", null, props.title), props.children);
+}
+
+function CronField(props) {
+  var selectValue = React.useState(function () {
+    var match = (props.presets || []).find(function (preset) { return preset.value === props.value && preset.value !== "" && preset.value !== "__custom__"; });
+    return match ? match.value : (props.value ? "__custom__" : "");
+  });
+  var custom = selectValue[0] === "__custom__";
+  return h(Field, { label: props.label },
+    h("div", { className: "aq-cron-field" },
+      h("select", { value: selectValue[0], onChange: function (event) { var value = event.target.value; selectValue[1](value); if (value !== "__custom__") props.onChange(value); } },
+        (props.presets || []).map(function (preset) { return h("option", { key: preset.value, value: preset.value }, preset.label); })
       ),
-      React.createElement("input", {
-        value: selectVal[0] === "" ? "" : props.value,
-        onChange: function (e) { props.onChange(e.target.value); },
-        placeholder: props.placeholder || "\u81EA\u5B9A\u4E49 cron \u8868\u8FBE\u5F0F",
-        style: { flex: 1, minWidth: 0 },
-        disabled: !isCustom && selectVal[0] !== ""
-      })
+      h("input", { value: selectValue[0] === "" ? "" : props.value, onChange: function (event) { props.onChange(event.target.value); }, placeholder: props.placeholder, disabled: !custom && selectValue[0] !== "" })
     )
   );
 }

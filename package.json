@@ -37,14 +37,23 @@
     "dsh": ">=0.1.1-rc.2 <0.1.2"
   },
   "scripts": {
-    "build:client": "esbuild client/src/index.jsx --bundle --outfile=lib/client.js --format=iife --external:react --external:react-dom/client --loader:.css=text --define:React=window.__React --tree-shaking=false",
-    "watch:client": "esbuild client/src/index.jsx --bundle --outfile=lib/client.js --format=iife --external:react --external:react-dom/client --loader:.css=text --define:React=window.__React --tree-shaking=false --watch=forever",
-    "build": "npm run build:client"
+    "build:client": "esbuild client/src/index.jsx --bundle --outfile=lib/client.js --format=iife --external:react --external:react-dom/client --loader:.css=text --loader:.png=dataurl --define:React=window.__React --tree-shaking=false",
+    "build:test-harness": "esbuild tests/harness.jsx --bundle --outfile=tests/.generated/harness.js --loader:.css=text --loader:.png=dataurl",
+    "watch:client": "esbuild client/src/index.jsx --bundle --outfile=lib/client.js --format=iife --external:react --external:react-dom/client --loader:.css=text --loader:.png=dataurl --define:React=window.__React --tree-shaking=false --watch=forever",
+    "build": "npm run build:client",
+    "test": "npm run test:unit",
+    "test:unit": "node --test --test-concurrency=1 tests/core.test.js",
+    "test:serve": "npm run build:test-harness && node tests/server.js",
+    "test:playwright": "playwright test"
   },
   "dependencies": {
-    "@deepseek-ai/dsh-tools": "^0.1.1-rc.2"
+    "@deepseek-ai/dsh-tools": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-user-approval": "0.1.1-rc.2"
   },
   "devDependencies": {
-    "esbuild": "^0.28.2"
+    "@playwright/test": "^1.62.1",
+    "esbuild": "^0.28.2",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   }
 }

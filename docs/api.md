@@ -1,20 +1,86 @@
 # autoqueue HTTP API
 
-> 所有接口挂载在 `/api/queue/*` 下，Content-Type 均为 `application/json; charset=utf-8`。
+业务 API 位于 `/api/queue/*`，机器发现 API 位于 `/api/autoqueue/*`。本文按 **`@deepseek-ai/dsh 0.1.1-rc.2`** 精确基线验证；插件清单的运行范围是 `>=0.1.1-rc.2 <0.1.2`，但其他 DSH 版本需要重新验证隔离语义。
 
----
+## 0. 安全契约
 
-## 1. `GET /api/queue/state`
+- 每个 attempt 使用专属 `autoqueue-session-<uuid>` 和独立 cwd；插件拒绝操作其他 DSH 会话。
+- 引擎只选择 `autoqueue-unattended-v2` / `autoqueue-ptc-unattended-v2`。v1 只保留不覆盖；v2 marker 必须完整，并禁用提问、高扇出子会话/工作流/后台任务工具，bash/pwsh 只能前台运行。调用方不能指定任意 preset。
+- 专属会话在 `goals.create` 前先持久化并验证 `approvalPolicy=never`；验证失败则不允许 goal 入场。
+- runner 不调用 `workspace.create`，不调用 `session.selectModel`，也不发送重复的初始 queue prompt。完整任务只进入一次 `goals.create.objective`。
+- 普通前台会话活跃时暂停派发；`sessions.list` 调用失败或返回结构未知时同样按前台忙碌处理。已经运行的 owned goal 先持久化 pause intent，再 pause goal、取消当前 turn；只有连续两次可信空闲观察后才 resume。
+- 任务与配置请求均不能覆盖 Host 的模型、工作区或任意 Agent preset。未知字段会被拒绝。
+- 默认 `maxConcurrent=1`、`autoArchive=true`、`enableNotifications=false`。
+- Host 普通会话中的 16 个 AI 工具默认不注册；外部 AI 始终可以使用本 API。
 
-获取任务队列快照。
+## 1. 访问控制
 
-**查询参数**
+- 未配置 token 时，只有 socket 对端地址与请求 `Host` 同时为 loopback 的本机直连免密。
+- 一旦配置 token，包括 localhost 在内的所有请求都必须鉴权。
+- 远程或反向代理部署还必须在启动配置中加入 `allowedHosts`。
+- 请求可使用 `Authorization: Bearer <token>` 或 `X-Autoqueue-Token: <token>`。
+- `Origin` 只用于同源校验，不是身份凭据。
+- 所有 POST 请求必须使用 `Content-Type: application/json`。
+- 服务拒绝未知字段、非法调度、超限正文、不支持的方法和超限请求体。
 
-| 参数 | 类型 | 默认 | 说明 |
+```bash
+curl https://queue.example.com/api/queue/state \
+  -H "Authorization: Bearer $AUTOQUEUE_API_TOKEN"
+```
+
+API 不在任何响应中返回 token、环境变量值或其他认证凭据。
+
+## 2. 外部 AI 的发现流程
+
+外部 Agent 推荐按以下顺序接入：
+
+1. `GET /api/autoqueue/capabilities`：发现 API 版本、资源、限制、隔离特性和 Host AI 工具策略。
+2. `GET /api/autoqueue/openapi.json`：加载 OpenAPI 3.1 schema、动作枚举和认证方案。
+3. `GET /api/queue/state?compact=1`：用紧凑投影列任务。
+4. `GET /api/queue/detail?key=...`：只在需要时获取正文、执行历史和报告。
+
+```bash
+curl https://queue.example.com/api/autoqueue/capabilities \
+  -H "Authorization: Bearer $AUTOQUEUE_API_TOKEN"
+
+curl https://queue.example.com/api/autoqueue/openapi.json \
+  -H "Authorization: Bearer $AUTOQUEUE_API_TOKEN"
+
+curl 'https://queue.example.com/api/queue/state?archived=1&compact=1' \
+  -H "Authorization: Bearer $AUTOQUEUE_API_TOKEN"
+```
+
+Capabilities 与 OpenAPI 使用和业务接口相同的鉴权。Capabilities 中的 `hostAiToolsDefaultEnabled` / `aiToolRegistration.defaultEnabled` 为 `false`；这不影响外部 HTTP 调用。
+
+## 3. 端点总览
+
+| 方法 | 路径 | 用途 |
+|---|---|---|
+| `GET` | `/api/autoqueue/capabilities` | 能力、限制、资源和 AI 工具发现 |
+| `GET` | `/api/autoqueue/openapi.json` | OpenAPI 3.1 契约 |
+| `GET` | `/api/queue/state` | 队列快照 |
+| `POST` | `/api/queue/task` | 创建任务 |
+| `POST` | `/api/queue/action` | 执行任务或队列动作 |
+| `GET` | `/api/queue/detail?key=` | 获取完整任务、执行记录和报告 |
+| `GET` | `/api/queue/options` | 读取严格隔离锁 |
+| `GET\|POST` | `/api/queue/config` | 读取/更新安全运行时配置 |
+| `POST` | `/api/queue/mark-read` | 标记已读或未读 |
+| `GET` | `/api/queue/events` | compact SSE 快照 |
+
+## 4. `GET /api/queue/state`
+
+获取队列快照。
+
+### 查询参数
+
+| 参数 | 允许值 | 默认 | 说明 |
 |---|---|---|---|
-| `archived` | string | — | `"1"` 时包含已归档任务 |
+| `archived` | `0` / `1` | `0` | `1` 时包含已归档任务 |
+| `compact` | `0` / `1` | `0` | `1` 时移除 `body` 与 `executions`，增加 `summary` 与 `lastSessionId` |
 
-**响应** `200`
+面向 LLM 的列表调用应使用 `compact=1`。完整列表可能包含大正文和最多 100 条 execution 记录，不应无条件放进模型上下文。
+
+### compact 响应示例
 
 ```json
 {
@@ -22,374 +88,373 @@
   "tasks": [
     {
       "key": "daily-report",
-      "status": "done",
-      "workDir": "/home/user/.dsh/queue/runs/2026-08/daily-report-2026-08-26T...",
-      "sessionId": "abc-123",
-      "goalRef": { "id": "goal-1", "revision": 3 },
+      "status": "running",
+      "summary": "每日工作报告",
+      "lastSessionId": "autoqueue-session-017c9c4f-a5d0-4fe5-9558-98a805dd485e",
+      "taskType": "cron",
+      "cron": "0 8 * * 1-5",
+      "priority": 5,
       "attempts": 1,
       "blockedResumes": 0,
-      "readAt": "2026-08-28T12:00:00.000Z",
-      "executions": [
-        {
-          "id": "exec-1",
-          "sessionId": "abc-123",
-          "attempt": 1,
-          "startedAt": "2026-08-26T08:00:00.000Z",
-          "endedAt": "2026-08-26T08:15:00.000Z",
-          "result": "done"
-        }
-      ],
-      "createdAt": "2026-08-25T12:00:00.000Z",
-      "updatedAt": "2026-08-26T08:15:00.000Z",
-      "archivedAt": null,
-      "body": "# 每日工作报告\n\n...",
-      "cron": "0 8 * * *",
-      "schedule": null,
-      "deadline": null,
-      "maxGoalRounds": 40,
-      "maxBlockedResumes": 3,
-      "timeoutMs": 5400000,
-      "priority": 5,
-      "webhook": null,
-      "workspace": "ws-1",
-      "agentPreset": null,
-      "autoArchive": false,
-      "maxAttempts": 3
+      "goalPhase": "active",
+      "foregroundPaused": false,
+      "autoArchive": true,
+      "enableNotifications": false,
+      "createdAt": "2026-08-31T08:00:00.000Z",
+      "updatedAt": "2026-08-31T08:01:00.000Z"
     }
   ],
+  "unreadCount": 0,
+  "metrics": {
+    "total": 1,
+    "running": 1,
+    "pending": 0,
+    "done24h": 0,
+    "failed24h": 0,
+    "successRate": 0
+  },
   "config": {
-    "maxConcurrent": 2,
-    "webhook": null,
-    "queueDir": null,
-    "workspace": null
+    "maxConcurrent": 1,
+    "enableNotifications": false
   }
 }
 ```
 
-**状态枚举**
+### 状态枚举
 
-| 值 | 含义 |
+| 状态 | 含义 |
 |---|---|
-| `pending` | 待执行 |
-| `running` | 执行中 |
+| `pending` | 等待调度或前台让行 |
+| `running` | 已由插件自有会话执行；也可能因前台优先而 `foregroundPaused=true` |
 | `done` | 已完成 |
 | `failed` | 已失败 |
-| `stopped` | 已停止 |
-| `interrupted` | 已中断（Host 重启） |
+| `stopped` | 已手动或按截止策略停止 |
+| `interrupted` | 兼容旧账本/迁移数据的中断终态；可以显式 rerun |
 
----
+`done`、`failed`、`stopped`、`interrupted` 都是 terminal。`archivedAt` 是独立标志；归档不会创造新状态。
 
-## 2. `POST /api/queue/task`
+## 5. `POST /api/queue/task`
 
-创建任务。
+创建任务。`requestId` 用于幂等去重，长度为 1-128 个字符；同一 ID 不能用于不同请求。
 
-**请求体**
+### 请求字段
 
-| 字段 | 类型 | 必填 | 说明 |
-|---|---|---|---|
-| `requestId` | string | ✅ | 去重 ID（任意唯一字符串） |
-| `key` | string | ✅ | 任务标识（唯一） |
-| `content` | string | ✅ | 任务内容（Markdown，≤2MB） |
-| `priority` | number | | 优先级 1-10，默认 5 |
-| `schedule` | string | | ISO 8601 一次性定时，如 `"2026-09-01T08:00:00Z"` |
-| `cron` | string | | 5 字段 cron 表达式，如 `"0 8 * * *"` |
-| `deadline` | string | | 5 字段 cron 截止时间，到点强制停止运行中任务 |
-| `webhook` | string | | 完成/失败时 POST 回调 URL |
-| `workspace` | string | | 工作区 ID（UUID，非显示名称） |
-| `agentPreset` | string | | Agent 预设名 |
-| `maxGoalRounds` | number | | 最大 goal 轮数，默认 40，范围 1-100 |
-| `maxBlockedResumes` | number | | 最大反阻塞次数，默认 3，范围 0-10 |
-| `timeoutMs` | number | | 任务超时毫秒，默认 90 分钟 |
-| `autoArchive` | boolean | | 完成后自动归档，默认跟随全局配置 |
-| `maxAttempts` | number | | 派发重试次数，默认 3 |
+| 字段 | 类型 | 必填 | 默认/范围 | 说明 |
+|---|---|---|---|---|
+| `requestId` | string | 是 | 1-128 字符 | 去重 ID |
+| `key` | string | 否 | 最长 200 字符 | 省略时生成；冲突时生成不重复 key |
+| `content` | string | 是 | 非空，UTF-8 ≤ 2 MiB | Markdown 任务正文 |
+| `priority` | integer | 否 | `5`，范围 1-10 | 数值越高越先派发 |
+| `schedule` | string | 否 | ISO 8601 | 一次性调度；与 `cron` 互斥 |
+| `cron` | string | 否 | 5 字段 cron | 循环调度；与 `schedule` 互斥 |
+| `deadline` | string | 否 | 5 字段 cron | 墙上时钟截止窗口 |
+| `maxGoalRounds` | integer | 否 | `40`，范围 1-100 | Goal 最大轮数 |
+| `maxBlockedResumes` | integer | 否 | `3`，范围 0-10 | 反阻塞恢复上限 |
+| `timeoutMs` | integer | 否 | `10800000`，范围 600000-86400000 | 单 attempt 相对超时 |
+| `maxAttempts` | integer | 否 | `3`，范围 1-10 | 派发/恢复尝试上限 |
+| `webhook` | string/null | 否 | http/https | 终态回调；不允许 URL 内凭据 |
+| `autoArchive` | boolean | 否 | 全局默认 `true` | 终态后自动归档 |
+| `enableNotifications` | boolean | 否 | 全局默认 `false` | 浏览器终态通知 |
 
-**响应**
+隔离覆盖字段不在请求 schema 中；发送这类字段会得到未知字段错误，而不是被默默应用。
+
+### 示例
 
 ```json
-// 成功 200
-{ "ok": true, "key": "daily-report" }
-
-// 冲突 409（任务已存在）
 {
-  "ok": false,
-  "key": "daily-report",
-  "error": "任务已存在",
-  "existing": {
-    "status": "running",
-    "cron": "0 8 * * *",
-    "body": "# 每日工作报告...",
-    "createdAt": "2026-08-25T12:00:00.000Z"
-  }
+  "requestId": "task-20260831-001",
+  "key": "weekly-insight",
+  "content": "# 周度洞察\n\n汇总本周访谈并写出三个机会点。",
+  "cron": "0 8 * * 1",
+  "deadline": "0 21 * * *",
+  "priority": 8,
+  "maxGoalRounds": 50,
+  "autoArchive": true,
+  "enableNotifications": false
 }
 ```
 
----
+### 响应
 
-## 3. `POST /api/queue/action`
+```json
+{ "ok": true, "key": "weekly-insight" }
+```
 
-对任务执行动作。所有动作共享同一个端点，通过 `action.kind` 区分。
+若业务冲突，端点可以返回 `409`；输入格式、字段或范围错误返回 `400`。
 
-**请求体**
+## 6. `POST /api/queue/action`
+
+所有动作使用统一信封：
 
 ```json
 {
-  "requestId": "req-xxx",
+  "requestId": "req-001",
   "action": {
     "kind": "stop",
-    "key": "daily-report"
+    "key": "weekly-insight"
   }
 }
 ```
 
-### 3.1 停止
+### 动作矩阵
 
-```json
-{ "requestId": "req-xxx", "action": { "kind": "stop", "key": "daily-report" } }
-```
+| `kind` | 关键字段 | 前置条件/效果 |
+|---|---|---|
+| `stop` | `key` | 安全 clear goal + cancel 专属 session；运行中或前台暂停任务可用 |
+| `archive` | `key` | 非 running；隐藏任务并归档其插件自有 sessions |
+| `archive` | `keys` | 1-100 个唯一 key，逐项返回结果 |
+| `restore` | `key` | 清除 `archivedAt` |
+| `delete` | `key` | 仅 pending；删除收件箱文件和账本项 |
+| `rerun` | `key` | 非 running 且未归档；terminal 与 pending 均可重新入队 |
+| `update` | `key` + patch | 仅 pending 且未归档 |
+| `force-scan` | 无 | 立即扫描 Markdown 收件箱 |
+| `set-concurrency` | `maxConcurrent` | 设置 1-8，持久化到账本 |
 
-**响应**
-
-```json
-{ "ok": true }
-```
-
-### 3.2 归档
-
-```json
-{ "requestId": "req-xxx", "action": { "kind": "archive", "key": "daily-report" } }
-```
-
-运行中的任务不能归档。
-
-**批量归档**
-
-```json
-{ "requestId": "req-xxx", "action": { "kind": "archive", "keys": ["a", "b", "c"] } }
-```
-
-**响应**
-
-```json
-{ "ok": true, "results": [{ "key": "a", "ok": true }, { "key": "b", "ok": false, "error": "运行中" }] }
-```
-
-### 3.3 还原
-
-```json
-{ "requestId": "req-xxx", "action": { "kind": "restore", "key": "daily-report" } }
-```
-
-### 3.4 删除
-
-```json
-{ "requestId": "req-xxx", "action": { "kind": "delete", "key": "daily-report" } }
-```
-
-只能删除待执行（`pending`）的任务，已执行的任务请使用 `archive` 归档。
-
-### 3.5 重新执行
-
-```json
-{ "requestId": "req-xxx", "action": { "kind": "rerun", "key": "daily-report" } }
-```
-
-仅对 `failed` / `stopped` / `pending` 状态有效。
-
-### 3.6 更新
+### 批量归档
 
 ```json
 {
-  "requestId": "req-xxx",
+  "requestId": "archive-001",
   "action": {
-    "kind": "update",
-    "key": "daily-report",
-    "content": "新内容",
-    "cron": "0 9 * * *",
-    "priority": 8
+    "kind": "archive",
+    "keys": ["a", "b", "c"]
   }
 }
 ```
 
-
-运行中的任务不能更新。
-
-### 3.7 强制扫描
-
 ```json
-{ "requestId": "req-xxx", "action": { "kind": "force-scan" } }
+{
+  "ok": true,
+  "results": [
+    { "key": "a", "ok": true },
+    { "key": "b", "ok": false, "error": "运行中" }
+  ]
+}
 ```
 
-立即触发一次收件箱扫描，无需等定时器。
-
-### 3.8 设置并发
+### 更新 pending 任务
 
 ```json
-{ "requestId": "req-xxx", "action": { "kind": "set-concurrency", "maxConcurrent": 4 } }
+{
+  "requestId": "update-001",
+  "action": {
+    "kind": "update",
+    "key": "weekly-insight",
+    "content": "# 新任务正文",
+    "schedule": "2026-09-01T08:00:00Z",
+    "priority": 8,
+    "autoArchive": true
+  }
+}
 ```
 
----
+可更新字段：
 
-## 4. `GET /api/queue/detail`
+- `content`
+- `schedule` / `cron`（二者互斥；空字符串清除）
+- `deadline`（空字符串清除）
+- `priority`
+- `maxGoalRounds` / `maxBlockedResumes`（`null` 恢复全局默认）
+- `timeoutMs`（`null` 恢复全局默认）
+- `maxAttempts`（`null` 恢复全局默认）
+- `webhook`（空字符串或 `null` 清除）
+- `autoArchive`
+- `enableNotifications`
 
-获取任务详情及报告。
+## 7. `GET /api/queue/detail?key=...`
 
-**查询参数**
-
-| 参数 | 类型 | 必填 | 说明 |
-|---|---|---|---|
-| `key` | string | ✅ | 任务标识 |
-
-**响应** `200`
+返回单任务完整正文、执行历史和报告。该端点适合按需调用，不适合作为 LLM 的列表 API。
 
 ```json
 {
   "ok": true,
   "task": {
-    "key": "daily-report",
+    "key": "weekly-insight",
     "status": "done",
-    "workDir": "/home/user/.dsh/queue/runs/2026-08/daily-report-...",
-    "sessionId": "abc-123",
+    "workDir": "/home/user/.dsh/queue/runs/2026-08/weekly-insight-a1-...",
+    "sessionId": null,
+    "goalRef": null,
     "attempts": 1,
     "blockedResumes": 0,
-    "createdAt": "2026-08-25T12:00:00.000Z",
-    "updatedAt": "2026-08-26T08:15:00.000Z",
-    "archivedAt": null,
-    "body": "# 每日工作报告\n\n...",
-    "schedule": null,
-    "cron": "0 8 * * *",
-    "deadline": null,
-    "maxGoalRounds": 40,
-    "maxBlockedResumes": 3,
-    "timeoutMs": 5400000,
-    "priority": 5,
-    "webhook": null,
-    "workspace": "ws-1",
-    "agentPreset": null,
-    "autoArchive": false,
-    "maxAttempts": 3,
+    "createdAt": "2026-08-31T08:00:00.000Z",
+    "updatedAt": "2026-08-31T08:15:00.000Z",
+    "archivedAt": "2026-08-31T08:15:01.000Z",
+    "body": "# 周度洞察\n\n...",
+    "cron": "0 8 * * 1",
+    "priority": 8,
+    "autoArchive": true,
+    "enableNotifications": false,
     "executions": [
       {
-        "id": "exec-1",
-        "sessionId": "abc-123",
+        "id": "f295c301-b745-4f59-b78c-b65742b0d4d0",
+        "sessionId": "autoqueue-session-017c9c4f-a5d0-4fe5-9558-98a805dd485e",
         "attempt": 1,
-        "startedAt": "2026-08-26T08:00:00.000Z",
-        "endedAt": "2026-08-26T08:15:00.000Z",
+        "startedAt": "2026-08-31T08:00:00.000Z",
+        "endedAt": "2026-08-31T08:15:00.000Z",
         "result": "done"
       }
     ],
     "reports": {
-      "goal": "目标: # 每日工作报告\n结果: done\n时间: 2026-08-26T08:15:00.000Z",
-      "result": "{ \"result\": \"done\", ... }",
-      "report": "## 执行报告\n\n### 完成情况\n..."
+      "goal": "目标: 周度洞察...",
+      "result": "{\"result\":\"done\"}",
+      "report": "## 执行报告\n..."
     }
   }
 }
 ```
 
-**错误响应** `200`
+不存在的 key 返回业务结果：
 
 ```json
 { "ok": false, "error": "任务不存在" }
 ```
 
----
+## 8. `GET /api/queue/options`
 
-## 5. `GET /api/queue/options`
-
-获取可用的工作区和 Agent 预设列表。
-
-**响应** `200`
+该端点表达隔离约束，不枚举 Host 的全局状态，也不发起对应的 Host RPC。
 
 ```json
 {
-  "workspaces": [
-    { "workspaceId": "ws-1", "path": "/home/user/projects/foo", "title": "Foo 项目", "createdAt": "...", "updatedAt": "..." }
-  ],
-  "presets": [
-    { "id": "default", "isDefault": true, "name": "默认", "trust": "trusted" }
-  ]
+  "workspaces": [],
+  "presets": [],
+  "models": [],
+  "isolation": {
+    "strict": true,
+    "overridesLocked": ["workspace", "agentPreset", "model"],
+    "reason": "AutoQueue uses a task-local cwd, versioned owned preset, and the Host default model without mutating Host selection state."
+  }
 }
 ```
 
----
+三个数组按契约始终为空。客户端应读取 `isolation.strict` 与 `overridesLocked`，不要把空数组解释成“尚未加载”。
 
-## 6. `GET|POST /api/queue/config`
+## 9. `GET|POST /api/queue/config`
 
-运行时配置读写。
+### GET
 
-**GET** 响应
+返回当前安全业务默认值：
 
 ```json
 {
   "maxGoalRounds": 40,
   "maxBlockedResumes": 3,
-  "autoArchive": false,
+  "unknownThreshold": 3,
   "maxAttempts": 3,
-  "agentPreset": null,
-  "priority": 5,
+  "taskTimeoutMs": 10800000,
+  "autoArchive": true,
   "webhook": null,
-  "workspace": null,
   "queueDir": null,
-  "defaultDeadline": null
+  "enableNotifications": false,
+  "priority": 5,
+  "defaultDeadline": null,
+  "retryBackoffBaseMs": 30000,
+  "retryBackoffMaxMs": 300000
 }
 ```
 
-**POST** 请求体
+`maxConcurrent` 属于账本持久化配置，通过 state 的 `config.maxConcurrent` 读取，通过 `set-concurrency` 动作修改；它不属于 config POST。
+
+### POST 可写字段
+
+| 字段 | 范围/说明 |
+|---|---|
+| `maxGoalRounds` | 1-100 |
+| `maxBlockedResumes` | 0-10 |
+| `unknownThreshold` | 1-10 |
+| `maxAttempts` | 1-10 |
+| `taskTimeoutMs` | 600000-86400000 |
+| `autoArchive` | boolean；默认 true |
+| `webhook` | http/https URL；空字符串或 null 清除 |
+| `enableNotifications` | boolean；默认 false |
+| `priority` | 1-10 |
+| `defaultDeadline` | 5 字段 cron；空字符串或 null 清除 |
+| `retryBackoffBaseMs` | 5000-600000 |
+| `retryBackoffMaxMs` | 10000-3600000 |
 
 ```json
 {
   "maxGoalRounds": 60,
   "autoArchive": true,
+  "enableNotifications": false,
   "defaultDeadline": "0 21 * * *"
 }
 ```
 
+`queueDir` 只允许作为启动参数；POST 携带该字段返回 `409`。`allowedHosts`、token、`baseUrl` 与 `enableHostAiTools` 也是启动边界，不在运行时配置 API 中。
 
----
-
-## 7. `POST /api/queue/mark-read`（标记已读/未读）
-
-标记已完成任务为已读或未读状态。未读任务会在看板中显示蓝色标记，并在 `unreadCount` 中计数。
-
-**请求体**
+## 10. `POST /api/queue/mark-read`
 
 ```json
 {
-  "key": "daily-report",
+  "key": "weekly-insight",
   "read": true
 }
 ```
 
-- `key`（必填）— 任务标识
-- `read`（可选）— `true` 标记已读（默认），`false` 标记未读
-
-**响应** `200`
+- `read` 省略时默认为 `true`。
+- 传 `false` 可重新标为未读。
+- 响应包含服务端最新 `unreadCount`。
 
 ```json
 {
   "ok": true,
-  "key": "daily-report",
-  "unreadCount": 5
+  "key": "weekly-insight",
+  "unreadCount": 0
 }
 ```
 
----
+## 11. `GET /api/queue/events`
 
-## 8. `GET /api/queue/events`（SSE）
+SSE 查询支持 `archived=0|1`，快照始终是 compact 投影：
 
-Server-Sent Events 实时推送。
-
-**响应** `200`，`Content-Type: text/event-stream`
-
-```
+```text
 data: {"revision":42,"tasks":[...],"config":{...}}
 
 : heartbeat
-
-data: {"revision":43,"tasks":[...],"config":{...}}
 ```
 
-- 初始立即推送一次快照
-- 之后每 10 秒推送一次快照
-- 每 25 秒发送一次心跳注释（`: heartbeat`）
-- 连接关闭时自动清理定时器
+- 连接建立后立即推送一份快照。
+- 每 10 秒推送快照，每 25 秒发送 heartbeat。
+- 每实例最多 8 个 SSE 连接。
+- 写端持续背压达到 30 秒后，巡检会主动断开。
+- SSE 不包含 `body` / `executions`；需要完整内容时调用 detail。
+
+## 12. Host AI 工具（显式 opt-in）
+
+启动配置 `enableHostAiTools` 默认是 `false`，因此普通 DSH 会话默认不会看到额外系统提示或工具。只有明确设置为 `true` 时才注册以下 16 个 HTTP 薄客户端工具：
+
+| 工具 | 能力 |
+|---|---|
+| `autoqueue_create_task` | 创建安全字段范围内的任务 |
+| `autoqueue_list_tasks` | 使用 compact state 列表 |
+| `autoqueue_get_task` | 获取详情和报告 |
+| `autoqueue_update_task` | 更新 pending 任务 |
+| `autoqueue_stop_task` | 停止任务 |
+| `autoqueue_archive_task` | 归档单任务 |
+| `autoqueue_batch_archive` | 批量归档 1-100 个任务 |
+| `autoqueue_restore_task` | 恢复归档任务 |
+| `autoqueue_delete_task` | 删除 pending 任务 |
+| `autoqueue_rerun_task` | 重新执行非 running 任务 |
+| `autoqueue_mark_read` | 标记已读/未读 |
+| `autoqueue_get_options` | 读取隔离锁 |
+| `autoqueue_get_config` | 读取安全配置 |
+| `autoqueue_update_config` | 更新安全配置 |
+| `autoqueue_force_scan` | 立即扫描收件箱 |
+| `autoqueue_set_concurrency` | 设置 1-8 并发 |
+
+工具全部通过 HTTP API，不绕过 HTTP 校验直接访问 engine/ledger，也不会暴露 token。外部 AI 不需要开启这组 Host 工具。
+
+## 13. UI 与 API 能力对应
+
+| UI 区域 | 使用的能力 |
+|---|---|
+| 导航、KPI、筛选、搜索、任务表 | state + compact SSE |
+| 新建任务 | task |
+| 编辑、停止、重跑、归档、恢复、删除、立即扫描 | action |
+| 多选批量归档 | action `archive + keys` |
+| 详情四页签 | detail |
+| 已读/未读 | mark-read |
+| 运行设置 | config + `set-concurrency` |
+| AI / API 接入抽屉 | capabilities + OpenAPI + compact state 示例 |
+
+UI 不提供隔离覆盖控件。任务表支持跳转到该任务的插件自有 DSH session；runner 的 ownership guard 仍然是最终安全边界。
