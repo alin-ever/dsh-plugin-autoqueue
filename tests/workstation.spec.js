@@ -114,6 +114,7 @@ async function mockApi(page, setup = {}) {
     createdTasks: [],
     actions: [],
     markReadRequests: [],
+    stateRequests: 0,
   };
 
   await page.route("**/api/autoqueue/**", async (route) => {
@@ -135,7 +136,12 @@ async function mockApi(page, setup = {}) {
     const path = url.pathname;
 
     if (path.endsWith("/state")) {
+      model.stateRequests += 1;
       model.stateUrls.push(url.search);
+      if (setup.stateFailureAfter && model.stateRequests > setup.stateFailureAfter) {
+        await route.fulfill({ status: 503, json: { error: setup.stateFailureMessage || "state refresh unavailable" } });
+        return;
+      }
       await route.fulfill({ json: {
         revision: model.revision,
         tasks: model.tasks,
@@ -178,7 +184,24 @@ async function mockApi(page, setup = {}) {
         await route.fulfill({ status: setup.createFailure.status || 507, json: { error: setup.createFailure.message } });
         return;
       }
-      await route.fulfill({ json: { ok: true, key: body.key || "task-generated" } });
+      const createdKey = body.key || "task-generated";
+      const terminal = setup.fastArchiveOnCreate === true && body.autoArchive === true;
+      model.tasks.push(task({
+        key: createdKey,
+        body: body.content,
+        summary: String(body.content || "").replace(/^#+\s*/, "").split("\n")[0],
+        priority: body.priority,
+        taskType: body.cron ? "cron" : (body.schedule ? "schedule" : "manual"),
+        cron: body.cron || null,
+        schedule: body.schedule || null,
+        autoArchive: body.autoArchive,
+        enableNotifications: body.enableNotifications,
+        status: terminal ? "done" : "pending",
+        archivedAt: terminal ? "2026-08-31T10:00:00.000Z" : null,
+        executions: terminal ? [{ result: "done", finishedAt: "2026-08-31T10:00:00.000Z" }] : [],
+      }));
+      model.revision += 1;
+      await route.fulfill({ json: { ok: true, key: createdKey } });
       return;
     }
 
@@ -407,6 +430,8 @@ test("new task exposes every safe advanced field and never sends host-global ove
   await dialog.getByRole("button", { name: "创建任务" }).click();
 
   await expect(dialog).toHaveCount(0);
+  await expect(page.locator(".aq-toast")).toContainText("已入队：task-generated · 等待安全派发");
+  await expect(page.getByRole("button", { name: "查看任务 task-generated" })).toBeVisible();
   expect(model.createdTasks).toHaveLength(1);
   expect(model.createdTasks[0]).toMatchObject({
     content: "# Weekly insight\n\nSummarize customer evidence.",
@@ -421,6 +446,76 @@ test("new task exposes every safe advanced field and never sends host-global ove
     enableNotifications: true,
   });
   for (const forbidden of ["model", "workspace", "agentPreset"]) expect(model.createdTasks[0]).not.toHaveProperty(forbidden);
+});
+
+test("create success remains explicit when a fast task auto-archives", async ({ page }) => {
+  await mockApi(page, { tasks: [], fastArchiveOnCreate: true });
+  await openHarness(page);
+
+  await page.getByRole("button", { name: "新建任务" }).click();
+  const dialog = page.getByRole("dialog", { name: "新建无人值守任务" });
+  await dialog.getByLabel("任务内容（Markdown）").fill("# Fast archive");
+  await fieldInput(dialog, "任务标识").fill("fast-archived");
+  await dialog.getByRole("button", { name: /通知与回调/ }).click();
+  await dialog.getByRole("checkbox", { name: /完成后自动归档/ }).check();
+  await dialog.getByRole("button", { name: "创建任务" }).click();
+
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator(".aq-toast")).toContainText("已入队：fast-archived · 已完成并归档");
+  await expect(page.getByRole("button", { name: "查看任务 fast-archived" })).toHaveCount(0);
+  await page.getByRole("navigation").getByRole("button", { name: /归档记录/ }).click();
+  await expect(page.getByRole("button", { name: "查看任务 fast-archived" })).toContainText("已完成");
+});
+
+test("custom cron remains editable across real sequential keystrokes", async ({ page }) => {
+  const model = await mockApi(page, { tasks: [] });
+  await openHarness(page);
+
+  await page.getByRole("button", { name: "新建任务" }).click();
+  const dialog = page.getByRole("dialog", { name: "新建无人值守任务" });
+  await dialog.getByLabel("任务内容（Markdown）").fill("# Typed cron");
+  const cronField = dialog.locator(".aq-field", { hasText: "循环调度" }).first();
+  await cronField.locator("select").selectOption("__custom__");
+  await cronField.locator("input").pressSequentially("*/5 * * * *", { delay: 10 });
+  await expect(cronField.locator("input")).toHaveValue("*/5 * * * *");
+  await dialog.getByRole("button", { name: "创建任务" }).click();
+
+  await expect(dialog).toHaveCount(0);
+  expect(model.createdTasks[0].cron).toBe("*/5 * * * *");
+});
+
+test("create persistence is not misreported when the follow-up state refresh fails", async ({ page }) => {
+  const model = await mockApi(page, { tasks: [], stateFailureAfter: 1, stateFailureMessage: "state refresh unavailable" });
+  await openHarness(page);
+
+  await page.getByRole("button", { name: "新建任务" }).click();
+  const dialog = page.getByRole("dialog", { name: "新建无人值守任务" });
+  await dialog.getByLabel("任务内容（Markdown）").fill("# Refresh failure");
+  await fieldInput(dialog, "任务标识").fill("refresh-failed");
+  await dialog.getByRole("button", { name: "创建任务" }).click();
+
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator(".aq-toast")).toContainText("已入队：refresh-failed · 页面刷新失败，请点击扫描");
+  await expect(page.getByRole("alert")).toContainText("state refresh unavailable");
+  expect(model.createdTasks).toHaveLength(1);
+});
+
+test("pending rows explain schedule and foreground-gate waits", async ({ page }) => {
+  await mockApi(page, {
+    tasks: [
+      task({ key: "future-schedule", taskType: "schedule", schedule: "2099-09-01T05:00:00.000Z" }),
+      task({ key: "foreground-wait" }),
+    ],
+    runtime: {
+      monitorMode: "native-events+authoritative-reconcile",
+      foregroundGate: "busy",
+      sessionListKnown: true,
+    },
+  });
+  await openHarness(page);
+
+  await expect(page.getByRole("button", { name: "查看任务 future-schedule" })).toContainText("等待计划时间");
+  await expect(page.getByRole("button", { name: "查看任务 foreground-wait" })).toContainText("DSH 前台工作中 · 后台安全让行");
 });
 
 test("runtime settings load the full safe contract and submit only the changed field", async ({ page }) => {

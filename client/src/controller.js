@@ -159,11 +159,14 @@ export function createController(transport) {
 
   async function loadState() {
     loading = true; notif();
+    var refreshed = false;
     try {
       var data = await transport.state();
       applyState(data, false);
+      refreshed = true;
     } catch (err) { transportError = err.message; }
     loading = false; notif();
+    return refreshed;
   }
 
   async function loadOptions() {
@@ -272,8 +275,14 @@ export function createController(transport) {
       });
       if (!result.ok) throw new Error(result.error || "\u521B\u5EFA\u5931\u8D25");
       showNewTask = false;
-      await loadState();
-      return result;
+      var stateRefreshed = await loadState();
+      var createdTask = stateRefreshed
+        ? tasks.find(function (task) { return task.key === result.key; })
+        : null;
+      return Object.assign({}, result, {
+        stateRefreshed: stateRefreshed,
+        taskState: createdTask ? { status: createdTask.status, archivedAt: createdTask.archivedAt || null } : null
+      });
     } catch (err) { error = err.message; notif(); throw err; }
   }
 

@@ -30,7 +30,7 @@ DSH rc.2 的公开选择接口会持久化 Host 默认路由，因此任务和�
 ### 安装
 
 ```bash
-dsh plugin --profile web add link:./queue-plugin
+dsh plugin --profile web add "link:$PWD"
 ```
 
 ### 创建任务
@@ -199,5 +199,47 @@ npm run build:client
 npm run test:unit
 npm run test:playwright
 ```
+
+### 分层真实验收
+
+仓库提供两套不会走 mock 的验收 driver：
+
+- `npm run test:live:ai`：从 DSH 普通对话框驱动 AI，逐项核对 16 个 `autoqueue_*` Host 工具；简单任务验证计算与报告，复杂任务验证隔离目录内 CSV/JSON/nonce 读写、重跑和报告。
+- `npm run test:live:ui`：从真实 DSH 任务台创建一次性定时任务和 Cron 任务，验证详情、编辑、原生 runtime 观测、真实并发、停止双 idle、重跑、归档/恢复和删除。
+
+每套 driver 都必须使用一份全新的空 `queueDir`（包括不能有归档记录）、独立 DSH profile 和专用端口。下面以 AI driver 为例；跑 UI driver 时应停止 Host，重新创建 profile/queue，再把 `LIVE_CASE` 改为 `ui`：
+
+```bash
+LIVE_CASE=ai
+LIVE_DSH_HOME=$(mktemp -d /tmp/dsh-autoqueue-home.XXXXXX)
+LIVE_QUEUE_DIR=$(mktemp -d /tmp/dsh-autoqueue-queue.XXXXXX)
+
+# 先按 DSH 的凭据配置方式，在 LIVE_DSH_HOME 中准备专用测试模型凭据；
+# 再从本仓库根目录把当前源码 link 进这个全新 profile。
+DSH_HOME="$LIVE_DSH_HOME" dsh plugin --profile web add "link:$PWD"
+
+# 后台启动专用 Host；日志和 PID 都只属于本次运行。
+DSH_HOME="$LIVE_DSH_HOME" \
+AUTOQUEUE_LIVE_QUEUE="$LIVE_QUEUE_DIR" \
+AUTOQUEUE_LIVE_BASE_URL=http://127.0.0.1:3280 \
+dsh --profile web --patch ./tests/live-dsh.patch.yml \
+  --no-open --host 127.0.0.1 --port 3280 \
+  >"$LIVE_DSH_HOME/live-host.log" 2>&1 &
+LIVE_HOST_PID=$!
+trap 'kill "$LIVE_HOST_PID" 2>/dev/null || true' EXIT
+
+LIVE_READY=0
+for _ in {1..120}; do
+  if curl -fsS http://127.0.0.1:3280/api/queue/state >/dev/null; then LIVE_READY=1; break; fi
+  sleep 0.25
+done
+test "$LIVE_READY" = 1 || { tail -100 "$LIVE_DSH_HOME/live-host.log"; exit 1; }
+
+AUTOQUEUE_LIVE_URL=http://127.0.0.1:3280 \
+AUTOQUEUE_LIVE_EXPECTED_QUEUE_DIR="$LIVE_QUEUE_DIR" \
+npm run "test:live:$LIVE_CASE"
+```
+
+这两套测试会真实调用已配置的 LLM，并创建、停止、归档任务；只应运行在 webhook/defaultDeadline 已关闭的专用 Host。driver 会同时核对 HTTP Host、AI tool Host 和 `AUTOQUEUE_LIVE_EXPECTED_QUEUE_DIR`，并拒绝非空或身份不一致的队列。证据和截图默认写入 `test-results/live-ai-matrix/` 与 `test-results/live-ui-*`。
 
 内部接口见 [`docs/core-api.md`](./docs/core-api.md)，设计和隔离论证见 [`autoqueue-design.md`](./autoqueue-design.md)。

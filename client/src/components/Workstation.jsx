@@ -142,7 +142,22 @@ export function Workstation(props) {
     }),
     snap.showNewTask && h(NewTaskModal, {
       options: snap.options, config: snap.config, onClose: function () { controller.closeNewTask(); },
-      onCreate: function (data) { return controller.createTask(data); }
+      onCreate: function (data) {
+        return controller.createTask(data).then(function (result) {
+          var key = result && result.key ? result.key : (data.key || "新任务");
+          var taskState = result && result.taskState;
+          var phase = "状态已同步";
+          if (taskState) {
+            if (taskState.archivedAt) phase = taskState.status === "done" ? "已完成并归档" : "已收口并归档";
+            else if (taskState.status === "running") phase = "已开始执行";
+            else if (taskState.status === "done") phase = "已完成";
+            else if (taskState.status === "failed") phase = "执行失败，请查看详情";
+            else if (taskState.status === "pending") phase = data.schedule ? "已安排定时执行" : (data.cron ? "已启用循环调度" : "等待安全派发");
+          }
+          flash("已入队：" + key + " · " + (result.stateRefreshed === false ? "页面刷新失败，请点击扫描" : phase));
+          return result;
+        });
+      }
     }),
     snap.showEdit && snap.editTask && h(EditTaskModal, {
       task: snap.editTask, options: snap.options, onClose: function () { controller.closeEdit(); },
@@ -479,7 +494,7 @@ function TaskList(props) {
     h("div", { className: "aq-list" },
       props.tasks.map(function (task) {
         return h(TaskRow, {
-          key: task.key, task: task, selected: props.selected.indexOf(task.key) >= 0,
+          key: task.key, task: task, snap: props.snap, selected: props.selected.indexOf(task.key) >= 0,
           onSelect: props.onSelect, onAction: props.onAction,
           onDetail: function (key) { props.controller.openDetail(key); },
           onEdit: function (key) { props.controller.openEdit(key); },
@@ -500,13 +515,15 @@ function TaskRow(props) {
   var selectable = task.status !== "running" && !task.archivedAt;
   var sessionId = task.sessionId || task.lastSessionId || (task.executions && task.executions.length ? task.executions[task.executions.length - 1].sessionId : null);
   var plan = task.cron ? cronToHuman(task.cron) : (task.schedule ? formatIso(task.schedule) : "即时派发");
-  var recent = task.status === "running"
+  var recent = task.status === "pending"
+    ? pendingReason(task, props.snap)
+    : (task.status === "running"
     ? (task.stopPending === true
       ? "等待 owned session 双重 idle 确认"
       : (task.foregroundPaused === true
       ? "等待 DSH 前台完成 · Goal 已安全暂停"
       : "第 " + (task.currentRound || 0) + "/" + (task.maxGoalRounds || "-") + " 轮 · " + elapseStr(task.startedAt)))
-    : (task.lastError ? String(task.lastError).slice(0, 54) : (task.updatedAt ? timeAgo(task.updatedAt) : "-"));
+    : (task.lastError ? String(task.lastError).slice(0, 54) : (task.updatedAt ? timeAgo(task.updatedAt) : "-")));
   var actions = taskActions(task);
 
   function openRow() { props.onDetail(task.key); }
@@ -548,6 +565,26 @@ function TaskRow(props) {
       sessionId && h(ActionButton, { label: "跳转会话 " + task.key, icon: "external", onClick: function () { props.onSession(sessionId); } })
     )
   );
+}
+
+function pendingReason(task, snap) {
+  var now = Date.now();
+  var retryAt = task.nextRetryAt ? new Date(task.nextRetryAt).getTime() : NaN;
+  if (Number.isFinite(retryAt) && retryAt > now) return "退避中 · " + formatIso(task.nextRetryAt) + " 后重试";
+  var scheduledAt = task.schedule ? new Date(task.schedule).getTime() : NaN;
+  if (Number.isFinite(scheduledAt) && scheduledAt > now) return "等待计划时间 · " + formatIso(task.schedule);
+  if (task.cron && task.nextRunAt) return "等待下次 Cron 窗口 · " + formatIso(task.nextRunAt);
+  var runtime = snap && snap.runtimeObservation;
+  var gate = runtime && runtime.foregroundGate;
+  if (gate === true || gate === "foreground-active" || gate === "closed" || gate === "busy" ||
+      (gate && typeof gate === "object" && (gate.blocked === true || gate.foregroundActive === true))) {
+    return "DSH 前台工作中 · 后台安全让行";
+  }
+  if (runtime && (runtime.sessionListKnown === false || gate === "unknown")) return "等待 Host 权威状态确认";
+  var running = snap && snap.metrics ? Number(snap.metrics.running || 0) : 0;
+  var maxConcurrent = snap && snap.config ? Number(snap.config.maxConcurrent || 1) : 1;
+  if (running >= maxConcurrent) return "后台工作位已满 · 排队等待";
+  return "已入队 · 等待安全派发";
 }
 
 function ActionButton(props) {

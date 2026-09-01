@@ -1,0 +1,12 @@
+# Live layered E2E overlay. The harness sets both variables and boots this
+# patch only against an isolated DSH_HOME; it is never part of the default
+# plugin bundle.
+- id: autoqueue
+  config:
+    queueDir: !!js process.env.AUTOQUEUE_LIVE_QUEUE
+    baseUrl: !!js process.env.AUTOQUEUE_LIVE_BASE_URL
+    enableHostAiTools: true
+    autoArchive: false
+    enableNotifications: false
+    scanIntervalMs: 1000
+    maxConcurrent: 1

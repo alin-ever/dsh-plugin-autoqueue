@@ -914,7 +914,9 @@ test("native runtime listeners only dirty-latch relevant edges and uninstall cle
   };
   const engine = createEngine({});
   let pollCalls = 0;
+  let scanCalls = 0;
   engine.pollRunning = async () => { pollCalls += 1; };
+  engine.scanPending = async () => { scanCalls += 1; };
   const beforeRevision = snapshot().revision;
   const dispose = registerRuntimePollEvents(ctx, engine);
 
@@ -924,12 +926,17 @@ test("native runtime listeners only dirty-latch relevant edges and uninstall cle
   emit("session/disposed", { id: "ordinary-foreground" });
   assert.equal(pollCalls, 0, "listeners do not enter the control plane synchronously");
   assert.equal(snapshot().revision, beforeRevision, "listeners do not mutate the ledger directly");
-  await new Promise(resolve => setImmediate(resolve));
+  // Runtime polling drains in a microtask while pending scans intentionally
+  // use a zero-delay timer. setImmediate ordering relative to that timer
+  // depends on the event-loop phase, so wait past the timer boundary.
+  await new Promise(resolve => setTimeout(resolve, 10));
   assert.equal(pollCalls, 1, "mixed native edges are coalesced");
+  assert.equal(scanCalls, 1, "idle/disposed edges coalesce into one pending scan");
 
   emit("goal/changed", { agent: { id: "ordinary-foreground" }, change: { operation: "complete" } });
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(pollCalls, 1, "foreign goal changes are not queue control events");
+  assert.equal(scanCalls, 1, "foreign goal changes do not scan the inbox");
 
   dispose();
   dispose();
@@ -942,7 +949,243 @@ test("native runtime listeners only dirty-latch relevant edges and uninstall cle
   emit("session/disposed", { id: ownedSession(42) });
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(pollCalls, 1, "unloaded listeners cannot schedule later polls");
+  assert.equal(scanCalls, 1, "unloaded listeners cannot schedule later scans");
   engine.dispose();
+});
+
+test("overlapping create scan replays after the active inbox snapshot", async () => {
+  freshQueue();
+  writeTaskFile("snapshot-old", "# snapshot old");
+  const gateEntered = deferred();
+  const releaseGate = deferred();
+  const dispatched = [];
+  const engine = createEngine({});
+  let gateCalls = 0;
+  engine._hostAllowsDispatch = async () => {
+    gateCalls += 1;
+    if (gateCalls === 1) {
+      gateEntered.resolve();
+      await releaseGate.promise;
+    }
+    return true;
+  };
+  engine._dispatch = async task => {
+    dispatched.push(task.key);
+    rmSync(task.path);
+  };
+
+  const firstScan = engine.scanPending();
+  await gateEntered.promise;
+  writeTaskFile("snapshot-new", "# snapshot new");
+  await engine.scanPending();
+  releaseGate.resolve();
+  await firstScan;
+  for (let attempt = 0; attempt < 10 && dispatched.length < 2; attempt++) {
+    await new Promise(resolve => setImmediate(resolve));
+  }
+
+  assert.deepEqual(dispatched, ["snapshot-old", "snapshot-new"]);
+  assert.equal(gateCalls, 2, "the retained edge performs one authoritative replay");
+  engine.dispose();
+});
+
+test("scan blocked by a provisional dispatch reservation replays after final Host rejection", async () => {
+  freshQueue();
+  writeTaskFile("reservation-old", "# reservation old");
+  const firstListEntered = deferred();
+  const releaseFirstList = deferred();
+  const finalAdmissionEntered = deferred();
+  const releaseFinalAdmission = deferred();
+  let listCalls = 0;
+  let createCalls = 0;
+  const engine = createEngine({
+    sessions: {
+      list: async () => {
+        listCalls += 1;
+        if (listCalls === 1) {
+          firstListEntered.resolve();
+          await releaseFirstList.promise;
+          return ok({ items: [] });
+        }
+        if (listCalls === 2) {
+          finalAdmissionEntered.resolve();
+          await releaseFinalAdmission.promise;
+          return ok({ items: [{ sessionId: "foreign-arrived", running: true }] });
+        }
+        return ok({ items: [] });
+      },
+      create: async request => {
+        createCalls += 1;
+        return ok({ sessionId: request.payload.sessionId });
+      },
+      rename: async () => ok({}),
+    },
+    goals: {
+      create: async () => ok({ ref: { id: "goal-reservation-replay", revision: 1 } }),
+    },
+  });
+
+  const firstScan = engine.scanPending();
+  await firstListEntered.promise;
+  assert.deepEqual(
+    engine.createTask("reservation-overlap-create", "reservation-new", "# reservation new", { autoArchive: false }),
+    { ok: true, key: "reservation-new" },
+  );
+  releaseFirstList.resolve();
+  await firstScan;
+  await finalAdmissionEntered.promise;
+
+  // A timer/force-scan can arrive while the real _dispatch still owns its
+  // provisional reservation. It must retain rather than consume the dirty
+  // edge, otherwise the final Host refusal below strands the overlap task.
+  await engine.scanPending();
+  assert.equal(listCalls, 2, "a direct scan parks behind the provisional reservation");
+  await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(createCalls, 0);
+  releaseFinalAdmission.resolve();
+  for (let attempt = 0; attempt < 30 && createCalls === 0; attempt++) {
+    await new Promise(resolve => setTimeout(resolve, 5));
+  }
+
+  assert.equal(createCalls, 1, "reservation release must wake a fresh authoritative scan");
+  assert.ok(listCalls >= 5, "replay reaches scan, dispatch, and before-goal Host gates");
+  assert.deepEqual(
+    [findByKey("reservation-old").status, findByKey("reservation-new").status].sort(),
+    ["pending", "running"],
+  );
+  engine.dispose();
+});
+
+test("a retained edge waits for the last reservation release and replays once", async () => {
+  freshQueue();
+  setConcurrency(2);
+  writeTaskFile("multi-reservation-old-1", "# multi reservation old 1");
+  writeTaskFile("multi-reservation-old-2", "# multi reservation old 2");
+  const firstListEntered = deferred();
+  const releaseFirstList = deferred();
+  const firstFinalAdmissionEntered = deferred();
+  const secondFinalAdmissionEntered = deferred();
+  const releaseFirstFinalAdmission = deferred();
+  const releaseSecondFinalAdmission = deferred();
+  const createdSessionIds = [];
+  let listCalls = 0;
+  const engine = createEngine({
+    sessions: {
+      list: async () => {
+        listCalls += 1;
+        if (listCalls === 1) {
+          firstListEntered.resolve();
+          await releaseFirstList.promise;
+          return ok({ items: [] });
+        }
+        if (listCalls === 2) {
+          firstFinalAdmissionEntered.resolve();
+          await releaseFirstFinalAdmission.promise;
+          return ok({ items: [{ sessionId: "foreign-arrived-first", running: true }] });
+        }
+        if (listCalls === 3) {
+          secondFinalAdmissionEntered.resolve();
+          await releaseSecondFinalAdmission.promise;
+          return ok({ items: [{ sessionId: "foreign-arrived-second", running: true }] });
+        }
+        return ok({ items: [] });
+      },
+      create: async request => {
+        createdSessionIds.push(request.payload.sessionId);
+        return ok({ sessionId: request.payload.sessionId });
+      },
+      rename: async () => ok({}),
+    },
+    goals: {
+      create: async () => ok({ ref: { id: `goal-multi-${createdSessionIds.length}`, revision: 1 } }),
+    },
+  });
+
+  const firstScan = engine.scanPending();
+  await firstListEntered.promise;
+  assert.equal(engine.createTask("multi-overlap-1", "multi-reservation-new-1", "# multi new 1").ok, true);
+  assert.equal(engine.createTask("multi-overlap-2", "multi-reservation-new-2", "# multi new 2").ok, true);
+  releaseFirstList.resolve();
+  await firstScan;
+  await firstFinalAdmissionEntered.promise;
+  await secondFinalAdmissionEntered.promise;
+  assert.equal(createdSessionIds.length, 0, "both provisional dispatches are still behind final Host admission");
+
+  releaseFirstFinalAdmission.resolve();
+  await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(listCalls, 3, "one remaining reservation keeps the retained edge parked");
+  releaseSecondFinalAdmission.resolve();
+  for (let attempt = 0; attempt < 40 && createdSessionIds.length < 2; attempt++) {
+    await new Promise(resolve => setTimeout(resolve, 5));
+  }
+
+  assert.equal(createdSessionIds.length, 2, "the last release replays the retained edge with full capacity");
+  assert.equal(new Set(createdSessionIds).size, 2, "each owned session is created exactly once");
+  const statuses = [
+    findByKey("multi-reservation-old-1").status,
+    findByKey("multi-reservation-old-2").status,
+    findByKey("multi-reservation-new-1").status,
+    findByKey("multi-reservation-new-2").status,
+  ];
+  assert.equal(statuses.filter(status => status === "running").length, 2);
+  assert.equal(statuses.filter(status => status === "pending").length, 2);
+  await new Promise(resolve => setTimeout(resolve, 25));
+  assert.equal(createdSessionIds.length, 2, "the replay neither exceeds concurrency nor self-rearms");
+  engine.dispose();
+});
+
+test("queued pending scan respects dispose and a busy Host does not self-spin", async () => {
+  freshQueue();
+  writeTaskFile("scan-dispose", "# scan dispose");
+  let disposedListCalls = 0;
+  const disposedEngine = createEngine({
+    sessions: { list: async () => { disposedListCalls += 1; return ok({ items: [] }); } },
+  });
+  assert.equal(disposedEngine.requestPendingScan(), true);
+  disposedEngine.dispose();
+  await new Promise(resolve => setTimeout(resolve, 15));
+  assert.equal(disposedListCalls, 0);
+
+  freshQueue();
+  writeTaskFile("scan-busy", "# scan busy");
+  let busyListCalls = 0;
+  const busyEngine = createEngine({
+    sessions: {
+      list: async () => {
+        busyListCalls += 1;
+        return ok({ items: [{ sessionId: "foreign-busy", running: true }] });
+      },
+    },
+  });
+  assert.equal(busyEngine.requestPendingScan(), true);
+  await new Promise(resolve => setTimeout(resolve, 30));
+  assert.equal(busyListCalls, 1, "foreground refusal consumes one edge without spinning");
+  busyEngine.dispose();
+
+  freshQueue();
+  writeTaskFile("scan-final-gate-flaps", "# scan final gate flaps");
+  let flappingListCalls = 0;
+  let flappingCreateCalls = 0;
+  const flappingEngine = createEngine({
+    sessions: {
+      list: async () => {
+        flappingListCalls += 1;
+        return flappingListCalls % 2 === 1
+          ? ok({ items: [] })
+          : ok({ items: [{ sessionId: "foreign-final-gate", running: true }] });
+      },
+      create: async request => {
+        flappingCreateCalls += 1;
+        return ok({ sessionId: request.payload.sessionId });
+      },
+    },
+  });
+  assert.equal(flappingEngine.requestPendingScan(), true);
+  await new Promise(resolve => setTimeout(resolve, 50));
+  assert.equal(flappingListCalls, 2, "a final Host refusal cannot manufacture another scan edge");
+  assert.equal(flappingCreateCalls, 0);
+  assert.equal(findByKey("scan-final-gate-flaps").status, "pending");
+  flappingEngine.dispose();
 });
 
 test("runner retries goal clear with the latest ref after rc.2 stale revision", async () => {

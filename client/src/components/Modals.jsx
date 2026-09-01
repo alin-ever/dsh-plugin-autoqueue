@@ -312,10 +312,10 @@ function CronField(props) {
   var custom = selectValue[0] === "__custom__";
   return h(Field, { label: props.label },
     h("div", { className: "aq-cron-field" },
-      h("select", { value: selectValue[0], onChange: function (event) { var value = event.target.value; selectValue[1](value); if (value !== "__custom__") props.onChange(value); } },
+      h("select", { value: selectValue[0], onChange: function (event) { var value = event.target.value; selectValue[1](value); props.onChange(value === "__custom__" ? "" : value); } },
         (props.presets || []).map(function (preset) { return h("option", { key: preset.value, value: preset.value }, preset.label); })
       ),
-      h("input", { value: selectValue[0] === "" ? "" : props.value, onChange: function (event) { props.onChange(event.target.value); }, placeholder: props.placeholder, disabled: !custom && selectValue[0] !== "" })
+      h("input", { value: custom ? props.value : "", onChange: function (event) { props.onChange(event.target.value); }, placeholder: props.placeholder, disabled: !custom })
     )
   );
 }

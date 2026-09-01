@@ -8,7 +8,8 @@
 };
 
 export var CRON_PRESETS = [
-  { label: "\u81EA\u5B9A\u4E49", value: "" },
+  { label: "\u4E0D\u914D\u7F6E", value: "" },
+  { label: "\u81EA\u5B9A\u4E49", value: "__custom__" },
   { label: "\u6BCF\u5929 08:00", value: "0 8 * * *" },
   { label: "\u6BCF\u5929 20:00", value: "0 20 * * *" },
   { label: "\u5DE5\u4F5C\u65E5 08:00", value: "0 8 * * 1-5" },
