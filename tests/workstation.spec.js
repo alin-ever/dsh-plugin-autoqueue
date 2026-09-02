@@ -277,8 +277,13 @@ async function openHarness(page) {
   await expect(page.locator(".aq-loading")).toHaveCount(0);
 }
 
-function fieldInput(container, label, selector = "input") {
-  return container.locator(".aq-field", { hasText: label }).first().locator(selector).first();
+function fieldInput(container, label) {
+  const pattern = new RegExp(String(label).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  return container.getByLabel(pattern).first();
+}
+
+function taskRow(page, key) {
+  return page.locator(".aq-task-row", { has: page.getByRole("button", { name: "查看任务 " + key }) });
 }
 
 function richTasks() {
@@ -318,7 +323,7 @@ test("each navigation group is a scoped workspace with honest counts, copy, and 
 
   await page.getByRole("navigation").getByRole("button", { name: /正在推进/ }).click();
   const activeWorkspace = page.getByRole("region", { name: "正在推进" });
-  await expect(activeWorkspace).toContainText("等待首轮运行时观测");
+  await expect(activeWorkspace).toContainText("正在同步 DSH 运行状态");
   await expect(page.getByRole("tab", { name: /全部/ })).toContainText("3");
   await expect(page.getByRole("tab", { name: /运行中/ })).toContainText("1");
   await expect(page.getByRole("tab", { name: /待执行/ })).toContainText("1");
@@ -339,13 +344,17 @@ test("each navigation group is a scoped workspace with honest counts, copy, and 
       },
     }) });
   }, { tasks: model.tasks, stateConfig: model.stateConfig });
-  await expect(activeWorkspace).toContainText("原生事件唤醒 + 权威对账");
-  await expect(activeWorkspace).toContainText("前台空闲，可受控派发");
-  await expect(activeWorkspace).toContainText("Watchdog");
-  await expect(activeWorkspace).toContainText("10 秒");
+  await expect(activeWorkspace).toContainText("事件驱动，定时校验");
+  await expect(activeWorkspace).toContainText("DSH 空闲，可以执行");
+  await activeWorkspace.getByText("运行诊断").click();
+  await expect(activeWorkspace).toContainText("兜底检查");
+  await expect(activeWorkspace).toContainText("每 10 秒");
+  await expect(activeWorkspace).toContainText("最近事件");
+  await expect(activeWorkspace).toContainText("最近状态校验");
+  await expect(activeWorkspace).toContainText("最近队列扫描");
 
   await page.getByRole("navigation").getByRole("button", { name: /循环调度/ }).click();
-  await expect(page.getByRole("region", { name: "循环调度" })).toContainText("cron 任务");
+  await expect(page.getByRole("region", { name: "循环调度" })).toContainText("管理周期任务");
   await expect(page.getByRole("tab", { name: /全部/ })).toContainText("1");
   await expect(page.getByRole("tab", { name: /运行中/ })).toContainText("1");
   await expect(page.getByRole("button", { name: "新建循环任务" })).toBeVisible();
@@ -358,10 +367,22 @@ test("each navigation group is a scoped workspace with honest counts, copy, and 
 
   await page.getByRole("navigation").getByRole("button", { name: /归档记录/ }).click();
   const archivedWorkspace = page.getByRole("region", { name: "归档记录" });
-  await expect(archivedWorkspace).toContainText("不冒充完整执行历史");
-  await expect(archivedWorkspace).toContainText("归档任务1");
+  await expect(archivedWorkspace).toContainText("完整执行记录仍保留在任务详情中");
   await expect(page.getByRole("button", { name: "查看任务 archived-result" })).toBeVisible();
   await expect(page.getByRole("button", { name: "查看任务 release-notes-0831" })).toHaveCount(0);
+  await expect(page.locator(".aq-kpi, .aq-orbit-mini, .aq-access-art, .aq-eyebrow")).toHaveCount(0);
+});
+
+test("empty states are compact, direct, and free of decorative placeholders", async ({ page }) => {
+  await mockApi(page, { tasks: [] });
+  await openHarness(page);
+
+  const empty = page.locator(".aq-empty");
+  await expect(empty).toContainText("还没有任务");
+  await expect(empty.getByRole("button", { name: "创建任务" })).toBeVisible();
+  await expect(empty.locator("img")).toHaveCount(0);
+  const box = await empty.boundingBox();
+  expect(box && box.height).toBeLessThanOrEqual(220);
 });
 
 test("SSE health and options isolation are reported independently from real evidence", async ({ page }) => {
@@ -369,7 +390,7 @@ test("SSE health and options isolation are reported independently from real evid
   await openHarness(page);
 
   await expect(page.locator(".aq-host-state")).toContainText("实时通道连接中");
-  await expect(page.getByRole("region", { name: "运行契约" })).toContainText("隔离覆盖已锁定");
+  await expect(page.getByRole("region", { name: "运行安全状态" })).toContainText("隔离已启用");
   await page.evaluate(() => globalThis.__eventSources[0].onopen());
   await expect(page.locator(".aq-host-state")).toContainText("实时通道已连接");
 
@@ -392,18 +413,18 @@ test("SSE health and options isolation are reported independently from real evid
 
   await page.evaluate(() => globalThis.__eventSources[0].onerror());
   await expect(page.locator(".aq-host-state")).toContainText("实时通道重连中");
-  await expect(page.getByRole("region", { name: "运行契约" })).toContainText("隔离覆盖已锁定");
+  await expect(page.getByRole("region", { name: "运行安全状态" })).toContainText("隔离已启用");
 });
 
 test("unknown or failed isolation options never render as verified", async ({ page }) => {
-  await mockApi(page, { optionsFailure: { message: "isolation contract unavailable" } });
+  await mockApi(page, { optionsFailure: { message: "isolation options unavailable" } });
   await openHarness(page);
 
-  const contract = page.getByRole("region", { name: "运行契约" });
-  await expect(contract).toContainText("隔离覆盖待验证");
-  await expect(contract).toContainText("isolation contract unavailable");
-  await expect(contract.locator(".aq-contract-item").first()).toHaveClass(/danger/);
-  await expect(page.locator(".aq-sb-foot p")).toContainText("隔离：isolation contract unavailable");
+  const safety = page.getByRole("region", { name: "运行安全状态" });
+  await expect(safety).toContainText("隔离待确认");
+  await expect(safety).toContainText("isolation options unavailable");
+  await expect(safety.locator(".aq-safety-item").first()).toHaveClass(/danger/);
+  await expect(page.locator(".aq-sb-foot p")).toHaveCount(0);
 });
 
 test("new task exposes every safe advanced field and never sends host-global overrides", async ({ page }) => {
@@ -414,23 +435,23 @@ test("new task exposes every safe advanced field and never sends host-global ove
   const dialog = page.getByRole("dialog", { name: "新建无人值守任务" });
   await expect(fieldInput(dialog, "优先级")).toHaveValue("6");
   await dialog.getByLabel("任务内容（Markdown）").fill("# Weekly insight\n\nSummarize customer evidence.");
-  await dialog.getByRole("button", { name: /高级执行策略/ }).click();
-  await expect(fieldInput(dialog, "最大 Goal 轮数")).toHaveValue("77");
-  await expect(fieldInput(dialog, "最大反阻塞")).toHaveValue("7");
+  await dialog.getByRole("button", { name: /高级设置/ }).click();
+  await expect(fieldInput(dialog, "最多推进轮数")).toHaveValue("77");
+  await expect(fieldInput(dialog, "最多自动恢复")).toHaveValue("7");
   await expect(fieldInput(dialog, "最长执行")).toHaveValue("120");
-  await expect(fieldInput(dialog, "最大派发尝试")).toHaveValue("8");
-  await fieldInput(dialog, "最大 Goal 轮数").fill("55");
-  await fieldInput(dialog, "最大反阻塞").fill("4");
+  await expect(fieldInput(dialog, "最多启动尝试")).toHaveValue("8");
+  await fieldInput(dialog, "最多推进轮数").fill("55");
+  await fieldInput(dialog, "最多自动恢复").fill("4");
   await fieldInput(dialog, "最长执行").fill("45");
-  await fieldInput(dialog, "最大派发尝试").fill("6");
-  await dialog.getByRole("button", { name: /通知与回调/ }).click();
+  await fieldInput(dialog, "最多启动尝试").fill("6");
+  await dialog.getByRole("button", { name: /^通知/ }).click();
   await expect(dialog.getByRole("checkbox", { name: /完成后自动归档/ })).not.toBeChecked();
   await expect(dialog.getByRole("checkbox", { name: /浏览器结果通知/ })).toBeChecked();
   await fieldInput(dialog, "Webhook URL").fill("https://hooks.example.test/queue");
   await dialog.getByRole("button", { name: "创建任务" }).click();
 
   await expect(dialog).toHaveCount(0);
-  await expect(page.locator(".aq-toast")).toContainText("已入队：task-generated · 等待安全派发");
+  await expect(page.locator(".aq-toast")).toContainText("已入队：task-generated · 等待执行");
   await expect(page.getByRole("button", { name: "查看任务 task-generated" })).toBeVisible();
   expect(model.createdTasks).toHaveLength(1);
   expect(model.createdTasks[0]).toMatchObject({
@@ -456,7 +477,7 @@ test("create success remains explicit when a fast task auto-archives", async ({ 
   const dialog = page.getByRole("dialog", { name: "新建无人值守任务" });
   await dialog.getByLabel("任务内容（Markdown）").fill("# Fast archive");
   await fieldInput(dialog, "任务标识").fill("fast-archived");
-  await dialog.getByRole("button", { name: /通知与回调/ }).click();
+  await dialog.getByRole("button", { name: /^通知/ }).click();
   await dialog.getByRole("checkbox", { name: /完成后自动归档/ }).check();
   await dialog.getByRole("button", { name: "创建任务" }).click();
 
@@ -464,7 +485,7 @@ test("create success remains explicit when a fast task auto-archives", async ({ 
   await expect(page.locator(".aq-toast")).toContainText("已入队：fast-archived · 已完成并归档");
   await expect(page.getByRole("button", { name: "查看任务 fast-archived" })).toHaveCount(0);
   await page.getByRole("navigation").getByRole("button", { name: /归档记录/ }).click();
-  await expect(page.getByRole("button", { name: "查看任务 fast-archived" })).toContainText("已完成");
+  await expect(taskRow(page, "fast-archived")).toContainText("已完成");
 });
 
 test("custom cron remains editable across real sequential keystrokes", async ({ page }) => {
@@ -514,31 +535,31 @@ test("pending rows explain schedule and foreground-gate waits", async ({ page })
   });
   await openHarness(page);
 
-  await expect(page.getByRole("button", { name: "查看任务 future-schedule" })).toContainText("等待计划时间");
-  await expect(page.getByRole("button", { name: "查看任务 foreground-wait" })).toContainText("DSH 前台工作中 · 后台安全让行");
+  await expect(taskRow(page, "future-schedule")).toContainText("计划于");
+  await expect(taskRow(page, "foreground-wait")).toContainText("DSH 使用中，队列已暂停");
 });
 
-test("runtime settings load the full safe contract and submit only the changed field", async ({ page }) => {
+test("runtime settings load all safe fields and submit only the changed field", async ({ page }) => {
   const model = await mockApi(page, { configGetDelay: 80, configPostDelay: 250 });
   await openHarness(page);
 
   await page.getByRole("button", { name: "运行设置" }).click();
-  const dialog = page.getByRole("dialog", { name: "运行时设置" });
+  const dialog = page.getByRole("dialog", { name: "运行设置" });
   const expected = [
-    ["最大并发", "2"], ["任务超时", "120"], ["最大 Goal 轮数", "77"], ["最大反阻塞", "7"],
-    ["最大派发尝试", "8"], ["不可达阈值", "9"], ["退避基数", "45"], ["退避上限", "1200"],
-    ["默认优先级", "6"], ["默认截止 cron", "0 22 * * *"], ["Webhook URL", "https://example.test/hook"],
-    ["收件箱目录", "/srv/queue/tasks"],
+    ["最大并发", "2"], ["任务超时", "120"], ["最多推进轮数", "77"], ["最多自动恢复", "7"],
+    ["最多启动尝试", "8"], ["连续状态异常次数", "9"], ["首次重试等待", "45"], ["最长重试等待", "1200"],
+    ["默认优先级", "6"], ["默认截止时间", "0 22 * * *"], ["Webhook URL", "https://example.test/hook"],
+    ["队列根目录", "/srv/queue/tasks"],
   ];
   for (const [label, value] of expected) await expect(fieldInput(dialog, label)).toHaveValue(value);
-  await expect(fieldInput(dialog, "收件箱目录")).toBeDisabled();
-  await expect(dialog.getByRole("checkbox", { name: "终态自动归档" })).not.toBeChecked();
+  await expect(fieldInput(dialog, "队列根目录")).toBeDisabled();
+  await expect(dialog.getByRole("checkbox", { name: "任务结束后自动归档" })).not.toBeChecked();
   await expect(dialog.getByRole("checkbox", { name: "浏览器结果通知" })).toBeChecked();
   await expect(dialog.locator(".aq-field", { hasText: "默认模型" })).toHaveCount(0);
   await expect(dialog.locator(".aq-field", { hasText: "工作区" })).toHaveCount(0);
   await expect(dialog.locator(".aq-field", { hasText: "Agent 预设" })).toHaveCount(0);
 
-  await fieldInput(dialog, "最大 Goal 轮数").fill("78");
+  await fieldInput(dialog, "最多推进轮数").fill("78");
   await dialog.getByRole("button", { name: "保存设置" }).click();
   await expect(dialog.getByRole("button", { name: "保存中…" })).toBeVisible();
   await expect(dialog).toHaveCount(0);
@@ -565,11 +586,11 @@ test("clearing nullable task policy overrides sends explicit nulls", async ({ pa
 
   await page.getByRole("button", { name: "编辑 safe-job" }).click();
   const dialog = page.getByRole("dialog", { name: "编辑任务 · safe-job" });
-  await dialog.getByRole("button", { name: /高级执行策略/ }).click();
-  await fieldInput(dialog, "最大 Goal 轮数").fill("");
-  await fieldInput(dialog, "最大反阻塞").fill("");
+  await dialog.getByRole("button", { name: /高级设置/ }).click();
+  await fieldInput(dialog, "最多推进轮数").fill("");
+  await fieldInput(dialog, "最多自动恢复").fill("");
   await fieldInput(dialog, "最长执行").fill("");
-  await fieldInput(dialog, "最大派发尝试").fill("");
+  await fieldInput(dialog, "最多启动尝试").fill("");
   await dialog.getByRole("button", { name: "保存" }).click();
 
   await expect(dialog).toHaveCount(0);
@@ -615,7 +636,7 @@ test("terminal detail resolves owned-session fallback and pending detail exposes
 
   await page.getByRole("button", { name: "查看任务 terminal-fallback" }).click();
   const terminal = page.getByRole("dialog", { name: "terminal-fallback" });
-  await expect(terminal).toContainText("AutoQueue owned");
+  await expect(terminal).toContainText("任务会话已创建");
   await terminal.getByRole("button", { name: "跳转会话" }).click();
   expect(await page.evaluate(() => globalThis.__aq.openedSessions)).toEqual(["session-from-last-attempt"]);
 
@@ -693,7 +714,7 @@ test("notifications stay opt-in for initialization, form permission, and SSE tra
   expect(await page.evaluate(() => globalThis.__notificationCalls.permissionRequests)).toBe(0);
   await page.getByRole("button", { name: "新建任务" }).click();
   const dialog = page.getByRole("dialog", { name: "新建无人值守任务" });
-  await dialog.getByRole("button", { name: /通知与回调/ }).click();
+  await dialog.getByRole("button", { name: /^通知/ }).click();
   await dialog.getByRole("checkbox", { name: /浏览器结果通知/ }).check();
   expect(await page.evaluate(() => globalThis.__notificationCalls.permissionRequests)).toBe(1);
   await page.keyboard.press("Escape");
@@ -784,21 +805,21 @@ test("task rows open their inspector with Enter", async ({ page }) => {
   await expect(page.getByRole("dialog", { name: "safe-job" })).toBeVisible();
 });
 
-test("foreground preemption is visible in the contract, row, and task inspector", async ({ page }) => {
+test("foreground preemption is visible in the safety status, row, and task inspector", async ({ page }) => {
   await mockApi(page, { tasks: [task({
     key: "foreground-yield", status: "running", sessionId: "autoqueue-session-owned",
     foregroundPaused: true, goalPhase: "foreground-paused", currentRound: 6, maxGoalRounds: 40,
   })] });
   await openHarness(page);
 
-  await expect(page.getByRole("region", { name: "运行契约" })).toContainText("1 个后台 turn 已暂停");
-  const row = page.getByRole("button", { name: "查看任务 foreground-yield" });
-  await expect(row).toContainText("前台让行");
-  await expect(row).toContainText("等待 DSH 前台完成");
-  await row.click();
+  await expect(page.getByRole("region", { name: "运行安全状态" })).toContainText("已暂停 1 个后台任务");
+  const row = taskRow(page, "foreground-yield");
+  await expect(row).toContainText("已暂停");
+  await expect(row).toContainText("DSH 使用中，后台任务已暂停");
+  await page.getByRole("button", { name: "查看任务 foreground-yield" }).click();
   const dialog = page.getByRole("dialog", { name: "foreground-yield" });
-  await expect(dialog).toContainText("正在为 DSH 前台让行");
-  await expect(dialog).toContainText("等待双重空闲确认");
+  await expect(dialog).toContainText("任务已暂停");
+  await expect(dialog).toContainText("空闲后任务会自动继续");
 });
 
 test("a stop-pending task shows containment progress and cannot be stopped twice", async ({ page }) => {
@@ -808,14 +829,14 @@ test("a stop-pending task shows containment progress and cannot be stopped twice
   })] });
   await openHarness(page);
 
-  const row = page.getByRole("button", { name: "查看任务 stopping-owned-session" });
-  await expect(row).toContainText("停止收口中");
-  await expect(row).toContainText("等待 owned session 双重 idle 确认");
+  const row = taskRow(page, "stopping-owned-session");
+  await expect(row).toContainText("正在停止");
+  await expect(row).toContainText("正在确认任务已完全停止");
   await expect(page.getByRole("button", { name: "停止 stopping-owned-session" })).toHaveCount(0);
-  await row.click();
+  await page.getByRole("button", { name: "查看任务 stopping-owned-session" }).click();
   const detail = page.getByRole("dialog", { name: "stopping-owned-session" });
-  await expect(detail).toContainText("正在安全停止 owned session");
-  await expect(detail).toContainText("停止意图已持久化");
+  await expect(detail).toContainText("正在停止任务");
+  await expect(detail).toContainText("停止指令已提交");
   await expect(detail.getByRole("button", { name: "停止", exact: true })).toHaveCount(0);
 });
 
@@ -847,7 +868,7 @@ test("core action parity reaches confirmations, restore, scan, and concurrency w
 
   await page.getByRole("button", { name: "停止 running-stop" }).click();
   const stopConfirm = page.getByRole("dialog", { name: "停止任务" });
-  await expect(stopConfirm).toContainText("安全收口");
+  await expect(stopConfirm).toContainText("会安全结束");
   await stopConfirm.getByRole("button", { name: "停止", exact: true }).click();
 
   await page.getByRole("button", { name: "删除 pending-delete" }).click();
@@ -857,10 +878,11 @@ test("core action parity reaches confirmations, restore, scan, and concurrency w
 
   await page.getByRole("navigation").getByRole("button", { name: /归档记录/ }).click();
   await page.getByRole("button", { name: "还原 archived-restore" }).click();
-  await page.getByRole("button", { name: "立即扫描" }).click();
+  await page.getByRole("button", { name: "返回任务队列" }).click();
+  await page.getByRole("button", { name: "立即检查任务" }).click();
 
   await page.getByRole("button", { name: "运行设置" }).click();
-  const settings = page.getByRole("dialog", { name: "运行时设置" });
+  const settings = page.getByRole("dialog", { name: "运行设置" });
   await fieldInput(settings, "最大并发").fill("3");
   await settings.getByRole("button", { name: "保存设置" }).click();
   await expect(settings).toHaveCount(0);
@@ -926,7 +948,7 @@ test("a read terminal task can be marked unread explicitly", async ({ page }) =>
   expect(model.markReadRequests).toEqual([{ key: "read-result", read: false }]);
 });
 
-test("the API drawer reads the live machine contract and keeps stable discovery paths", async ({ page }) => {
+test("the API drawer reads live capabilities and keeps stable discovery paths", async ({ page }) => {
   await mockApi(page);
   await openHarness(page);
 
@@ -936,7 +958,7 @@ test("the API drawer reads the live machine contract and keeps stable discovery 
   await expect(dialog).toContainText("/api/autoqueue/openapi.json");
   await expect(dialog).toContainText("任务队列");
   await expect(dialog).toContainText("老登");
-  await expect(dialog).toContainText("AUTH REQUIRED");
+  await expect(dialog).toContainText("需要认证");
   await expect(dialog).toContainText("Authorization: Bearer <token>");
   await expect(dialog.locator(".aq-code-block")).toContainText("Authorization: Bearer $AUTOQUEUE_TOKEN");
   await expect(dialog).toContainText("16 个");
@@ -946,7 +968,7 @@ test("the API drawer reads the live machine contract and keeps stable discovery 
   await expect(dialog).toContainText("原生 Runtime 监控");
   await expect(dialog).toContainText("enableHostAiTools");
   await expect(dialog).toContainText("/api/queue/events");
-  await expect(dialog).toContainText("插件不会向页面回显 token");
+  await expect(dialog).toContainText("页面不会显示 token");
   await expect(dialog.getByRole("button", { name: "复制 Capabilities" })).toBeVisible();
   await expect(dialog.getByRole("button", { name: "复制 OpenAPI 3.1" })).toBeVisible();
 });
@@ -970,8 +992,8 @@ test("the API drawer renders loopback direct access without a fake token require
 
   await page.getByRole("button", { name: "AI / API 接入" }).click();
   const dialog = page.getByRole("dialog", { name: "AI / API 接入" });
-  await expect(dialog).toContainText("LOCAL DIRECT");
-  await expect(dialog).toContainText("本机 loopback 直连免 token");
+  await expect(dialog).toContainText("本机直连");
+  await expect(dialog).toContainText("本机可直接访问");
   await expect(dialog.locator(".aq-code-block")).toContainText("curl 'http://127.0.0.1:4173/api/queue/state?archived=1&compact=1'");
   await expect(dialog.locator(".aq-code-block")).not.toContainText("AUTOQUEUE_TOKEN");
 });
@@ -983,9 +1005,9 @@ test("an older capability document without authentication stays explicitly unres
 
   await page.getByRole("button", { name: "AI / API 接入" }).click();
   const dialog = page.getByRole("dialog", { name: "AI / API 接入" });
-  await expect(dialog).toContainText("AUTH CONTRACT");
-  await expect(dialog).toContainText("未声明认证方案");
-  await expect(dialog.locator(".aq-code-block")).toContainText("authentication from deployment contract");
+  await expect(dialog).toContainText("认证待确认");
+  await expect(dialog).toContainText("未提供认证方式");
+  await expect(dialog.locator(".aq-code-block")).toContainText("按部署要求填写认证信息");
 });
 
 test("rich workstation visual artifacts render at desktop and mobile breakpoints", async ({ page }) => {
@@ -998,6 +1020,26 @@ test("rich workstation visual artifacts render at desktop and mobile breakpoints
   });
   await openHarness(page);
   await expect(page.getByRole("button", { name: "查看任务 weekly-competitive-brief" })).toBeVisible();
+  await expect(page.locator(".aq-empty img, .aq-access-art, .aq-orbit-mini, .aq-eyebrow, .aq-kpi")).toHaveCount(0);
+  const typography = await page.evaluate(() => {
+    const selectors = [".aq-btn", ".aq-tab", ".aq-card-summary", ".aq-running-detail", ".aq-safety-item small", ".aq-list-head"];
+    return selectors.map((selector) => {
+      const element = document.querySelector(selector);
+      const style = element ? getComputedStyle(element) : null;
+      return { selector, size: style ? parseFloat(style.fontSize) : 0, weight: style ? Number(style.fontWeight) : 0 };
+    });
+  });
+  for (const item of typography) expect(item.size, item.selector).toBeGreaterThanOrEqual(12);
+  expect(typography.find((item) => item.selector === ".aq-btn").weight).toBeGreaterThanOrEqual(600);
+  expect(typography.find((item) => item.selector === ".aq-tab").weight).toBeGreaterThanOrEqual(600);
+  const undersizedText = await page.evaluate(() => Array.from(document.querySelectorAll("[data-dsh-autoqueue-view] *")).flatMap((element) => {
+    if (!element.getClientRects().length || getComputedStyle(element).visibility === "hidden") return [];
+    const hasOwnText = Array.from(element.childNodes).some((node) => node.nodeType === Node.TEXT_NODE && node.textContent.trim());
+    if (!hasOwnText || element.classList.contains("sr-only")) return [];
+    const size = parseFloat(getComputedStyle(element).fontSize);
+    return size < 12 ? [{ tag: element.tagName, className: element.className, size, text: element.textContent.trim().slice(0, 40) }] : [];
+  }));
+  expect(undersizedText).toEqual([]);
   await page.screenshot({ path: VISUAL_DIR + "/workstation-desktop-1440x1000.png", animations: "disabled" });
 
   await page.setViewportSize({ width: 390, height: 844 });
@@ -1008,7 +1050,7 @@ test("rich workstation visual artifacts render at desktop and mobile breakpoints
 
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.evaluate(() => document.documentElement.setAttribute("data-theme", "dark"));
-  await expect(page.locator("[data-dsh-autoqueue-view]")).toHaveCSS("color", "rgb(243, 246, 248)");
+  await expect(page.locator("[data-dsh-autoqueue-view]")).toHaveCSS("color", "rgb(242, 244, 247)");
   await page.screenshot({ path: VISUAL_DIR + "/workstation-dark-1280x900.png", animations: "disabled" });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });

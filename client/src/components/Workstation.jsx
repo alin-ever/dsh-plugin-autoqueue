@@ -1,4 +1,3 @@
-import quietOrbit from "../assets/quiet-orbit.png";
 import { iconHtml, isUnread, taskSummary, cronToHuman, elapseStr, formatIso, timeAgo, STATUS_CONFIG, TASK_TYPE_LABELS } from "../utils.js";
 import { TaskDetailPanel } from "./TaskDetail.jsx";
 import { NewTaskModal, EditTaskModal, ConfigPanel, ConfirmModal } from "./Modals.jsx";
@@ -56,7 +55,7 @@ export function Workstation(props) {
       var prompt = kind === "delete"
         ? "确认删除这个待执行任务？此操作不可恢复。"
         : (kind === "stop"
-          ? "确认停止运行中的任务？当前会话会被安全收口。"
+          ? "确认停止运行中的任务？当前会话会安全结束。"
           : "确认重新执行这个任务？这会创建新的独立会话，并再次消耗模型与工具资源。");
       confirm[1]({
         title: kind === "delete" ? "删除任务" : (kind === "stop" ? "停止任务" : "重新执行任务"),
@@ -105,8 +104,7 @@ export function Workstation(props) {
         h(Header, {
           snap: snap, controller: controller, message: message[0],
           onMenu: function () { sidebarOpen[1](true); },
-          onAccess: function () { accessOpen[1](true); },
-          onScan: function () { runAction("force-scan"); }
+          onAccess: function () { accessOpen[1](true); }
         }),
         h(ErrorBanner, { error: snap.error || snap.transportError, onDismiss: function () { controller.clearError(); } }),
         h("div", { className: "aq-canvas" },
@@ -116,8 +114,7 @@ export function Workstation(props) {
             onScan: function () { runAction("force-scan"); },
             onReturn: function () { controller.setNavGroup("all"); controller.setFilter("all"); }
           }),
-          h(RuntimeContract, { snap: snap }),
-          h(OperationalBand, { snap: snap }),
+          h(SafetyStatusBar, { snap: snap }),
           h(QueueControls, {
             snap: snap, query: query[0], onQuery: query[1],
             onFilter: function (value) { controller.setFilter(value); },
@@ -148,11 +145,11 @@ export function Workstation(props) {
           var taskState = result && result.taskState;
           var phase = "状态已同步";
           if (taskState) {
-            if (taskState.archivedAt) phase = taskState.status === "done" ? "已完成并归档" : "已收口并归档";
+            if (taskState.archivedAt) phase = taskState.status === "done" ? "已完成并归档" : "已结束并归档";
             else if (taskState.status === "running") phase = "已开始执行";
             else if (taskState.status === "done") phase = "已完成";
             else if (taskState.status === "failed") phase = "执行失败，请查看详情";
-            else if (taskState.status === "pending") phase = data.schedule ? "已安排定时执行" : (data.cron ? "已启用循环调度" : "等待安全派发");
+            else if (taskState.status === "pending") phase = data.schedule ? "已安排定时执行" : (data.cron ? "已启用循环调度" : "等待执行");
           }
           flash("已入队：" + key + " · " + (result.stateRefreshed === false ? "页面刷新失败，请点击扫描" : phase));
           return result;
@@ -180,7 +177,6 @@ function Sidebar(props) {
   var snap = props.snap;
   var ctrl = props.controller;
   var runtime = snap.runtimeHealth || {};
-  var isolation = snap.isolationHealth || { status: "unknown", message: "隔离策略待验证" };
   var active = (snap.counts.pending || 0) + (snap.counts.running || 0) + (snap.counts.interrupted || 0);
   var navItems = [
     { key: "all", label: "任务队列", icon: "list", count: snap.tasks.filter(function (task) { return !task.archivedAt; }).length },
@@ -196,11 +192,10 @@ function Sidebar(props) {
 
   return h("aside", { className: "aq-sb", "aria-label": "任务工作台导航" },
     h("div", { className: "aq-brand" },
-      h("span", { className: "aq-brand-mark", "aria-hidden": "true" }, h("i"), h("i")),
-      h("span", null, h("strong", null, "AUTOQUEUE"), h("small", null, "UNATTENDED OPS"))
+      h("span", { className: "aq-brand-mark", "aria-hidden": "true", dangerouslySetInnerHTML: { __html: iconHtml("list") } }),
+      h("strong", null, "任务队列")
     ),
     h("nav", { className: "aq-nav" },
-      h("span", { className: "aq-nav-label" }, "工作区"),
       navItems.map(function (item) {
         return h("button", {
           key: item.key, className: "aq-nav-item" + (snap.navGroup === item.key ? " sel" : ""),
@@ -213,9 +208,7 @@ function Sidebar(props) {
       })
     ),
     h("div", { className: "aq-sb-foot" },
-      h("div", { className: "aq-host-state " + healthTone }, h("span", { className: "aq-live-dot" }), h("span", null, connectionLabel)),
-      h("p", null, "隔离：" + (isolation.message || "策略待验证")),
-      h("span", { className: "aq-version" }, "DSH rc.2", runtime.revision != null ? " / rev " + runtime.revision : "")
+      h("div", { className: "aq-host-state " + healthTone }, h("span", { className: "aq-live-dot" }), h("span", null, connectionLabel))
     )
   );
 }
@@ -224,14 +217,11 @@ function Header(props) {
   return h("header", { className: "aq-head" },
     h("button", { className: "aq-icon-btn aq-mobile-menu", onClick: props.onMenu, "aria-label": "打开导航", dangerouslySetInnerHTML: { __html: iconHtml("list") } }),
     h("div", { className: "aq-head-title" },
-      h("span", { className: "aq-eyebrow" }, "UNATTENDED TASK CONTROL"),
-      h("h1", null, "无人值守任务台"),
-      h("p", null, "安静执行，边界清晰")
+      h("h1", null, "无人值守任务台")
     ),
     props.message && h("div", { className: "aq-toast", role: "status" }, props.message),
     h("div", { className: "aq-head-actions" },
       h("button", { className: "aq-btn ghost aq-hide-mobile", onClick: props.onAccess }, "AI / API 接入"),
-      h("button", { className: "aq-icon-btn", onClick: props.onScan, title: "立即扫描", "aria-label": "立即扫描", dangerouslySetInnerHTML: { __html: iconHtml("scan") } }),
       h("button", { className: "aq-icon-btn", onClick: function () { props.controller.openConfig(); }, title: "运行设置", "aria-label": "运行设置", dangerouslySetInnerHTML: { __html: iconHtml("gear") } }),
       h("button", { className: "aq-btn primary aq-create", onClick: function () { props.controller.openNewTask(); }, dangerouslySetInnerHTML: { __html: iconHtml("plus") + " 新建任务" } }),
       h("button", { className: "aq-icon-btn aq-close-board", onClick: function () { props.controller.closeBoard(); }, title: "关闭任务台", "aria-label": "关闭任务台", dangerouslySetInnerHTML: { __html: iconHtml("close") } })
@@ -241,92 +231,53 @@ function Header(props) {
 
 var WORKSPACE_COPY = {
   all: {
-    eyebrow: "QUEUE OVERVIEW", title: "任务队列",
-    description: "查看全部未归档任务，直接创建、检索与收口。"
+    title: "任务队列",
+    description: "查看和管理全部未归档任务。"
   },
   active: {
-    eyebrow: "RUNTIME CONTROL", title: "正在推进",
-    description: "只看待派发、执行中与中断任务，跟踪前台让行和原生运行时观测。"
+    title: "正在推进",
+    description: "查看待执行、执行中和中断任务，以及 DSH 运行状态。"
   },
   cron: {
-    eyebrow: "RECURRING RUNS", title: "循环调度",
-    description: "集中管理 cron 任务、下一次触发与每轮独立执行。"
+    title: "循环调度",
+    description: "管理周期任务和下一次执行时间。"
   },
   schedule: {
-    eyebrow: "SCHEDULED RUNS", title: "定时执行",
-    description: "核对一次性定时任务，避免错过计划窗口与截止策略。"
+    title: "定时执行",
+    description: "管理一次性定时任务。"
   },
   archived: {
-    eyebrow: "ARCHIVED TASKS", title: "归档记录",
-    description: "这里只展示已归档任务，不冒充完整执行历史；单任务轨迹仍在详情中。"
+    title: "归档记录",
+    description: "查看已归档任务；完整执行记录仍保留在任务详情中。"
   }
 };
 
 function WorkspaceHeader(props) {
   var snap = props.snap;
   var meta = WORKSPACE_COPY[snap.navGroup] || WORKSPACE_COPY.all;
-  var tasks = snap.scoped || [];
-  var counts = snap.scopeCounts || {};
-  var stats;
   var actionLabel;
   var action;
   if (snap.navGroup === "active") {
-    var runtime = snap.runtimeObservation;
-    var observation = runtime ? runtimeMonitorLabel(runtime.monitorMode) : "等待首轮运行时观测";
-    stats = [
-      ["执行中", counts.running || 0],
-      ["等待派发", counts.pending || 0],
-      ["运行时监控", observation]
-    ];
-    actionLabel = "立即扫描";
+    actionLabel = "立即检查任务";
     action = props.onScan;
   } else if (snap.navGroup === "cron") {
-    stats = [
-      ["循环任务", tasks.length],
-      ["正在运行", counts.running || 0],
-      ["等待派发", counts.pending || 0]
-    ];
     actionLabel = "新建循环任务";
     action = props.onCreate;
   } else if (snap.navGroup === "schedule") {
-    var nextScheduled = tasks.filter(function (task) { return task.nextRunAt || task.schedule; }).sort(function (a, b) {
-      return new Date(a.nextRunAt || a.schedule).getTime() - new Date(b.nextRunAt || b.schedule).getTime();
-    })[0];
-    stats = [
-      ["定时任务", tasks.length],
-      ["等待执行", counts.pending || 0],
-      ["最近计划", nextScheduled ? formatIso(nextScheduled.nextRunAt || nextScheduled.schedule) : "暂无"]
-    ];
     actionLabel = "新建定时任务";
     action = props.onCreate;
   } else if (snap.navGroup === "archived") {
-    stats = [
-      ["归档任务", tasks.length],
-      ["完成归档", counts.done || 0],
-      ["异常收口", (counts.failed || 0) + (counts.stopped || 0) + (counts.interrupted || 0)]
-    ];
     actionLabel = "返回任务队列";
     action = props.onReturn;
   } else {
-    stats = [
-      ["未归档", tasks.length],
-      ["执行中", counts.running || 0],
-      ["需关注", tasks.filter(taskNeedsAttention).length]
-    ];
-    actionLabel = "扫描收件箱";
+    actionLabel = "立即检查任务";
     action = props.onScan;
   }
 
   return h("section", { className: "aq-workspace-head", "aria-labelledby": "aq-workspace-title" },
     h("div", { className: "aq-workspace-copy" },
-      h("span", { className: "aq-eyebrow" }, meta.eyebrow),
       h("h2", { id: "aq-workspace-title" }, meta.title),
       h("p", null, meta.description)
-    ),
-    h("div", { className: "aq-workspace-stats", "aria-label": meta.title + "摘要" },
-      stats.map(function (item) {
-        return h("div", { key: item[0] }, h("span", null, item[0]), h("strong", null, item[1]));
-      })
     ),
     h("button", { className: "aq-btn ghost aq-workspace-action", onClick: action }, actionLabel),
     snap.navGroup === "active" && h(RuntimeObservation, { runtime: snap.runtimeObservation })
@@ -335,96 +286,83 @@ function WorkspaceHeader(props) {
 
 function RuntimeObservation(props) {
   var runtime = props.runtime;
-  var values = runtime ? [
-    ["监控模式", runtimeMonitorLabel(runtime.monitorMode)],
-    ["前台门控", foregroundGateLabel(runtime.foregroundGate)],
-    ["最近原生事件", runtime.lastNativeEventAt ? formatIso(runtime.lastNativeEventAt) : "等待首个事件"],
-    ["最近权威对账", runtime.lastPollAt ? formatIso(runtime.lastPollAt) : "等待首轮对账"],
-    ["最近收件箱扫描", runtime.lastScanAt ? formatIso(runtime.lastScanAt) : "等待首轮扫描"],
-    ["Watchdog", runtime.watchdogMs ? Math.round(runtime.watchdogMs / 1000) + " 秒" : "未声明"]
-  ] : [
-    ["监控模式", "等待首轮运行时观测"], ["前台门控", "等待观测"], ["最近原生事件", "等待观测"],
-    ["最近权威对账", "等待观测"], ["最近收件箱扫描", "等待观测"], ["Watchdog", "等待观测"]
+  if (!runtime) return h("div", { className: "aq-runtime-pending", role: "status" }, "正在同步 DSH 运行状态…");
+  var latestSync = mostRecentTimestamp([runtime.lastNativeEventAt, runtime.lastPollAt, runtime.lastScanAt]);
+  var values = [
+    ["前台状态", foregroundGateLabel(runtime.foregroundGate)],
+    ["监控方式", runtimeMonitorLabel(runtime.monitorMode)],
+    ["最近同步", latestSync ? formatIso(latestSync) : "等待首次同步"]
   ];
-  return h("div", { className: "aq-runtime-observation", "aria-label": "原生 Agent runtime 监控" },
-    values.map(function (item) { return h("div", { key: item[0] }, h("span", null, item[0]), h("strong", null, item[1])); })
+  var diagnostics = [
+    ["监控方式", runtimeMonitorLabel(runtime.monitorMode)],
+    ["前台状态", foregroundGateLabel(runtime.foregroundGate)],
+    ["会话列表", runtime.sessionListKnown === false ? "待确认" : "已同步"],
+    ["最近事件", runtime.lastNativeEventAt ? formatIso(runtime.lastNativeEventAt) : "暂无"],
+    ["最近状态校验", runtime.lastPollAt ? formatIso(runtime.lastPollAt) : "暂无"],
+    ["最近队列扫描", runtime.lastScanAt ? formatIso(runtime.lastScanAt) : "暂无"],
+    ["兜底检查", runtime.watchdogMs ? "每 " + Math.round(runtime.watchdogMs / 1000) + " 秒" : "未启用"]
+  ];
+  return h("section", { className: "aq-runtime-observation", "aria-label": "DSH 运行监控" },
+    h("div", { className: "aq-runtime-summary" },
+      values.map(function (item) { return h("div", { key: item[0] }, h("span", null, item[0]), h("strong", null, item[1])); })
+    ),
+    h("details", { className: "aq-runtime-diagnostics" },
+      h("summary", null, "运行诊断"),
+      h("dl", null, diagnostics.map(function (item) {
+        return h("div", { key: item[0] }, h("dt", null, item[0]), h("dd", null, item[1]));
+      }))
+    )
   );
 }
 
+function mostRecentTimestamp(values) {
+  return values.filter(Boolean).sort(function (a, b) { return new Date(b).getTime() - new Date(a).getTime(); })[0] || null;
+}
+
 function runtimeMonitorLabel(mode) {
-  if (mode === "native-events+authoritative-reconcile" || mode === "native-event-reconcile") return "原生事件唤醒 + 权威对账";
-  return mode || "等待首轮运行时观测";
+  if (mode === "native-events+authoritative-reconcile" || mode === "native-event-reconcile") return "事件驱动，定时校验";
+  return mode ? "运行监控已启用" : "等待首次同步";
 }
 
 function foregroundGateLabel(gate) {
-  if (gate === true || gate === "foreground-active" || gate === "closed" || gate === "busy") return "前台忙碌，后台让行";
-  if (gate === false || gate === "foreground-idle" || gate === "open") return "前台空闲，可受控派发";
-  if (gate === "unknown") return "权威会话列表待确认";
+  if (gate === true || gate === "foreground-active" || gate === "closed" || gate === "busy") return "DSH 使用中，队列已暂停";
+  if (gate === false || gate === "foreground-idle" || gate === "open") return "DSH 空闲，可以执行";
+  if (gate === "unknown") return "正在确认 DSH 状态";
   if (gate && typeof gate === "object") {
-    if (gate.blocked === true || gate.foregroundActive === true) return "前台忙碌，后台让行";
-    if (gate.blocked === false || gate.foregroundActive === false) return "前台空闲，可受控派发";
+    if (gate.blocked === true || gate.foregroundActive === true) return "DSH 使用中，队列已暂停";
+    if (gate.blocked === false || gate.foregroundActive === false) return "DSH 空闲，可以执行";
   }
-  return gate == null ? "等待观测" : String(gate);
+  return "正在确认 DSH 状态";
 }
 
-function RuntimeContract(props) {
+function SafetyStatusBar(props) {
   var snap = props.snap;
   var running = snap.metrics.running || 0;
   var foregroundPaused = snap.tasks.filter(function (task) { return task.foregroundPaused === true; }).length;
   var maxConcurrent = snap.config.maxConcurrent || 1;
-  var isolation = snap.isolationHealth || { status: "unknown", message: "隔离策略待验证" };
+  var isolation = snap.isolationHealth || { status: "unknown", message: "正在确认隔离状态" };
   var isolationTone = isolation.verified ? "safe" : (isolation.status === "error" || isolation.status === "unsafe" ? "danger" : "warn");
-  return h("section", { className: "aq-contract", "aria-label": "运行契约" },
-    h("div", { className: "aq-contract-title" },
-      h("span", { className: "aq-shield", "aria-hidden": "true" }, "◇"),
-      h("div", null, h("strong", null, "运行契约"), h("small", null, "STRICT ISOLATION"))
-    ),
-    h(ContractItem, { label: isolation.verified ? "隔离覆盖已锁定" : "隔离覆盖待验证", detail: isolation.message, tone: isolationTone }),
-    h(ContractItem, {
-      label: "主进程优先",
+  return h("section", { className: "aq-safety-bar " + isolationTone, "aria-label": "运行安全状态" },
+    h(StatusItem, {
+      label: isolation.verified ? "隔离已启用" : "隔离待确认",
+      detail: isolation.message || "正在确认隔离状态",
+      tone: isolationTone
+    }),
+    h(StatusItem, {
+      label: "前台优先",
       detail: foregroundPaused > 0
-        ? foregroundPaused + " 个后台 turn 已暂停"
-        : "前台活跃时后台 Goal 持久让行",
+        ? "已暂停 " + foregroundPaused + " 个后台任务"
+        : "使用 DSH 时自动暂停后台任务",
       tone: "safe"
     }),
-    h("div", { className: "aq-worker-meter" },
-      h("span", null, "后台工作位"),
-      h("strong", null, running, h("small", null, " / ", maxConcurrent)),
-      h("div", { className: "aq-worker-track", role: "progressbar", "aria-label": "后台工作位", "aria-valuemin": "0", "aria-valuemax": String(maxConcurrent), "aria-valuenow": String(running) },
-        h("i", { style: { width: Math.min(100, running / Math.max(1, maxConcurrent) * 100) + "%" } })
-      )
-    ),
-    h("div", { className: "aq-orbit-mini", "aria-hidden": "true" }, h("i"), h("i"), h("b"))
+    h(StatusItem, { label: "并发占用", detail: running + " / " + maxConcurrent, tone: running > 0 ? "active" : "neutral" })
   );
 }
 
-function ContractItem(props) {
-  return h("div", { className: "aq-contract-item " + props.tone },
-    h("span", { className: "aq-check", "aria-hidden": "true" }, props.tone === "safe" ? "✓" : "!"),
+function StatusItem(props) {
+  return h("div", { className: "aq-safety-item " + props.tone },
+    h("span", { className: "aq-state-mark", "aria-hidden": "true" }, props.tone === "safe" || props.tone === "active" || props.tone === "neutral" ? "✓" : "!"),
     h("div", null, h("strong", null, props.label), h("small", null, props.detail))
-  );
-}
-
-function OperationalBand(props) {
-  var snap = props.snap;
-  var metrics = snap.scopeMetrics || {};
-  var counts = snap.scopeCounts || {};
-  var attention = (snap.scoped || []).filter(taskNeedsAttention).length;
-  var terminal = (counts.done || 0) + (counts.failed || 0) + (counts.stopped || 0) + (counts.interrupted || 0);
-  var items = [
-    { label: "当前范围", value: (snap.scoped || []).length },
-    { label: "执行中", value: counts.running || 0, tone: "blue" },
-    { label: "待派发", value: counts.pending || 0 },
-    { label: "需关注", value: attention, tone: attention ? "amber" : "" },
-    { label: "已收口", value: terminal, tone: terminal ? "green" : "" },
-    { label: "范围成功率", value: (metrics.successRate || 0) + "%" }
-  ];
-  return h("section", { className: "aq-kpi", "aria-label": "运行摘要" },
-    items.map(function (item) {
-      return h("div", { className: "aq-kpi-card " + (item.tone || ""), key: item.label },
-        h("span", { className: "l" }, item.label), h("strong", { className: "v" }, item.value)
-      );
-    })
   );
 }
 
@@ -443,7 +381,7 @@ function QueueControls(props) {
   }));
   return h("div", { className: "aq-queue-tools" },
     h("label", { className: "aq-search" },
-      h("span", { className: "aq-search-icon", "aria-hidden": "true" }, "⌕"),
+      h("span", { className: "aq-search-icon", "aria-hidden": "true", dangerouslySetInnerHTML: { __html: iconHtml("search") } }),
       h("span", { className: "sr-only" }, "搜索任务"),
       h("input", { type: "search", value: props.query, onChange: function (event) { props.onQuery(event.target.value); }, placeholder: "搜索任务名称或关键词" })
     ),
@@ -464,23 +402,21 @@ function TaskList(props) {
   if (props.snap.loading) return h("div", { className: "aq-loading", role: "status" }, h("span", { className: "aq-loader" }), "正在读取任务账本…");
   if (!props.tasks.length) {
     var emptyByGroup = {
-      all: { eyebrow: "QUEUE READY", title: "队列现在很安静", body: "创建任务后，它会在不打扰前台工作的前提下自动推进。", action: "创建第一个任务" },
-      active: { eyebrow: "NO ACTIVE WORK", title: "当前没有正在推进的任务", body: "待派发、执行中或中断的任务会集中出现在这里。", action: "创建任务" },
-      cron: { eyebrow: "NO RECURRING RUNS", title: "还没有循环调度", body: "创建带 cron 计划的任务后，每轮都会在独立会话中执行。", action: "创建循环任务" },
-      schedule: { eyebrow: "NO SCHEDULED RUNS", title: "还没有定时任务", body: "一次性定时任务会在计划时间到达后进入受控派发。", action: "创建定时任务" },
-      archived: { eyebrow: "ARCHIVE EMPTY", title: "归档区为空", body: "归档后的任务会保留状态与详情，并可随时恢复到任务队列。", action: "返回任务队列" }
+      all: { title: "还没有任务", body: "创建任务后，队列会在 DSH 空闲时自动执行。", action: "创建任务" },
+      active: { title: "没有正在推进的任务", body: "待执行、执行中和中断的任务会显示在这里。", action: "创建任务" },
+      cron: { title: "还没有循环任务", body: "创建循环任务后，可在这里查看下一次执行时间。", action: "创建循环任务" },
+      schedule: { title: "还没有定时任务", body: "创建一次性定时任务后，可在这里查看执行时间。", action: "创建定时任务" },
+      archived: { title: "归档区为空", body: "归档后的任务会保留状态和详情。", action: "返回任务队列" }
     };
     var empty = emptyByGroup[props.snap.navGroup] || emptyByGroup.all;
-    if (props.snap.filter !== "all") empty = { eyebrow: "FILTER EMPTY", title: "此状态下没有任务", body: "当前工作区没有符合所选状态的任务。", action: "查看全部状态" };
+    if (props.snap.filter !== "all") empty = { title: "没有符合条件的任务", body: "可以切换状态或修改搜索关键词。", action: "查看全部状态" };
     var onEmptyAction = function () {
       if (props.snap.filter !== "all") props.controller.setFilter("all");
       else if (props.snap.navGroup === "archived") props.controller.setNavGroup("all");
       else props.controller.openNewTask();
     };
     return h("section", { className: "aq-empty" },
-      h("img", { src: quietOrbit, alt: "任务沿受控轨道安全进入队列的抽象插图" }),
       h("div", null,
-        h("span", { className: "aq-eyebrow" }, empty.eyebrow),
         h("h2", null, empty.title),
         h("p", null, empty.body),
         h("button", { className: "aq-btn primary", onClick: onEmptyAction }, empty.action)
@@ -519,9 +455,9 @@ function TaskRow(props) {
     ? pendingReason(task, props.snap)
     : (task.status === "running"
     ? (task.stopPending === true
-      ? "等待 owned session 双重 idle 确认"
+      ? "正在确认任务已完全停止"
       : (task.foregroundPaused === true
-      ? "等待 DSH 前台完成 · Goal 已安全暂停"
+      ? "DSH 使用中，后台任务已暂停"
       : "第 " + (task.currentRound || 0) + "/" + (task.maxGoalRounds || "-") + " 轮 · " + elapseStr(task.startedAt)))
     : (task.lastError ? String(task.lastError).slice(0, 54) : (task.updatedAt ? timeAgo(task.updatedAt) : "-")));
   var actions = taskActions(task);
@@ -530,9 +466,7 @@ function TaskRow(props) {
 
   return h("article", {
     className: "aq-card aq-task-row status-" + task.status + (attention ? " attention" : "") + (props.selected ? " selected" : ""),
-    tabIndex: 0, role: "button", "aria-label": "查看任务 " + task.key,
-    onClick: openRow,
-    onKeyDown: function (event) { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openRow(); } }
+    onClick: openRow
   },
     h("label", { className: "aq-select", onClick: function (event) { event.stopPropagation(); } },
       h("span", { className: "sr-only" }, "选择 " + task.key),
@@ -541,14 +475,14 @@ function TaskRow(props) {
     h("div", { className: "aq-task-main" },
       h("div", { className: "aq-card-key" },
         isUnread(task) && h("span", { className: "unread", title: "未读结果" }),
-        h("strong", null, task.key),
+        h("button", { type: "button", className: "aq-task-open", onClick: function (event) { event.stopPropagation(); openRow(); }, "aria-label": "查看任务 " + task.key }, h("strong", null, task.key)),
         h("span", { className: "aq-card-type", dangerouslySetInnerHTML: { __html: iconHtml(typeInfo.icon) + " " + typeInfo.label } })
       ),
       h("p", { className: "aq-card-summary" }, summary || "未填写摘要"),
-      task.status === "running" && h(PulseRail, { task: task })
+      task.status === "running" && h("span", { className: "aq-running-detail" }, task.foregroundPaused === true ? "已暂停，等待 DSH 空闲" : "正在执行第 " + (task.currentRound || 0) + " 轮")
     ),
     h("div", { className: "aq-task-status" },
-      h("span", { className: "aq-status-pill", style: { "--status-color": task.stopPending === true ? "#9a6700" : (task.foregroundPaused === true ? "#27776e" : cfg.color) } }, h("i"), attention ? "需关注" : (task.stopPending === true ? "停止收口中" : (task.foregroundPaused === true ? "前台让行" : cfg.label))),
+      h("span", { className: "aq-status-pill", style: { "--status-color": task.stopPending === true ? "#9a6700" : (task.foregroundPaused === true ? "#27776e" : cfg.color) } }, h("i"), attention ? "需关注" : (task.stopPending === true ? "正在停止" : (task.foregroundPaused === true ? "已暂停" : cfg.label))),
       task.nextRetryAt && h("small", null, "计划重试")
     ),
     h("div", { className: "aq-task-plan" }, h("strong", null, plan), task.nextRunAt && h("small", null, "下次 ", formatIso(task.nextRunAt))),
@@ -570,21 +504,21 @@ function TaskRow(props) {
 function pendingReason(task, snap) {
   var now = Date.now();
   var retryAt = task.nextRetryAt ? new Date(task.nextRetryAt).getTime() : NaN;
-  if (Number.isFinite(retryAt) && retryAt > now) return "退避中 · " + formatIso(task.nextRetryAt) + " 后重试";
+  if (Number.isFinite(retryAt) && retryAt > now) return "等待重试，" + formatIso(task.nextRetryAt) + " 后继续";
   var scheduledAt = task.schedule ? new Date(task.schedule).getTime() : NaN;
-  if (Number.isFinite(scheduledAt) && scheduledAt > now) return "等待计划时间 · " + formatIso(task.schedule);
-  if (task.cron && task.nextRunAt) return "等待下次 Cron 窗口 · " + formatIso(task.nextRunAt);
+  if (Number.isFinite(scheduledAt) && scheduledAt > now) return "计划于 " + formatIso(task.schedule) + " 执行";
+  if (task.cron && task.nextRunAt) return "下次于 " + formatIso(task.nextRunAt) + " 执行";
   var runtime = snap && snap.runtimeObservation;
   var gate = runtime && runtime.foregroundGate;
   if (gate === true || gate === "foreground-active" || gate === "closed" || gate === "busy" ||
       (gate && typeof gate === "object" && (gate.blocked === true || gate.foregroundActive === true))) {
-    return "DSH 前台工作中 · 后台安全让行";
+    return "DSH 使用中，队列已暂停";
   }
-  if (runtime && (runtime.sessionListKnown === false || gate === "unknown")) return "等待 Host 权威状态确认";
+  if (runtime && (runtime.sessionListKnown === false || gate === "unknown")) return "正在确认 DSH 状态";
   var running = snap && snap.metrics ? Number(snap.metrics.running || 0) : 0;
   var maxConcurrent = snap && snap.config ? Number(snap.config.maxConcurrent || 1) : 1;
-  if (running >= maxConcurrent) return "后台工作位已满 · 排队等待";
-  return "已入队 · 等待安全派发";
+  if (running >= maxConcurrent) return "后台任务已满，正在排队";
+  return "已入队，等待执行";
 }
 
 function ActionButton(props) {
@@ -592,30 +526,6 @@ function ActionButton(props) {
     className: "aq-row-action " + (props.tone || ""), title: props.label, "aria-label": props.label, onClick: props.onClick,
     dangerouslySetInnerHTML: props.icon ? { __html: iconHtml(props.icon) } : undefined
   }, props.icon ? undefined : props.text);
-}
-
-function PulseRail(props) {
-  var task = props.task;
-  var phase = String(task.goalPhase || "active");
-  var blocked = phase === "blocked" || (task.blockedResumes || 0) > 0;
-  if (task.foregroundPaused === true) {
-    return h("div", { className: "aq-pulse", "aria-label": "已暂停后台执行，等待 DSH 前台" },
-      h("span", { className: "done" }, h("i"), "接收"),
-      h("b", { className: "done" }),
-      h("span", { className: "active" }, h("i"), "前台让行"),
-      h("b"),
-      h("span", null, h("i"), "安全续跑")
-    );
-  }
-  return h("div", { className: "aq-pulse", "aria-label": "自治执行轨迹" },
-    h("span", { className: "done" }, h("i"), "接收"),
-    h("b", { className: "done" }),
-    h("span", { className: "active" }, h("i"), "推进"),
-    h("b", { className: blocked ? "done" : "" }),
-    h("span", { className: blocked ? "active" : "" }, h("i"), "反阻塞"),
-    h("b"),
-    h("span", null, h("i"), "收口")
-  );
 }
 
 function taskActions(task) {
@@ -645,7 +555,7 @@ function ApiAccessPanel(props) {
   var queueBase = origin + "/api/queue";
   var discoveryBase = origin + "/api/autoqueue";
   var compactStateUrl = queueBase + "/state?archived=1&compact=1";
-  var curl = "curl -H \"<authentication from deployment contract>\" \\\n  '" + compactStateUrl + "'";
+  var curl = "curl -H \"<按部署要求填写认证信息>\" \\\n  '" + compactStateUrl + "'";
   var capability = React.useState({ status: "loading", data: null, error: null });
   var retry = React.useState(0);
 
@@ -688,15 +598,14 @@ function ApiAccessPanel(props) {
     variant: "drawer", title: "AI / API 接入", onClose: props.onClose, className: "aq-access-panel",
     renderTitle: function (args) {
       return h("div", { className: "aq-d-hd aq-access-hd" },
-        h("div", null, h("span", { className: "aq-eyebrow" }, "EXTERNAL AUTOMATION"), h("h3", { id: args.id }, args.title), h("p", null, "给外部 AI 一份稳定、可发现的机器契约")),
+        h("div", null, h("h3", { id: args.id }, args.title), h("p", null, "外部 AI 的调用地址、认证方式和可用能力")),
         h("button", { className: "aq-d-close", onClick: props.onClose, "aria-label": "关闭接入面板", dangerouslySetInnerHTML: { __html: iconHtml("close") } })
       );
     }
   },
     h("div", { className: "aq-access-body" },
-      h("img", { className: "aq-access-art", src: quietOrbit, alt: "受控任务入口与安全轨道抽象图" }),
       capability[0].status === "loading" && h("section", { className: "aq-cap-loading", role: "status" },
-        h("span"), h("span"), h("span"), h("p", null, "正在读取机器能力契约")
+        h("span"), h("span"), h("span"), h("p", null, "正在读取可用能力")
       ),
       capability[0].status === "error" && h("section", { className: "aq-cap-error", role: "alert" },
         h("strong", null, "Capabilities 暂不可用"),
@@ -705,49 +614,49 @@ function ApiAccessPanel(props) {
       ),
       capability[0].status === "ready" && h(React.Fragment, null,
         h("section", { className: "aq-access-intro" },
-          h("span", { className: "aq-security-badge" }, localDirect ? "LOCAL DIRECT" : (authRequired ? "AUTH REQUIRED" : "AUTH CONTRACT")),
+          h("span", { className: "aq-security-badge" }, localDirect ? "本机直连" : (authRequired ? "需要认证" : "认证待确认")),
           h("h4", null, data.displayName || "任务队列"),
-          h("p", null, aliases.length ? "自然语言别称：" + aliases.join("、") + "。机器协议仍使用稳定的 autoqueue_* 名称。" : "机器协议使用稳定的 autoqueue_* 名称。"),
-          h("p", { className: "aq-auth-contract" }, localDirect
-            ? "当前部署允许本机 loopback 直连免 token；远程访问仍必须配置并携带 token。"
-            : (authRequired ? "认证方案：" + authSchemes.join("；") : "当前 Capabilities 未声明认证方案，请以部署侧契约为准。"))
+          h("p", null, aliases.length ? "也可以叫：" + aliases.join("、") + "。工具调用仍使用 autoqueue_* 正式名称。" : "工具调用使用 autoqueue_* 正式名称。"),
+          h("p", { className: "aq-auth-note" }, localDirect
+            ? "本机可直接访问；远程访问必须携带 token。"
+            : (authRequired ? "认证方式：" + authSchemes.join("；") : "未提供认证方式，请检查部署设置。"))
         ),
         h("section", { className: "aq-cap-summary", "aria-label": "AI 接入摘要" },
           h(CapabilityFact, { label: "API 版本", value: data.apiVersion || "未知" }),
-          h(CapabilityFact, { label: "Host AI tools", value: tools.length + " 个" }),
+          h(CapabilityFact, { label: "AI 工具", value: tools.length + " 个" }),
           h(CapabilityFact, { label: "默认注册", value: registration ? (registration.defaultEnabled ? "开启" : "关闭") : "未知" }),
           h(CapabilityFact, { label: "自然语言别称", value: aliases.length ? aliases.join("、") : "未声明" })
         ),
-        registration && h("p", { className: "aq-cap-optin" }, "Host AI tool 显式开关：", h("code", null, registration.optInConfig || "未声明")),
+        registration && h("p", { className: "aq-cap-optin" }, "AI 工具启用项：", h("code", null, registration.optInConfig || "未声明")),
         h("section", { className: "aq-cap-section" },
           h("h4", null, "核心能力"),
           h("div", { className: "aq-cap-tags" }, Object.keys(features).filter(function (key) {
             return features[key] === true || Array.isArray(features[key]);
           }).map(function (key) {
-            return h("span", { key: key }, capabilityLabel(key), Array.isArray(features[key]) ? "：" + features[key].join(" / ") : "");
+            return h("span", { key: key }, capabilityLabel(key), Array.isArray(features[key]) ? "：" + formatFeatureValues(features[key]) : "");
           }))
         ),
         h("section", { className: "aq-cap-section" },
           h("h4", null, "资源与限制"),
           h("div", { className: "aq-cap-columns" },
-            h(CapabilityList, { title: "Resources", values: resources }),
-            h(CapabilityList, { title: "Limits", values: limits })
+            h(CapabilityList, { title: "资源", values: resources }),
+            h(CapabilityList, { title: "限制", values: limits })
           )
         ),
         h("section", { className: "aq-cap-isolation " + isolation.status },
           h("div", null,
-            h("strong", null, isolation.verified ? "隔离策略已从 /options 验证" : "隔离策略未完成验证"),
+            h("strong", null, isolation.verified ? "隔离设置已确认" : "隔离设置待确认"),
             h("p", null, isolation.message)
           ),
           h("dl", null,
-            h("div", null, h("dt", null, "Sandbox"), h("dd", null, features.sessionSandboxMode || "未知")),
-            h("div", null, h("dt", null, "Approval"), h("dd", null, features.sessionApprovalPolicy || "未知")),
-            h("div", null, h("dt", null, "前台让行"), h("dd", null, features.foregroundPreemption === true ? "开启" : "未声明")),
-            h("div", null, h("dt", null, "覆盖锁"), h("dd", null, isolation.locks ? isolation.locks.join(" / ") : "待验证"))
+            h("div", null, h("dt", null, "会话隔离"), h("dd", null, isolationSettingLabel("sandbox", features.sessionSandboxMode))),
+            h("div", null, h("dt", null, "审批方式"), h("dd", null, isolationSettingLabel("approval", features.sessionApprovalPolicy))),
+            h("div", null, h("dt", null, "前台优先"), h("dd", null, features.foregroundPreemption === true ? "开启" : "未声明")),
+            h("div", null, h("dt", null, "禁止覆盖"), h("dd", null, isolation.locks ? isolation.locks.map(isolationLockLabel).join(" / ") : "待确认"))
           )
         ),
         h("details", { className: "aq-tool-catalog" },
-          h("summary", null, "查看 " + tools.length + " 个 Host AI tool 正式名称"),
+          h("summary", null, "查看 " + tools.length + " 个工具正式名称"),
           h("div", null, tools.map(function (name) { return h("code", { key: name }, name); }))
         )
       ),
@@ -757,7 +666,7 @@ function ApiAccessPanel(props) {
         h("div", null, h("strong", null, "快速验证"), h("button", { onClick: function () { copy(curl, "curl "); } }, "复制")),
         h("pre", null, curl)
       ),
-      h("p", { className: "aq-access-note" }, "插件不会向页面回显 token。外部 AI 应先读 Capabilities 和 OpenAPI，再读取 compact state；model、workspace 与任意 preset 覆盖不在任务协议中。")
+      h("p", { className: "aq-access-note" }, "外部 AI 建议先读取 Capabilities 和 OpenAPI，再读取精简状态。页面不会显示 token，也不允许覆盖 DSH 的模型、工作区或预设。")
     )
   );
 }
@@ -771,22 +680,52 @@ function CapabilityList(props) {
   return h("div", { className: "aq-cap-list" },
     h("strong", null, props.title),
     keys.length ? keys.map(function (key) {
-      return h("div", { key: key }, h("span", null, key), h("code", null, formatCapabilityValue(props.values[key])));
+      return h("div", { key: key }, h("span", null, capabilityEntryLabel(key)), h("code", null, formatCapabilityValue(props.values[key])));
     }) : h("p", null, "未声明")
   );
 }
 
 function formatCapabilityValue(value) {
   if (Array.isArray(value)) return value.join(" / ");
-  if (value === true) return "yes";
-  if (value === false) return "no";
+  if (value === true) return "是";
+  if (value === false) return "否";
   return String(value == null ? "未知" : value);
+}
+
+function capabilityEntryLabel(key) {
+  var labels = {
+    state: "队列状态", task: "任务", action: "任务操作", detail: "任务详情",
+    options: "可选项", config: "运行设置", markRead: "已读状态", events: "实时事件",
+    taskContentBytes: "单任务内容上限", taskKeyCharacters: "任务标识长度",
+    requestIdCharacters: "请求标识长度", batchArchiveTasks: "单次批量归档",
+    maxConcurrent: "最大并发", sseConnections: "实时连接数"
+  };
+  return labels[key] || key;
+}
+
+function formatFeatureValues(values) {
+  var labels = {
+    immediate: "立即执行", schedule: "定时执行", cron: "循环执行", deadline: "截止时间"
+  };
+  return values.map(function (value) { return labels[value] || value; }).join(" / ");
+}
+
+function isolationSettingLabel(kind, value) {
+  if (!value) return "未知";
+  if (kind === "sandbox" && value === "workspace-write") return "独立工作目录（workspace-write）";
+  if (kind === "approval" && value === "never") return "无需人工审批（never）";
+  return value;
+}
+
+function isolationLockLabel(value) {
+  var labels = { workspace: "工作区", agentPreset: "任务预设", model: "模型" };
+  return labels[value] || value;
 }
 
 function capabilityLabel(key) {
   var labels = {
     unattendedExecution: "无人值守执行", markdownInbox: "Markdown 收件箱", scheduling: "调度",
-    antiBlock: "反阻塞", retries: "重试与退避", webhook: "Webhook", serverSentEvents: "SSE 实时事件",
+    antiBlock: "自动恢复", retries: "失败重试", webhook: "Webhook", serverSentEvents: "SSE 实时事件",
     batchArchive: "批量归档", readTracking: "已读追踪", externalAiHttpApi: "外部 AI HTTP",
     strictHostIsolation: "严格宿主隔离", foregroundPreemption: "前台优先",
     nativeRuntimeMonitoring: "原生 Runtime 监控"

@@ -62,7 +62,7 @@ export function NewTaskModal(props) {
 
   return h(DialogShell, { title: "新建无人值守任务", onClose: props.onClose, className: "wide" },
     h("form", { className: "aq-modal-content", onSubmit: handleSubmit },
-      h("p", { className: "aq-modal-subtitle" }, "任务会进入隔离工作目录；当前台会话活跃时，后台自动让行。"),
+      h("p", { className: "aq-modal-subtitle" }, "任务在独立工作目录运行；你使用 DSH 时，后台任务会自动暂停。"),
       error[0] && h("div", { className: "aq-inline-error", role: "alert" }, error[0]),
       h("label", { htmlFor: "aq-new-content" }, "任务内容（Markdown）"),
       h("textarea", { id: "aq-new-content", "data-dialog-initial-focus": "", value: content[0], onChange: function (event) { content[1](event.target.value); }, placeholder: "例如：整理本周客户访谈，归纳三条产品机会并输出报告…", required: true }),
@@ -74,20 +74,19 @@ export function NewTaskModal(props) {
         h(CronField, { label: "循环调度", value: cron[0], onChange: cron[1], presets: CRON_PRESETS, placeholder: "0 8 * * *" }),
         h(Field, { label: "一次性定时" }, h("input", { type: "datetime-local", value: schedule[0], onChange: function (event) { schedule[1](event.target.value); } }))
       ),
-      h(CronField, { label: "执行截止窗口", value: deadline[0], onChange: deadline[1], presets: DEADLINE_PRESETS, placeholder: "0 21 * * *" }),
-      h(Disclosure, { title: "高级执行策略", hint: "轮数、超时与重试", open: advancedOpen[0], onToggle: function () { advancedOpen[1](!advancedOpen[0]); } },
+      h(CronField, { label: "执行截止时间", value: deadline[0], onChange: deadline[1], presets: DEADLINE_PRESETS, placeholder: "0 21 * * *" }),
+      h(Disclosure, { title: "高级设置", open: advancedOpen[0], onToggle: function () { advancedOpen[1](!advancedOpen[0]); } },
         h("div", { className: "aq-row three" },
-          h(Field, { label: "最大 Goal 轮数" }, h("input", { type: "number", min: "1", max: "100", value: maxGoalRounds[0], onChange: function (event) { maxGoalRounds[1](event.target.value); } })),
-          h(Field, { label: "最大反阻塞" }, h("input", { type: "number", min: "0", max: "10", value: maxBlockedResumes[0], onChange: function (event) { maxBlockedResumes[1](event.target.value); } })),
+          h(Field, { label: "最多推进轮数" }, h("input", { type: "number", min: "1", max: "100", value: maxGoalRounds[0], onChange: function (event) { maxGoalRounds[1](event.target.value); } })),
+          h(Field, { label: "最多自动恢复" }, h("input", { type: "number", min: "0", max: "10", value: maxBlockedResumes[0], onChange: function (event) { maxBlockedResumes[1](event.target.value); } })),
           h(Field, { label: "最长执行（分钟）" }, h("input", { type: "number", min: "10", max: "1440", value: timeoutMinutes[0], onChange: function (event) { timeoutMinutes[1](event.target.value); } }))
         ),
-        h(Field, { label: "最大派发尝试（1-10）" }, h("input", { type: "number", min: "1", max: "10", value: maxAttempts[0], onChange: function (event) { maxAttempts[1](event.target.value); } })),
-        h("div", { className: "aq-safety-note" }, h("strong", null, "隔离锁定"), " DSH rc.2 的模型、工作区和预设覆盖会改变宿主全局状态，因此本任务台不开放这些字段。")
+        h(Field, { label: "最多启动尝试（1-10）" }, h("input", { type: "number", min: "1", max: "10", value: maxAttempts[0], onChange: function (event) { maxAttempts[1](event.target.value); } }))
       ),
-      h(Disclosure, { title: "通知与回调", hint: "默认完全静默", open: notifyOpen[0], onToggle: function () { notifyOpen[1](!notifyOpen[0]); } },
+      h(Disclosure, { title: "通知", open: notifyOpen[0], onToggle: function () { notifyOpen[1](!notifyOpen[0]); } },
         h(Field, { label: "Webhook URL" }, h("input", { type: "url", value: webhook[0], onChange: function (event) { webhook[1](event.target.value); }, placeholder: "https://example.com/hook" })),
-        h(CheckField, { checked: autoArchive[0], onChange: autoArchive[1], label: "完成后自动归档（推荐）" }),
-        h(CheckField, { checked: enableNotifications[0], onChange: function (checked) { enableNotifications[1](checked); if (checked) requestNotificationPermission(); }, label: "浏览器结果通知（仅在我主动开启后）" })
+        h(CheckField, { checked: autoArchive[0], onChange: autoArchive[1], label: "完成后自动归档" }),
+        h(CheckField, { checked: enableNotifications[0], onChange: function (checked) { enableNotifications[1](checked); if (checked) requestNotificationPermission(); }, label: "浏览器结果通知" })
       ),
       h("div", { className: "aq-modal-actions" },
         h("button", { type: "button", className: "aq-btn", onClick: props.onClose, disabled: submitting[0] }, "取消"),
@@ -152,17 +151,17 @@ export function EditTaskModal(props) {
       ),
       h("div", { className: "aq-row" },
         h(Field, { label: "一次性定时" }, h("input", { type: "datetime-local", value: schedule[0], onChange: function (event) { schedule[1](event.target.value); } })),
-        h(CronField, { label: "执行截止窗口", value: deadline[0], onChange: deadline[1], presets: DEADLINE_PRESETS, placeholder: "0 21 * * *" })
+        h(CronField, { label: "执行截止时间", value: deadline[0], onChange: deadline[1], presets: DEADLINE_PRESETS, placeholder: "0 21 * * *" })
       ),
-      h(Disclosure, { title: "高级执行策略", hint: "轮数、超时与重试", open: advancedOpen[0], onToggle: function () { advancedOpen[1](!advancedOpen[0]); } },
+      h(Disclosure, { title: "高级设置", open: advancedOpen[0], onToggle: function () { advancedOpen[1](!advancedOpen[0]); } },
         h("div", { className: "aq-row three" },
-          h(Field, { label: "最大 Goal 轮数" }, h("input", { type: "number", min: "1", max: "100", value: maxGoalRounds[0], onChange: function (event) { maxGoalRounds[1](event.target.value); }, placeholder: "默认 40" })),
-          h(Field, { label: "最大反阻塞" }, h("input", { type: "number", min: "0", max: "10", value: maxBlockedResumes[0], onChange: function (event) { maxBlockedResumes[1](event.target.value); }, placeholder: "默认 3" })),
+          h(Field, { label: "最多推进轮数" }, h("input", { type: "number", min: "1", max: "100", value: maxGoalRounds[0], onChange: function (event) { maxGoalRounds[1](event.target.value); }, placeholder: "默认 40" })),
+          h(Field, { label: "最多自动恢复" }, h("input", { type: "number", min: "0", max: "10", value: maxBlockedResumes[0], onChange: function (event) { maxBlockedResumes[1](event.target.value); }, placeholder: "默认 3" })),
           h(Field, { label: "最长执行（分钟）" }, h("input", { type: "number", min: "10", max: "1440", value: timeoutMinutes[0], onChange: function (event) { timeoutMinutes[1](event.target.value); }, placeholder: "默认 180" }))
         ),
-        h(Field, { label: "最大派发尝试（1-10）" }, h("input", { type: "number", min: "1", max: "10", value: maxAttempts[0], onChange: function (event) { maxAttempts[1](event.target.value); }, placeholder: "默认 3" }))
+        h(Field, { label: "最多启动尝试（1-10）" }, h("input", { type: "number", min: "1", max: "10", value: maxAttempts[0], onChange: function (event) { maxAttempts[1](event.target.value); }, placeholder: "默认 3" }))
       ),
-      h(Disclosure, { title: "通知与回调", hint: "默认完全静默", open: notifyOpen[0], onToggle: function () { notifyOpen[1](!notifyOpen[0]); } },
+      h(Disclosure, { title: "通知", open: notifyOpen[0], onToggle: function () { notifyOpen[1](!notifyOpen[0]); } },
         h(Field, { label: "Webhook URL" }, h("input", { type: "url", value: webhook[0], onChange: function (event) { webhook[1](event.target.value); }, placeholder: "https://example.com/hook" })),
         h(CheckField, { checked: autoArchive[0], onChange: autoArchive[1], label: "完成后自动归档" }),
         h(CheckField, { checked: enableNotifications[0], onChange: function (checked) { enableNotifications[1](checked); if (checked) requestNotificationPermission(); }, label: "浏览器结果通知" })
@@ -219,43 +218,42 @@ export function ConfigPanel(props) {
     Promise.all(operations).then(props.onClose).catch(function (caught) { saveError[1](caught.message || "保存失败"); }).finally(function () { saving[1](false); });
   }
 
-  return h(DialogShell, { variant: "drawer", title: "运行时设置", onClose: props.onClose, className: "aq-config-panel",
-    renderTitle: function (args) { return h("div", { className: "aq-d-hd" }, h("div", null, h("span", { className: "aq-eyebrow" }, "RUNTIME POLICY"), h("h3", { id: args.id }, args.title), h("p", null, "所有设置仅作用于 AutoQueue 自有任务")), h("button", { className: "aq-d-close", "aria-label": "关闭运行设置", onClick: props.onClose }, "×")); }
+  return h(DialogShell, { variant: "drawer", title: "运行设置", onClose: props.onClose, className: "aq-config-panel",
+    renderTitle: function (args) { return h("div", { className: "aq-d-hd" }, h("div", null, h("h3", { id: args.id }, args.title), h("p", null, "这些设置只影响任务队列")), h("button", { className: "aq-d-close", "aria-label": "关闭运行设置", onClick: props.onClose }, "×")); }
   },
     h("form", { className: "aq-config-body", onSubmit: handleSave },
       saveError[0] && h("div", { className: "aq-inline-error", role: "alert" }, saveError[0]),
-      h("section", { className: "aq-config-contract" }, h("strong", null, "严格隔离已锁定"), h("p", null, "并发默认 1；前台活跃即持久化暂停后台 Goal 并取消其 turn；不修改宿主模型、工作区或预设。")),
-      h(ConfigSection, { title: "资源边界" },
+      h(ConfigSection, { title: "执行限制" },
         h("div", { className: "aq-row" },
           h(Field, { label: "最大并发（1-8）" }, h("input", { "data-dialog-initial-focus": "", type: "number", min: "1", max: "8", value: maxConcurrent[0], onChange: function (event) { maxConcurrent[1](event.target.value); } })),
           h(Field, { label: "任务超时（分钟）" }, h("input", { type: "number", min: "10", max: "1440", value: taskTimeoutMin[0], onChange: function (event) { taskTimeoutMin[1](event.target.value); } }))
         ),
         h("div", { className: "aq-row" },
-          h(Field, { label: "最大 Goal 轮数" }, h("input", { type: "number", min: "1", max: "100", value: maxGoalRounds[0], onChange: function (event) { maxGoalRounds[1](event.target.value); } })),
-          h(Field, { label: "最大反阻塞" }, h("input", { type: "number", min: "0", max: "10", value: maxBlockedResumes[0], onChange: function (event) { maxBlockedResumes[1](event.target.value); } }))
+          h(Field, { label: "最多推进轮数" }, h("input", { type: "number", min: "1", max: "100", value: maxGoalRounds[0], onChange: function (event) { maxGoalRounds[1](event.target.value); } })),
+          h(Field, { label: "最多自动恢复" }, h("input", { type: "number", min: "0", max: "10", value: maxBlockedResumes[0], onChange: function (event) { maxBlockedResumes[1](event.target.value); } }))
         )
       ),
-      h(ConfigSection, { title: "失败与退避" },
+      h(ConfigSection, { title: "失败与重试" },
         h("div", { className: "aq-row" },
-          h(Field, { label: "最大派发尝试" }, h("input", { type: "number", min: "1", max: "10", value: maxAttempts[0], onChange: function (event) { maxAttempts[1](event.target.value); } })),
-          h(Field, { label: "不可达阈值" }, h("input", { type: "number", min: "1", max: "10", value: unknownThreshold[0], onChange: function (event) { unknownThreshold[1](event.target.value); } }))
+          h(Field, { label: "最多启动尝试" }, h("input", { type: "number", min: "1", max: "10", value: maxAttempts[0], onChange: function (event) { maxAttempts[1](event.target.value); } })),
+          h(Field, { label: "连续状态异常次数" }, h("input", { type: "number", min: "1", max: "10", value: unknownThreshold[0], onChange: function (event) { unknownThreshold[1](event.target.value); } }))
         ),
         h("div", { className: "aq-row" },
-          h(Field, { label: "退避基数（秒）" }, h("input", { type: "number", min: "5", max: "600", value: backoffBaseSec[0], onChange: function (event) { backoffBaseSec[1](event.target.value); } })),
-          h(Field, { label: "退避上限（秒）" }, h("input", { type: "number", min: "10", max: "3600", value: backoffMaxSec[0], onChange: function (event) { backoffMaxSec[1](event.target.value); } }))
+          h(Field, { label: "首次重试等待（秒）" }, h("input", { type: "number", min: "5", max: "600", value: backoffBaseSec[0], onChange: function (event) { backoffBaseSec[1](event.target.value); } })),
+          h(Field, { label: "最长重试等待（秒）" }, h("input", { type: "number", min: "10", max: "3600", value: backoffMaxSec[0], onChange: function (event) { backoffMaxSec[1](event.target.value); } }))
         )
       ),
-      h(ConfigSection, { title: "默认任务策略" },
+      h(ConfigSection, { title: "任务默认值" },
         h("div", { className: "aq-row" },
           h(Field, { label: "默认优先级" }, h("input", { type: "number", min: "1", max: "10", value: priority[0], onChange: function (event) { priority[1](event.target.value); } })),
-          h(Field, { label: "默认截止 cron" }, h("input", { value: defaultDeadline[0], onChange: function (event) { defaultDeadline[1](event.target.value); }, placeholder: "0 21 * * *" }))
+          h(Field, { label: "默认截止时间（cron）" }, h("input", { value: defaultDeadline[0], onChange: function (event) { defaultDeadline[1](event.target.value); }, placeholder: "0 21 * * *" }))
         ),
         h(Field, { label: "Webhook URL" }, h("input", { type: "url", value: webhook[0], onChange: function (event) { webhook[1](event.target.value); }, placeholder: "https://example.com/hook" })),
-        h(CheckField, { checked: autoArchive[0], onChange: autoArchive[1], label: "终态自动归档" }),
+        h(CheckField, { checked: autoArchive[0], onChange: autoArchive[1], label: "任务结束后自动归档" }),
         h(CheckField, { checked: enableNotifications[0], onChange: function (checked) { enableNotifications[1](checked); if (checked) requestNotificationPermission(); }, label: "浏览器结果通知" })
       ),
       h(ConfigSection, { title: "存储" },
-        h(Field, { label: "收件箱目录", help: "启动参数，只读" }, h("input", { value: config.queueDir || "默认 ~/.dsh/queue/tasks", disabled: true, readOnly: true }))
+        h(Field, { label: "队列根目录", help: "只读，由启动配置决定" }, h("input", { value: config.queueDir || "由启动配置决定", disabled: true, readOnly: true }))
       ),
       h("div", { className: "aq-d-actions aq-config-actions" },
         h("button", { type: "button", className: "aq-btn", onClick: props.onClose, disabled: saving[0] }, "取消"),
@@ -278,8 +276,13 @@ export function ConfirmModal(props) {
 }
 
 function Field(props) {
+  var generatedId = React.useId();
+  var controlId = React.isValidElement(props.children) && props.children.props.id ? props.children.props.id : generatedId;
+  var control = React.isValidElement(props.children)
+    ? React.cloneElement(props.children, { id: controlId })
+    : props.children;
   return h("div", { className: "aq-field" },
-    props.label && h("label", null, props.label), props.children,
+    props.label && h("label", { htmlFor: controlId }, props.label), control,
     props.help && h("p", { className: "aq-help" }, props.help)
   );
 }
@@ -294,7 +297,7 @@ function CheckField(props) {
 function Disclosure(props) {
   return h("section", { className: "aq-form-section" },
     h("button", { type: "button", onClick: props.onToggle, "aria-expanded": props.open },
-      h("span", null, props.title), h("span", null, props.hint, "  ", props.open ? "−" : "+")
+      h("span", null, props.title), h("span", null, props.hint ? props.hint + "  " : "", props.open ? "−" : "+")
     ),
     props.open && h("div", { className: "aq-disclosure-body" }, props.children)
   );
@@ -310,12 +313,13 @@ function CronField(props) {
     return match ? match.value : (props.value ? "__custom__" : "");
   });
   var custom = selectValue[0] === "__custom__";
-  return h(Field, { label: props.label },
+  return h("div", { className: "aq-field" },
+    h("span", { className: "aq-field-label" }, props.label),
     h("div", { className: "aq-cron-field" },
-      h("select", { value: selectValue[0], onChange: function (event) { var value = event.target.value; selectValue[1](value); props.onChange(value === "__custom__" ? "" : value); } },
+      h("select", { "aria-label": props.label + "预设", value: selectValue[0], onChange: function (event) { var value = event.target.value; selectValue[1](value); props.onChange(value === "__custom__" ? "" : value); } },
         (props.presets || []).map(function (preset) { return h("option", { key: preset.value, value: preset.value }, preset.label); })
       ),
-      h("input", { value: custom ? props.value : "", onChange: function (event) { props.onChange(event.target.value); }, placeholder: props.placeholder, disabled: !custom })
+      h("input", { "aria-label": props.label + "自定义表达式", value: custom ? props.value : "", onChange: function (event) { props.onChange(event.target.value); }, placeholder: props.placeholder, disabled: !custom })
     )
   );
 }
