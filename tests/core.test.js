@@ -1959,7 +1959,7 @@ test("webhook rejects private targets without making a request", async () => {
   assert.equal(delivered, false);
 });
 
-test("report reads reject symlinks, hardlinks, and oversized AI output", () => {
+test("report reads reject symlinks, hardlinks, and oversized AI output", (t) => {
   const queueDir = freshQueue();
   const workDir = createRunDir("report-safety");
   const reportFile = join(workDir, "执行报告.md");
@@ -1970,9 +1970,18 @@ test("report reads reject symlinks, hardlinks, and oversized AI output", () => {
   assert.equal(safeReadReportFile(workDir, "执行报告.md"), "SAFE_REPORT");
   rmSync(reportFile);
 
-  symlinkSync(outsideFile, reportFile);
-  assert.throws(() => safeReadReportFile(workDir, "执行报告.md"), /安全的普通文件|普通文件/);
-  rmSync(reportFile);
+  let symlinkCreated = false;
+  try {
+    symlinkSync(outsideFile, reportFile);
+    symlinkCreated = true;
+  } catch (error) {
+    if (process.platform !== "win32" || error?.code !== "EPERM") throw error;
+    t.diagnostic("Windows 当前用户无创建符号链接权限；继续验证硬链接与超限报告");
+  }
+  if (symlinkCreated) {
+    assert.throws(() => safeReadReportFile(workDir, "执行报告.md"), /安全的普通文件|普通文件/);
+    rmSync(reportFile);
+  }
 
   linkSync(outsideFile, reportFile);
   assert.throws(() => safeReadReportFile(workDir, "执行报告.md"), /安全的普通文件|普通文件/);
