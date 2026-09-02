@@ -49,7 +49,7 @@ import {
   SessionLaunchError,
 } from "../lib/runner.js";
 import { createEngine } from "../lib/engine.js";
-import { registerAiTool } from "../lib/ai-tool.js";
+import { AUTOQUEUE_AI_TOOL_NAMES, registerAiTool } from "../lib/ai-tool.js";
 import {
   apply,
   ensureOwnedPreset,
@@ -2246,6 +2246,79 @@ test("AI tools expose the complete safe control surface and use compact list res
   }
 });
 
+test("plugin auto-registers queue tools by default and protects owned task agents", () => {
+  const queueDir = freshQueue();
+  const registered = new Map();
+  const promptSections = [];
+  const guards = [];
+  const listeners = new Map();
+  const ctx = {
+    apiProxy: {},
+    sessions: {},
+    systemPrompt: { section(section) { promptSections.push(section); } },
+    tools: {
+      register(tool) { registered.set(tool.name, tool); },
+      guard(guard) { guards.push(guard); },
+    },
+    on(name, listener) { listeners.set(name, listener); return () => {}; },
+    effect() {},
+  };
+
+  apply(ctx, { queueDir });
+
+  assert.deepEqual([...registered.keys()].sort(), [...AUTOQUEUE_AI_TOOL_NAMES].sort());
+  assert.equal(promptSections.length, 1);
+  assert.equal(promptSections[0].name, "tool:autoqueue");
+  assert.equal(promptSections[0].order, 150);
+  assert.match(promptSections[0].text, /任务队列/);
+  assert.match(promptSections[0].text, /老登/);
+  assert.equal(guards.length, 1);
+
+  const ownedId = ownedSession(901);
+  const denied = guards[0]({ name: "autoqueue_create_task", agent: { id: ownedId } });
+  assert.match(denied, /unavailable inside AutoQueue-owned task sessions/);
+  assert.equal(guards[0]({ name: "autoqueue_create_task", agent: { id: "ordinary-session" } }), undefined);
+  assert.equal(guards[0]({ name: "unrelated_tool", agent: { id: ownedId } }), undefined);
+
+  const restrictions = [];
+  const scopedPrompts = [];
+  listeners.get("agent/created")({
+    agent: {
+      id: ownedId,
+      ctx: {
+        tools: { restrict(filter) { restrictions.push(filter); } },
+        systemPrompt: { section(section) { scopedPrompts.push(section); } },
+      },
+    },
+  });
+  assert.deepEqual(restrictions, [{ deny: [...AUTOQUEUE_AI_TOOL_NAMES] }]);
+  assert.deepEqual(scopedPrompts, [{ name: "tool:autoqueue", order: 150, text: "" }]);
+});
+
+test("plugin permits an explicit Host AI tool opt-out", () => {
+  const queueDir = freshQueue();
+  const registered = [];
+  const promptSections = [];
+  const guards = [];
+  let listenerCount = 0;
+  apply({
+    apiProxy: {},
+    sessions: {},
+    systemPrompt: { section(section) { promptSections.push(section); } },
+    tools: {
+      register(tool) { registered.push(tool); },
+      guard(guard) { guards.push(guard); },
+    },
+    on() { listenerCount += 1; return () => {}; },
+    effect() {},
+  }, { queueDir, enableHostAiTools: false });
+
+  assert.equal(registered.length, 0);
+  assert.equal(promptSections.length, 0);
+  assert.equal(guards.length, 0);
+  assert.equal(listenerCount, 0);
+});
+
 function invokeRoute(handler, {
   host,
   remoteAddress,
@@ -2309,6 +2382,9 @@ test("HTTP auth does not trust forged Origin or a loopback reverse proxy peer", 
   freshQueue();
   const routes = new Map();
   const rpcIds = [];
+  const registeredHostTools = new Map();
+  const hostPromptSections = [];
+  const hostToolGuards = [];
   let rejectModelCatalog = false;
   let disposeEffect = () => {};
   let effectReady = Promise.resolve();
@@ -2354,8 +2430,11 @@ test("HTTP auth does not trust forged Origin or a loopback reverse proxy peer", 
         },
       },
     },
-    systemPrompt: { section() {} },
-    tools: { register() {} },
+    systemPrompt: { section(section) { hostPromptSections.push(section); } },
+    tools: {
+      register(tool) { registeredHostTools.set(tool.name, tool); },
+      guard(guard) { hostToolGuards.push(guard); },
+    },
     settings: { get() { return null; } },
     agentPresets,
     sessions: { get() { return undefined; }, async flush() {} },
@@ -2379,10 +2458,15 @@ test("HTTP auth does not trust forged Origin or a loopback reverse proxy peer", 
     allowedHosts: ["queue.example"],
     apiToken: "server-secret",
     baseUrl: "http://127.0.0.1:3080",
+    enableHostAiTools: false,
   });
   await effectReady;
 
   try {
+    assert.equal(registeredHostTools.size, 0);
+    assert.equal(hostPromptSections.length, 0);
+    assert.equal(hostToolGuards.length, 0);
+
     const handler = routes.get("/api/queue/state");
     const forgedOrigin = await invokeRoute(handler, {
       host: "queue.example",
@@ -2457,6 +2541,12 @@ test("HTTP auth does not trust forged Origin or a loopback reverse proxy peer", 
     assert.equal(capabilities.body.features.foregroundPreemption, true);
     assert.equal(capabilities.body.features.sessionSandboxMode, "workspace-write");
     assert.equal(capabilities.body.features.sessionApprovalPolicy, "never");
+    assert.equal(capabilities.body.features.hostAiToolsDefaultEnabled, true);
+    assert.equal(capabilities.body.aiToolRegistration.enabled, false);
+    assert.equal(capabilities.body.aiToolRegistration.defaultEnabled, true);
+    assert.equal(capabilities.body.aiToolRegistration.mode, "automatic");
+    assert.equal(capabilities.body.aiToolRegistration.configKey, "enableHostAiTools");
+    assert.equal(capabilities.body.aiToolRegistration.disableValue, false);
     assert.ok(capabilities.body.aiTools.includes("autoqueue_batch_archive"));
     assert.equal(capabilities.body.authentication.tokenValuesReturned, false);
     assert.doesNotMatch(JSON.stringify(capabilities.body), /server-secret/);

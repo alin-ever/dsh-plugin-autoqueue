@@ -11,7 +11,7 @@
 - 普通前台会话活跃时暂停派发；`sessions.list` 调用失败或返回结构未知时同样按前台忙碌处理。已经运行的 owned goal 先持久化 pause intent，再 pause goal、取消当前 turn；只有连续两次可信空闲观察后才 resume。
 - 任务与配置请求均不能覆盖 Host 的模型、工作区或任意 Agent preset。未知字段会被拒绝。
 - 默认 `maxConcurrent=1`、`autoArchive=true`、`enableNotifications=false`。
-- Host 普通会话中的 16 个 AI 工具默认不注册；外部 AI 始终可以使用本 API。
+- Host 普通会话中的 16 个 AI 工具随插件自动注册，可用 `enableHostAiTools: false` 关闭；外部 AI 始终可以使用本 API。
 
 ## 1. 访问控制
 
@@ -50,7 +50,7 @@ curl 'https://queue.example.com/api/queue/state?archived=1&compact=1' \
   -H "Authorization: Bearer $AUTOQUEUE_API_TOKEN"
 ```
 
-Capabilities 与 OpenAPI 使用和业务接口相同的鉴权。Capabilities 中的 `hostAiToolsDefaultEnabled` / `aiToolRegistration.defaultEnabled` 为 `false`；这不影响外部 HTTP 调用。
+Capabilities 与 OpenAPI 使用和业务接口相同的鉴权。Capabilities 中 `hostAiToolsDefaultEnabled` / `aiToolRegistration.defaultEnabled` 为 `true`，`aiToolRegistration.enabled` 表示当前进程的实际注册状态；这不影响外部 HTTP 调用。
 
 ## 3. 端点总览
 
@@ -436,9 +436,11 @@ data: {"revision":42,"tasks":[...],"config":{...},"runtime":{...}}
 - 写端持续背压达到 30 秒后，巡检会主动断开。
 - SSE 不包含 `body` / `executions`；需要完整内容时调用 detail。
 
-## 12. Host AI 工具（显式 opt-in）
+## 12. Host AI 工具（自动注入）
 
-启动配置 `enableHostAiTools` 默认是 `false`，因此普通 DSH 会话默认不会看到额外系统提示或工具。只有明确设置为 `true` 时才注册以下 16 个 HTTP 薄客户端工具：
+启动配置 `enableHostAiTools` 默认是 `true`。插件加载后向普通 DSH 会话注册以下 16 个 HTTP 薄客户端工具；需要保持原始 tool catalog 的部署可显式设置为 `false`。`autoqueue-session-*` 自有任务 Agent 会隐藏这些工具，执行 guard 也会拒绝其通过 Host 工具递归控制队列：
+
+工具默认访问 `http://127.0.0.1:3080`。若当前 DSH Web 不在该地址，启动配置必须提供正确的 `baseUrl`。
 
 工具的正式自然语言名称是「任务队列」，并识别「老登」这个别称。别称只参与意图识别；机器协议仍只有下表的 `autoqueue_*` 名称，不注册重复 alias tool。
 
@@ -461,7 +463,7 @@ data: {"revision":42,"tasks":[...],"config":{...},"runtime":{...}}
 | `autoqueue_force_scan` | 立即检查收件箱 |
 | `autoqueue_set_concurrency` | 设置 1-8 并发 |
 
-工具全部通过 HTTP API，不绕过 HTTP 校验直接访问 engine/ledger，也不会暴露 token。外部 AI 不需要开启这组 Host 工具。
+工具全部通过 HTTP API，不绕过 HTTP 校验直接访问 engine/ledger，也不会暴露 token。外部 AI 不依赖这组 Host 工具；即使关闭自动注入，HTTP API 仍保持可用。
 
 ## 13. UI 与 API 能力对应
 

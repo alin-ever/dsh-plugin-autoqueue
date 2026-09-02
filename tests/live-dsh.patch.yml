@@ -5,7 +5,6 @@
   config:
     queueDir: !!js process.env.AUTOQUEUE_LIVE_QUEUE
     baseUrl: !!js process.env.AUTOQUEUE_LIVE_BASE_URL
-    enableHostAiTools: true
     autoArchive: false
     enableNotifications: false
     scanIntervalMs: 1000

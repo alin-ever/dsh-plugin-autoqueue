@@ -2,14 +2,14 @@
 
 > DSH 无人值守任务队列：接收 Markdown 任务，在不打扰普通前台会话的前提下自动执行、恢复、结算和归档。
 
-版本 `0.3.0`。实现、RPC 形状和安全结论的精确审计基线是 **`@deepseek-ai/dsh 0.1.1-rc.2`**。插件清单接受 `>=0.1.1-rc.2 <0.1.2`，但不同版本仍需重新验证 Host session、goal 与选择状态语义。
+版本 `0.3.1`。实现、RPC 形状和安全结论的精确审计基线是 **`@deepseek-ai/dsh 0.1.1-rc.2`**。插件清单接受 `>=0.1.1-rc.2 <0.1.2`，但不同版本仍需重新验证 Host session、goal 与选择状态语义。
 
 ## 1. 产品目标
 
 autoqueue 同时满足两个核心要求：
 
 1. **正常任务不打扰。** 没有问题时不提问、不弹审批、默认不发浏览器通知；Host 普通会话活跃时后台让行。
-2. **不影响 DSH 主进程的普通执行。** 队列只操作自有 session，使用独立 cwd 和自有版本化 preset，不修改 Host 的模型、工作区或任意 Agent preset 选择，也不默认向普通会话注入额外工具。
+2. **不影响 DSH 主进程的普通执行。** 队列只操作自有 session，使用独立 cwd 和自有版本化 preset，不修改 Host 的模型、工作区或任意 Agent preset 选择。普通会话只增加可见的任务队列工具能力面，插件不会替它主动调用。
 
 它把一个队列任务映射为一个 DSH 专属会话和一个 durable goal；插件管理生命周期，Agent 管理任务内部的多步工作。
 
@@ -18,7 +18,7 @@ autoqueue 同时满足两个核心要求：
 - 不实现任务依赖图（`depends_on`）。复杂工作由单个无人值守 Agent 自行分解，或由外部编排器通过 HTTP API 创建多个任务。
 - 不承诺分布式 exactly-once。实现用持久 ownership、admission marker、CAS generation 和定向 containment 尽力避免重复执行。
 - 不把 Host 的全局选择器包装成“任务级能力”。rc.2 无法证明这类选择不会影响普通会话。
-- 不默认改变所有 DSH 会话的 prompt/tool catalog。Host AI 工具必须显式 opt-in。
+- 不允许队列自有 Agent 递归调用队列控制工具。普通 Host 会话默认获得工具；自有 Agent 通过作用域隐藏和执行 guard 双重隔离。
 - 不承诺内核级进程/资源隔离。插件仍运行在同一 DSH Host 进程内；本文的“不影响主进程”指不修改普通会话或 Host 选择状态、前台优先和 fail-closed admission。要求 CPU/内存/崩溃域硬隔离时应部署独立 DSH Host。
 
 ## 3. 总体架构
@@ -34,12 +34,12 @@ React workstation ──┘                              │
 
 | 模块 | 作用 |
 |---|---|
-| `lib/index.js` | 装配 DSH 服务、owned presets、session approval policy、HTTP/SSE 和可选 AI 工具 |
+| `lib/index.js` | 装配 DSH 服务、owned presets、session approval policy、HTTP/SSE 和 AI 工具自动注入 |
 | `lib/engine.js` | 扫描、调度、前台让行、派发、轮询、反阻塞、重试、动作和结算 |
 | `lib/runner.js` | 所有 `apiProxy` RPC、session ownership 校验、goal 转移与清理 |
 | `lib/ledger.js` | 原子账本、schema/容量、requestId 去重、generation CAS、并发和恢复 |
 | `lib/files.js` | 收件箱、cron/ISO 解析、独立运行目录、安全报告 I/O |
-| `lib/ai-tool.js` | 显式 opt-in 的 16 个 Host AI HTTP 薄客户端工具 |
+| `lib/ai-tool.js` | 默认自动注册的 16 个 Host AI HTTP 薄客户端工具 |
 | `client/src/` | React 工作台、抽屉/弹窗、HTTP/SSE controller |
 
 三层持久化：
@@ -140,9 +140,13 @@ pause-before-cancel 是硬顺序：绝不 cancel 一个仍 armed 的 durable goa
 
 原生 `agent/status`、owned `goal/changed`、`session/disposed` 只触发 dirty latch，让这条收敛更快；它们不是控制事实。所有恢复、结算和前台门控仍由 `sessions.list` / history 权威读取决定，10 秒 watchdog 负责补漏事件。
 
-### 4.7 Host AI 工具默认关闭
+### 4.7 Host AI 工具自动注入
 
-注册工具会改变所有普通会话的系统提示和 tool catalog，因此 `enableHostAiTools` 默认 `false`。只有显式设置 `true` 才注册 16 个 `autoqueue_*` 工具。外部 AI 走鉴权 HTTP/OpenAPI，不依赖这个开关。
+`enableHostAiTools` 默认 `true`。插件加载后在普通插件上下文注册 16 个 `autoqueue_*` 工具；DSH ToolRuntime 自动把 schema 放进普通 Host 会话的工具目录，另注入一段只负责「任务队列 / 老登」发现和关键动作边界的精简提示。部署可显式设置 `false` 关闭；外部 AI 的鉴权 HTTP/OpenAPI 不依赖这个开关。
+
+Host 工具仍是 HTTP 薄客户端，默认请求 `http://127.0.0.1:3080`。非默认 Web 地址必须通过启动项 `baseUrl` 明确配置，避免注册出可见但不可调用的工具。
+
+全局注册不向队列自有 Agent 扩散这组 Host 工具。`agent/created` 时，`autoqueue-session-*` 会在 Agent 作用域 deny 全部队列工具，并用同名空 section 隐藏发现提示；全局 monotonic tool guard 再按 owned session ID 拒绝实际执行。即使可见性被绕过或旧调用被重放，自有任务也不能通过这组 Host 工具递归建任务、改配置或停止其他任务。直接 HTTP 访问仍属于本机/远程鉴权模型，而不是 ToolRuntime guard 的权限边界。
 
 ## 5. 唯一启动入场路径
 
@@ -333,7 +337,7 @@ UI 不是只读监控页，而是安全核心能力的完整工作台。
 | `maxConcurrent` | `1` |
 | `autoArchive` | `true` |
 | `enableNotifications` | `false` |
-| `enableHostAiTools` | `false` |
+| `enableHostAiTools` | `true` |
 | `maxGoalRounds` | `40` |
 | `maxBlockedResumes` | `3` |
 | `unknownThreshold` | `3` |
@@ -344,7 +348,7 @@ UI 不是只读监控页，而是安全核心能力的完整工作台。
 | `retryBackoffBaseMs` | `30000` |
 | `retryBackoffMaxMs` | `300000` |
 
-`maxConcurrent` 持久化到账本；启动配置只在仍为初始值 1 时初始化。`queueDir`、Host/token、AI tool opt-in 和 base URL 是启动边界。
+`maxConcurrent` 持久化到账本；启动配置只在仍为初始值 1 时初始化。`queueDir`、Host/token、AI tool 注入开关和 base URL 是启动边界。
 
 ## 13. 已知边界
 

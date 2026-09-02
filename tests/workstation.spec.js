@@ -73,7 +73,7 @@ async function mockApi(page, setup = {}) {
       displayName: "任务队列",
       aliases: ["老登"],
       apiVersion: "1.0.0",
-      pluginVersion: "0.3.0",
+      pluginVersion: "0.3.1",
       dshCompatibility: ">=0.1.1-rc.2 <0.1.2",
       basePath: "/api/queue",
       openapi: "/api/autoqueue/openapi.json",
@@ -98,7 +98,7 @@ async function mockApi(page, setup = {}) {
         nativeRuntimeMonitoring: true,
         sessionSandboxMode: "workspace-write",
         sessionApprovalPolicy: "never",
-        hostAiToolsDefaultEnabled: false,
+        hostAiToolsDefaultEnabled: true,
       },
       limits: { taskContentBytes: 2_000_000, batchArchiveTasks: 100, maxConcurrent: 8, sseConnections: 8 },
       resources: {
@@ -107,7 +107,14 @@ async function mockApi(page, setup = {}) {
         markRead: "/api/queue/mark-read", events: "/api/queue/events",
       },
       aiTools: Array.from({ length: 16 }, (_, index) => "autoqueue_tool_" + String(index + 1)),
-      aiToolRegistration: { defaultEnabled: false, optInConfig: "enableHostAiTools" },
+      aiToolRegistration: {
+        enabled: true,
+        defaultEnabled: true,
+        mode: "automatic",
+        configKey: "enableHostAiTools",
+        disableValue: false,
+        optInConfig: "enableHostAiTools",
+      },
     },
     stateUrls: [],
     configPatches: [],
@@ -962,8 +969,9 @@ test("the API drawer reads live capabilities and keeps stable discovery paths", 
   await expect(dialog).toContainText("Authorization: Bearer <token>");
   await expect(dialog.locator(".aq-code-block")).toContainText("Authorization: Bearer $AUTOQUEUE_TOKEN");
   await expect(dialog).toContainText("16 个");
-  await expect(dialog).toContainText("默认注册");
-  await expect(dialog).toContainText("关闭");
+  await expect(dialog).toContainText("当前注册");
+  await expect(dialog).toContainText("开启");
+  await expect(dialog).toContainText("默认自动注入");
   await expect(dialog).toContainText("workspace-write");
   await expect(dialog).toContainText("原生 Runtime 监控");
   await expect(dialog).toContainText("enableHostAiTools");
@@ -971,6 +979,35 @@ test("the API drawer reads live capabilities and keeps stable discovery paths", 
   await expect(dialog).toContainText("页面不会显示 token");
   await expect(dialog.getByRole("button", { name: "复制 Capabilities" })).toBeVisible();
   await expect(dialog.getByRole("button", { name: "复制 OpenAPI 3.1" })).toBeVisible();
+});
+
+test("the API drawer reports an explicit Host tool opt-out as the current state", async ({ page }) => {
+  await mockApi(page, {
+    capabilities: {
+      displayName: "任务队列",
+      aliases: ["老登"],
+      apiVersion: "1.0.0",
+      authentication: { schemes: [], loopbackDirectAccess: true },
+      features: { hostAiToolsDefaultEnabled: true },
+      resources: {},
+      limits: {},
+      aiTools: Array.from({ length: 16 }, (_, index) => "autoqueue_tool_" + String(index + 1)),
+      aiToolRegistration: {
+        enabled: false,
+        defaultEnabled: true,
+        configKey: "enableHostAiTools",
+        disableValue: false,
+      },
+    },
+  });
+  await openHarness(page);
+
+  await page.getByRole("button", { name: "AI / API 接入" }).click();
+  const dialog = page.getByRole("dialog", { name: "AI / API 接入" });
+  const registrationFact = dialog.locator(".aq-cap-summary > div").filter({ hasText: "当前注册" });
+  await expect(registrationFact).toContainText("关闭");
+  await expect(dialog).toContainText("当前已通过");
+  await expect(dialog).toContainText("enableHostAiTools: false");
 });
 
 test("the API drawer reports capability discovery failures without hiding manual endpoints", async ({ page }) => {

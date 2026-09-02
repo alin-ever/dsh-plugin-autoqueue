@@ -11,7 +11,7 @@
         maxAttempts: 3
         taskTimeoutMs: 10800000
         enableNotifications: false
-        enableHostAiTools: false   # 避免改变普通 DSH 会话的 tool catalog
+        enableHostAiTools: true    # 加载后自动注入；部署可显式设为 false 关闭
         priority: 5
         scanIntervalMs: 15000
         maxConcurrent: 1

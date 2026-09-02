@@ -11,7 +11,7 @@ autoqueue 是 DSH 的无人值守任务队列插件。丢 .md 文件进收件箱
 | 文档 | 路径 | 什么时候读 |
 |---|---|---|
 | 设计文档 | `autoqueue-design.md` | 理解架构、隔离决策、执行模型、UI/外部 AI 能力面 |
-| HTTP API | `docs/api.md` | 视图层开发、外部集成、接口契约 |
+| HTTP API | `docs/api.md` | 视图层开发、外部集成、接口说明 |
 | 核心层 API | `docs/core-api.md` | 内部模块接口（engine/runner/ledger/files） |
 | README | `README.md` | 快速了解项目、安装使用 |
 
@@ -19,12 +19,12 @@ autoqueue 是 DSH 的无人值守任务队列插件。丢 .md 文件进收件箱
 
 ```
 lib/
-├── index.js     ← 插件入口：鉴权/路由/SSE/定时器/owned preset/approval policy/可选 AI 工具
+├── index.js     ← 插件入口：鉴权/路由/SSE/定时器/owned preset/approval policy/AI 工具注入
 ├── engine.js    ← 编排层：派发 / 前台协作让行 / 轮询结算 / 反阻塞 / 重试 / containment
 ├── runner.js    ← 会话驱动：所有 apiProxy 调用 + autoqueue session ownership 守卫
 ├── ledger.js    ← 账本：原子读写 / 去重 / 并发控制 / 重启恢复
 ├── files.js     ← I/O 层：收件箱扫描 / 调度解析 / 原子写入
-├── ai-tool.js   ← Host AI 工具层：16 个 HTTP 薄客户端工具，默认不注册
+├── ai-tool.js   ← Host AI 工具层：16 个默认自动注册的 HTTP 薄客户端工具
 └── client.js    ← 浏览器看板：esbuild 构建产物，源文件在 client/src/
 
 client/src/
@@ -35,7 +35,7 @@ client/src/
 ├── styles/
 │   └── workstation.css    ← 全局样式（使用 DSW 令牌）
 └── components/
-    ├── Workstation.jsx    ← 主布局：侧边栏 + 工具栏 + KPI + 任务列表
+    ├── Workstation.jsx    ← 主布局：侧边栏 + 工具栏 + 状态概览 + 任务列表
     ├── TaskDetail.jsx     ← 右侧滑出详情面板
     ├── Modals.jsx         ← 弹窗：新建/编辑/配置/确认
     └── DialogShell.jsx    ← 抽屉/弹窗的焦点锁定、ESC 和焦点恢复
@@ -70,7 +70,8 @@ npm run watch:client
 
 - 所有 apiProxy 调用集中在 `runner.js`，其他模块不碰
 - 状态机逻辑在 `engine.js` 内联，没有独立 state-machine 模块
-- AI 工具层通过 HTTP 透传到 engine，不直接访问 engine 内部；Host 注册必须由 `enableHostAiTools: true` 显式开启
+- AI 工具层通过 HTTP 透传到 engine，不直接访问 engine 内部；默认随插件加载向普通 Host 会话注册，`enableHostAiTools: false` 可显式关闭
+- `autoqueue-session-*` 自有任务 Agent 必须通过作用域隐藏与执行 guard 禁止调用这 16 个队列控制工具，避免递归建任务或修改队列
 - 外部 AI 的默认接入流程是 capabilities → OpenAPI → compact state → detail，不依赖 Host AI 工具
 - 每个 attempt 使用 `autoqueue-session-<uuid>` 与独立 cwd；runner 不得操作其他 session
 - 只能使用 `autoqueue-unattended-v2` / `autoqueue-ptc-unattended-v2` 两个 versioned owned presets；v1 只保留不覆盖。v2 marker、disabled tools 和 shell foreground 配置必须完整校验
@@ -79,7 +80,7 @@ npm run watch:client
 - 新任务只通过完整的 `goals.create.objective` 入场；不得恢复旧的 `workspace.create`、`session.selectModel` 或重复初始 queue prompt 流程
 - 普通前台 session 活跃或 `sessions.list` 不可信时必须协作让行：拒绝新 admission；运行中的 owned goal 按“持久 pause intent → pause goal → 持久 paused ref → cancel owned turn → 两次可信空闲确认 → 无 prompt resume”收敛。不得修改/取消用户 session
 - 任务/运行时配置的模型、工作区、任意 preset 覆盖全部锁定；`/options` 只返回三类空数组与 isolation locks
-- 安全默认值是并发 1、`autoArchive=true`、`enableNotifications=false`、`enableHostAiTools=false`
+- 安全默认值是并发 1、`autoArchive=true`、`enableNotifications=false`、`enableHostAiTools=true`
 - `depends_on`（依赖门控）**暂不实现**，理由见设计文档“非目标”章节
 
 ## 已实现 vs 未实现
@@ -95,7 +96,7 @@ npm run watch:client
 | SSE 实时推送 | ✅ |
 | 看板 UI（完整安全任务/配置/详情/批量/接入操作面） | ✅ |
 | 外部 AI 机器发现（Capabilities + OpenAPI + compact state） | ✅ |
-| 16 个 Host AI 工具 | ✅，但默认不注册，显式 opt-in |
+| 16 个 Host AI 工具 | ✅，随插件自动注入普通 Host 会话，可显式关闭 |
 | 未读/已读标记 | ✅ |
 | 专属 session ID + 独立 cwd + ownership guard | ✅ |
 | Versioned owned presets + `approvalPolicy=never` 持久校验 | ✅ |
