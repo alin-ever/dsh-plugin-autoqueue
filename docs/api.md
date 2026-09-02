@@ -2,7 +2,7 @@
 
 业务 API 位于 `/api/queue/*`，机器发现 API 位于 `/api/autoqueue/*`。本文按 **`@deepseek-ai/dsh 0.1.1-rc.2`** 精确基线验证；插件清单的运行范围是 `>=0.1.1-rc.2 <0.1.2`，但其他 DSH 版本需要重新验证隔离语义。
 
-## 0. 安全契约
+## 0. 安全边界
 
 - 每个 attempt 使用专属 `autoqueue-session-<uuid>` 和独立 cwd；插件拒绝操作其他 DSH 会话。
 - 引擎只选择 `autoqueue-unattended-v2` / `autoqueue-ptc-unattended-v2`。v1 只保留不覆盖；v2 marker 必须完整，并禁用提问、高扇出子会话/工作流/后台任务工具，bash/pwsh 只能前台运行。调用方不能指定任意 preset。
@@ -57,7 +57,7 @@ Capabilities 与 OpenAPI 使用和业务接口相同的鉴权。Capabilities 中
 | 方法 | 路径 | 用途 |
 |---|---|---|
 | `GET` | `/api/autoqueue/capabilities` | 能力、限制、资源和 AI 工具发现 |
-| `GET` | `/api/autoqueue/openapi.json` | OpenAPI 3.1 契约 |
+| `GET` | `/api/autoqueue/openapi.json` | OpenAPI 3.1 接口描述 |
 | `GET` | `/api/queue/state` | 队列快照 |
 | `POST` | `/api/queue/task` | 创建任务 |
 | `POST` | `/api/queue/action` | 执行任务或队列动作 |
@@ -222,7 +222,7 @@ Capabilities 与 OpenAPI 使用和业务接口相同的鉴权。Capabilities 中
 | `delete` | `key` | 仅 pending；删除收件箱文件和账本项 |
 | `rerun` | `key` | 非 running 且未归档；terminal 与 pending 均可重新入队 |
 | `update` | `key` + patch | 仅 pending 且未归档 |
-| `force-scan` | 无 | 立即扫描 Markdown 收件箱 |
+| `force-scan` | 无 | 立即检查 Markdown 收件箱 |
 | `set-concurrency` | `maxConcurrent` | 设置 1-8，持久化到账本 |
 
 停止成功响应为 `{ "ok": true, "accepted": true, "pending": true }`，表示停止意图已持久化且正在等待 DSH 权威 idle 收口，不代表 session 已在该 HTTP 响应前终止。调用方应继续读取 state/detail，直到状态变为 `stopped`。`sessions.cancel` 受理后必须有连续两次因果上晚于该受理的可信 idle/缺席观察，ownership 才会释放。
@@ -343,7 +343,7 @@ Capabilities 与 OpenAPI 使用和业务接口相同的鉴权。Capabilities 中
 }
 ```
 
-三个数组按契约始终为空。客户端应读取 `isolation.strict` 与 `overridesLocked`，不要把空数组解释成“尚未加载”。
+三个数组始终为空。客户端应读取 `isolation.strict` 与 `overridesLocked`，不要把空数组解释成“尚未加载”。
 
 ## 9. `GET|POST /api/queue/config`
 
@@ -458,7 +458,7 @@ data: {"revision":42,"tasks":[...],"config":{...},"runtime":{...}}
 | `autoqueue_get_options` | 读取隔离锁 |
 | `autoqueue_get_config` | 读取安全配置 |
 | `autoqueue_update_config` | 更新安全配置 |
-| `autoqueue_force_scan` | 立即扫描收件箱 |
+| `autoqueue_force_scan` | 立即检查收件箱 |
 | `autoqueue_set_concurrency` | 设置 1-8 并发 |
 
 工具全部通过 HTTP API，不绕过 HTTP 校验直接访问 engine/ledger，也不会暴露 token。外部 AI 不需要开启这组 Host 工具。
@@ -470,7 +470,7 @@ data: {"revision":42,"tasks":[...],"config":{...},"runtime":{...}}
 | 任务队列、正在推进、循环调度、定时执行、归档记录工作区 | state + compact SSE 的范围投影 |
 | 正在推进的原生 runtime 监控、前台门控与 watchdog | state/SSE `runtime` |
 | 新建任务 | task |
-| 编辑、停止、重跑、归档、恢复、删除、立即扫描 | action |
+| 编辑、停止、重跑、归档、恢复、删除、立即检查 | action |
 | 多选批量归档 | action `archive + keys` |
 | 详情四页签 | detail |
 | 已读/未读 | mark-read |

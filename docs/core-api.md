@@ -405,7 +405,7 @@ cron 是 5 字段本地时间表达式，支持 `*`、数字、`*/step`、范围
 
 ## 11. 上层能力面
 
-- HTTP：完整契约见 `docs/api.md`。
+- HTTP：完整接口说明见 `docs/api.md`。
 - 外部 AI：Capabilities → OpenAPI → compact state → detail。
 - Host AI：16 个工具，只有 `enableHostAiTools=true` 才注册；列表/详情结构化结果含 runtime 和派生运行事实，默认不改变普通会话 tool catalog。
 - UI：五个范围工作区、原生 runtime 观测、SSE 健康、完整安全任务表单/动作、批量归档、详情四页签、配置与动态 AI/API 接入抽屉、已读状态均已暴露。

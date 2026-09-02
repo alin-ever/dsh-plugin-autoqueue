@@ -8,7 +8,7 @@
 - 插件清单接受 `>=0.1.1-rc.2 <0.1.2`，但升级 DSH 后仍应重新跑单元测试和 Playwright；本文的安全结论不自动外推到其他版本。
 - `@deepseek-ai/dsh-sandbox-policy`、`@deepseek-ai/dsh-tools` 与 `@deepseek-ai/dsh-user-approval` 固定为 `0.1.1-rc.2`。
 
-## 无人值守安全契约
+## 无人值守安全边界
 
 autoqueue 不是普通会话的全局自动化开关。每次执行都遵守以下边界：
 
@@ -27,10 +27,16 @@ DSH rc.2 的公开选择接口会持久化 Host 默认路由，因此任务和�
 
 ## 快速开始
 
-### 安装
+### 从 npm 安装
 
 ```bash
-dsh plugin --profile web add "link:$PWD"
+dsh plugin --profile web add -w @alintever/dsh-plugin-autoqueue@latest
+```
+
+本地开发时可以改为链接当前工作区：
+
+```bash
+dsh plugin --profile web add -w "link:$PWD"
 ```
 
 ### 创建任务
@@ -76,14 +82,14 @@ echo "# 生成日报" > ~/.dsh/queue/tasks/daily-report.md
 React 看板已暴露安全业务能力的完整操作面：
 
 - 导航：任务队列、正在推进、循环调度、定时执行、归档记录是五个独立范围工作区，各自拥有标题、说明、范围统计、状态计数、空态和上下文动作；范围内仍可按状态与关键词二次筛选。
-- 运行态：严格隔离/前台让行契约条、后台工作位占用、前台暂停或停止收口状态、执行中、待派发、需关注、24 小时完成数、成功率和未读结果 KPI。
+- 运行态：紧凑展示隔离状态、前台优先和并发占用；完整的原生事件、权威对账、扫描时间和兜底检查按需展开。
 - 原生监控：正在推进工作区显示 DSH runtime 原生事件、权威 session 对账、收件箱扫描、foreground gate 与 10 秒 watchdog；SSE 连接状态单独展示，不拿网络在线冒充核心隔离健康。
 - 任务列表：摘要、任务类型、状态/隔离告警、计划、优先级、轮次进度、尝试次数；支持多选批量归档。
-- 任务动作：新建、编辑 pending 任务、停止、重跑、归档、恢复、删除 pending 任务、标记未读、跳转插件自有 DSH 会话、立即扫描收件箱。
-- 任务详情：概览、执行轨迹、Goal/结果/最终报告、调度与韧性策略；打开终态详情会标记已读。
+- 任务动作：新建、编辑 pending 任务、停止、重跑、归档、恢复、删除 pending 任务、标记未读、跳转插件自有 DSH 会话、立即检查任务。
+- 任务详情：概览、执行记录、结果和最终报告、调度与恢复设置；打开终态详情会标记已读。
 - 运行设置：并发、任务超时、Goal 轮数、反阻塞次数、派发尝试、不可达阈值、退避、默认优先级、默认截止、Webhook、自动归档和浏览器通知；队列目录只读。
-- 外部接入：独立的「AI / API 接入」抽屉实时读取 Capabilities，展示正式名称/别称、16 个工具、资源、限制、隔离证据、OpenAPI 3.1 和 compact 查询示例；鉴权文案会区分本机 loopback 直连与远程 token 契约，页面从不回显 token。
-- 交互与可访问性：响应式导航、抽屉/弹窗、危险操作确认、键盘焦点锁定与恢复、ESC 关闭、实时错误提示、空状态插图。
+- 外部接入：独立的「AI / API 接入」抽屉实时读取 Capabilities，展示正式名称/别称、16 个工具、中文资源与限制、隔离状态、OpenAPI 3.1 和 compact 查询示例；本机可直连，远程必须携带 token，页面从不回显 token。
+- 交互与可访问性：统一字号和颜色层级，支持响应式导航、抽屉/弹窗、危险操作确认、键盘焦点锁定与恢复、ESC 关闭和实时错误提示。
 
 隔离字段不会出现在新建、编辑或运行设置表单中；UI 只展示“已锁定”的安全说明。
 
@@ -97,7 +103,7 @@ AI 自然语言中的正式名称是「任务队列」，「老登」是同一�
 # 1. 发现能力
 curl http://127.0.0.1:3080/api/autoqueue/capabilities
 
-# 2. 读取机器契约
+# 2. 读取 OpenAPI 接口描述
 curl http://127.0.0.1:3080/api/autoqueue/openapi.json
 
 # 3. 用紧凑投影列任务，避免把正文和 executions 放进 LLM 上下文
@@ -109,7 +115,7 @@ curl 'http://127.0.0.1:3080/api/queue/state?archived=1&compact=1'
 | 方法 | 路径 | 用途 |
 |---|---|---|
 | `GET` | `/api/autoqueue/capabilities` | 能力、限制、资源地址和 Host AI 工具启用策略 |
-| `GET` | `/api/autoqueue/openapi.json` | OpenAPI 3.1 机器契约 |
+| `GET` | `/api/autoqueue/openapi.json` | OpenAPI 3.1 接口描述 |
 | `GET` | `/api/queue/state` | 快照；支持 `archived=1`、`compact=1` |
 | `POST` | `/api/queue/task` | 创建任务 |
 | `POST` | `/api/queue/action` | stop/archive/restore/delete/rerun/update/force-scan/set-concurrency |
@@ -200,6 +206,19 @@ npm run test:unit
 npm run test:playwright
 ```
 
+### npm 发布
+
+更新 `package.json` 版本后，先在干净依赖环境中完成完整检查：
+
+```bash
+npm ci
+npm run release:check
+npm publish --dry-run
+npm publish
+```
+
+`prepublishOnly` 会重新构建前端并运行核心测试，`prepack` 会再次生成浏览器 bundle；正式包固定发布到 npm 公共 registry。Playwright 属于显式的 `release:check`，避免发布环境缺少浏览器时产生不清晰的生命周期错误。
+
 ### 分层真实验收
 
 仓库提供两套不会走 mock 的验收 driver：
@@ -216,7 +235,7 @@ LIVE_QUEUE_DIR=$(mktemp -d /tmp/dsh-autoqueue-queue.XXXXXX)
 
 # 先按 DSH 的凭据配置方式，在 LIVE_DSH_HOME 中准备专用测试模型凭据；
 # 再从本仓库根目录把当前源码 link 进这个全新 profile。
-DSH_HOME="$LIVE_DSH_HOME" dsh plugin --profile web add "link:$PWD"
+DSH_HOME="$LIVE_DSH_HOME" dsh plugin --profile web add -w "link:$PWD"
 
 # 后台启动专用 Host；日志和 PID 都只属于本次运行。
 DSH_HOME="$LIVE_DSH_HOME" \
@@ -242,4 +261,4 @@ npm run "test:live:$LIVE_CASE"
 
 这两套测试会真实调用已配置的 LLM，并创建、停止、归档任务；只应运行在 webhook/defaultDeadline 已关闭的专用 Host。driver 会同时核对 HTTP Host、AI tool Host 和 `AUTOQUEUE_LIVE_EXPECTED_QUEUE_DIR`，并拒绝非空或身份不一致的队列。证据和截图默认写入 `test-results/live-ai-matrix/` 与 `test-results/live-ui-*`。
 
-内部接口见 [`docs/core-api.md`](./docs/core-api.md)，设计和隔离论证见 [`autoqueue-design.md`](./autoqueue-design.md)。
+内部接口见 [`docs/core-api.md`](./docs/core-api.md)，设计和隔离论证见 [GitHub 上的 `autoqueue-design.md`](https://github.com/alin-ever/dsh-plugin-autoqueue/blob/main/autoqueue-design.md)。

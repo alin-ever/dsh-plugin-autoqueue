@@ -2,6 +2,23 @@
   "name": "@alintever/dsh-plugin-autoqueue",
   "description": "无人值守任务队列插件：丢 .md 进收件箱 → AI 自动执行 → 产出报告",
   "version": "0.3.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alin-ever/dsh-plugin-autoqueue.git"
+  },
+  "homepage": "https://github.com/alin-ever/dsh-plugin-autoqueue#readme",
+  "bugs": {
+    "url": "https://github.com/alin-ever/dsh-plugin-autoqueue/issues"
+  },
+  "keywords": [
+    "dsh",
+    "deepseek",
+    "task-queue",
+    "agent",
+    "automation",
+    "unattended"
+  ],
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -12,11 +29,15 @@
   "files": [
     "lib/*.js",
     "cordis.patch.yml",
-    "docs/*.md",
+    "docs/api.md",
+    "docs/core-api.md",
     "README.md",
-    "AGENTS.md",
-    "autoqueue-design.md"
+    "LICENSE"
   ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "dsh": {
     "engines": {
       "dsh": ">=0.1.1-rc.2 <0.1.2"
@@ -32,8 +53,8 @@
       "platform": "web"
     }
   },
-  "license": "MIT",
   "engines": {
+    "node": ">=20",
     "dsh": ">=0.1.1-rc.2 <0.1.2"
   },
   "scripts": {
@@ -41,6 +62,9 @@
     "build:test-harness": "esbuild tests/harness.jsx --bundle --outfile=tests/.generated/harness.js --loader:.css=text --loader:.png=dataurl",
     "watch:client": "esbuild client/src/index.jsx --bundle --outfile=lib/client.js --format=iife --external:react --external:react-dom/client --loader:.css=text --loader:.png=dataurl --define:React=window.__React --tree-shaking=false --watch=forever",
     "build": "npm run build:client",
+    "prepack": "npm run build:client",
+    "prepublishOnly": "npm run build:client && npm run test:unit",
+    "release:check": "npm run build:client && npm run test:unit && npm run test:playwright",
     "test": "npm run test:unit",
     "test:unit": "node --test --test-concurrency=1 tests/core.test.js",
     "test:serve": "npm run build:test-harness && node tests/server.js",
