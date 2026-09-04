@@ -425,7 +425,15 @@ function TaskList(props) {
   }
   return h("section", { className: "aq-list-shell", "aria-label": "任务队列" },
     h("div", { className: "aq-list-head", "aria-hidden": "true" },
-      h("span"), h("span", null, "任务"), h("span", null, "状态"), h("span", null, "计划"), h("span", null, "优先级"), h("span", null, "最新进展"), h("span", null, "操作")
+      h("span", null,
+        props.snap.navGroup !== "archived" && h("input", { type: "checkbox", title: "全选", checked: props.tasks.length > 0 && props.selected.length === props.tasks.length, onChange: function () {
+          if (props.selected.length === props.tasks.length) {
+            props.tasks.forEach(function (t) { if (props.selected.indexOf(t.key) >= 0) props.onSelect(t.key); });
+          } else {
+            props.tasks.forEach(function (t) { if (props.selected.indexOf(t.key) < 0) props.onSelect(t.key); });
+          }
+        } })
+      ), h("span", null, "任务"), h("span", null, "状态"), h("span", null, "计划"), h("span", null, "最新进展"), h("span", null, "操作")
     ),
     h("div", { className: "aq-list" },
       props.tasks.map(function (task) {
@@ -450,7 +458,7 @@ function TaskRow(props) {
   var attention = taskNeedsAttention(task);
   var selectable = task.status !== "running" && !task.archivedAt;
   var sessionId = task.sessionId || task.lastSessionId || (task.executions && task.executions.length ? task.executions[task.executions.length - 1].sessionId : null);
-  var plan = task.cron ? cronToHuman(task.cron) : (task.schedule ? formatIso(task.schedule) : "即时派发");
+  var plan = task.cron ? cronToHuman(task.cron) + (task.reuseSession !== false ? " · 复用会话" : "") : (task.schedule ? formatIso(task.schedule) : "即时派发");
   var recent = task.status === "pending"
     ? pendingReason(task, props.snap)
     : (task.status === "running"
@@ -486,17 +494,17 @@ function TaskRow(props) {
       task.nextRetryAt && h("small", null, "计划重试")
     ),
     h("div", { className: "aq-task-plan" }, h("strong", null, plan), task.nextRunAt && h("small", null, "下次 ", formatIso(task.nextRunAt))),
-    h("div", { className: "aq-priority" }, h("i", { className: Number(task.priority || 5) >= 8 ? "high" : "" }), h("span", null, Number(task.priority || 5) >= 8 ? "高" : (Number(task.priority || 5) <= 3 ? "低" : "中"))),
     h("div", { className: "aq-recent" }, h("strong", null, recent), task.attempts > 0 && h("small", null, "尝试 ", task.attempts, " 次")),
     h("div", { className: "aq-row-actions", onClick: function (event) { event.stopPropagation(); } },
-      task.status === "running" && task.stopPending !== true && h(ActionButton, { label: "停止 " + task.key, icon: "stop", tone: "danger", onClick: function () { props.onAction("stop", task.key); } }),
-      task.status === "pending" && h(ActionButton, { label: "编辑 " + task.key, icon: "edit", onClick: function () { props.onEdit(task.key); } }),
-      actions.indexOf("rerun") >= 0 && h(ActionButton, { label: "重新执行 " + task.key, icon: "repeat", tone: "success", onClick: function () { props.onAction("rerun", task.key); } }),
-      actions.indexOf("archive") >= 0 && h(ActionButton, { label: "归档 " + task.key, icon: "archive", onClick: function () { props.onAction("archive", task.key); } }),
-      task.archivedAt && h(ActionButton, { label: "还原 " + task.key, icon: "restore", onClick: function () { props.onAction("restore", task.key); } }),
-      ["done", "failed", "stopped", "interrupted"].indexOf(task.status) >= 0 && !isUnread(task) && !task.archivedAt && h(ActionButton, { label: "标记未读 " + task.key, icon: "inbox", onClick: function () { props.onUnread(task.key); } }),
-      task.status === "pending" && h(ActionButton, { label: "删除 " + task.key, icon: "trash", tone: "danger", onClick: function () { props.onAction("delete", task.key); } }),
-      sessionId && h(ActionButton, { label: "跳转会话 " + task.key, icon: "external", onClick: function () { props.onSession(sessionId); } })
+      task.status === "running" && task.stopPending !== true && !task.archivedAt && h(ActionButton, { label: "停止", icon: "stop", tone: "danger", onClick: function () { props.onAction("stop", task.key); } }),
+      task.status === "pending" && (task.cron || task.schedule) && !task.archivedAt && h(ActionButton, { label: "停止调度", tone: "danger", onClick: function () { props.onAction("stop", task.key); } }),
+      task.status === "pending" && !task.archivedAt && h(ActionButton, { label: "编辑", icon: "edit", onClick: function () { props.onEdit(task.key); } }),
+      actions.indexOf("rerun") >= 0 && h(ActionButton, { label: "重新执行", icon: "repeat", tone: "success", onClick: function () { props.onAction("rerun", task.key); } }),
+      actions.indexOf("archive") >= 0 && h(ActionButton, { label: "归档", icon: "archive", onClick: function () { props.onAction("archive", task.key); } }),
+      task.archivedAt && h(ActionButton, { label: "还原", icon: "restore", onClick: function () { props.onAction("restore", task.key); } }),
+      ["done", "failed", "stopped", "interrupted"].indexOf(task.status) >= 0 && !isUnread(task) && !task.archivedAt && h(ActionButton, { label: "标记未读", icon: "inbox", onClick: function () { props.onUnread(task.key); } }),
+      task.status === "pending" && !task.archivedAt && h(ActionButton, { label: "删除", icon: "trash", tone: "danger", onClick: function () { props.onAction("delete", task.key); } }),
+      sessionId && !task.archivedAt && h(ActionButton, { label: "跳转会话", icon: "external", onClick: function () { props.onSession(sessionId); } })
     )
   );
 }
@@ -507,7 +515,7 @@ function pendingReason(task, snap) {
   if (Number.isFinite(retryAt) && retryAt > now) return "等待重试，" + formatIso(task.nextRetryAt) + " 后继续";
   var scheduledAt = task.schedule ? new Date(task.schedule).getTime() : NaN;
   if (Number.isFinite(scheduledAt) && scheduledAt > now) return "计划于 " + formatIso(task.schedule) + " 执行";
-  if (task.cron && task.nextRunAt) return "下次于 " + formatIso(task.nextRunAt) + " 执行";
+  if (task.cron && task.nextRunAt) return "等待调度";
   var runtime = snap && snap.runtimeObservation;
   var gate = runtime && runtime.foregroundGate;
   if (gate === true || gate === "foreground-active" || gate === "closed" || gate === "busy" ||
@@ -523,9 +531,8 @@ function pendingReason(task, snap) {
 
 function ActionButton(props) {
   return h("button", {
-    className: "aq-row-action " + (props.tone || ""), title: props.label, "aria-label": props.label, onClick: props.onClick,
-    dangerouslySetInnerHTML: props.icon ? { __html: iconHtml(props.icon) } : undefined
-  }, props.icon ? undefined : props.text);
+    className: "aq-row-action " + (props.tone || ""), title: props.label, "aria-label": props.label, onClick: props.onClick
+  }, props.label);
 }
 
 function taskActions(task) {

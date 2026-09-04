@@ -171,6 +171,7 @@ function PolicyTab(props) {
       h("div", { className: "aq-d-section-title" }, "调度"),
       h("div", { className: "aq-d-grid" },
         h(Fact, { label: "循环调度", value: task.cron ? cronToHuman(task.cron) : "未设置" }),
+        task.cron && h(Fact, { label: "复用会话", value: task.reuseSession !== false ? "开启" : "关闭" }),
         h(Fact, { label: "一次性定时", value: task.schedule ? formatIso(task.schedule) : "未设置" }),
         h(Fact, { label: "截止窗口", value: task.deadline ? cronToHuman(task.deadline) : "未设置" }),
         h(Fact, { label: "运行模式", value: !task.agentPreset ? "派发时自动识别" : (task.agentPreset.indexOf("ptc") >= 0 ? "PTC · 自动识别" : "标准自治 · 自动识别") }),

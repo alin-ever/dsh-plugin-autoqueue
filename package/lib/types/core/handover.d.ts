@@ -1,0 +1,58 @@
+/**
+ * Handover bundle (issue #5, ADR 0001): the resource reference set a
+ * continuation card carries — the pinned execution triplet (workspace /
+ * agent preset / permission) plus doc/script references — so a picking-up
+ * session can start with zero context.
+ *
+ * Security gate (adversarial scenario b): a bundle whose effective
+ * permission is HIGHER than the session default is an unconfirmed binding.
+ * It enters the pending-confirmation state (the card stores the binding
+ * without a permissionConfirmedAt stamp); manual execution refuses, cron
+ * refuses to schedule, and the human confirm-permission action resolves the
+ * transaction by stamping the confirmation. Any later permission or
+ * handover change re-arms the gate (the confirmation binds the exact
+ * permission value, blocking confirm-then-swap escalation).
+ */
+import { type TaskPermission, type TaskRecord } from './tasks.ts';
+export type { TaskPermission };
+/** Wire shape of a handover bundle (before bundledAt is stamped). */
+export interface TaskHandoverInput {
+    workspaceId?: string;
+    mode?: string;
+    permission?: TaskPermission;
+    references: string[];
+}
+/** Persisted handover bundle on a task record. */
+export interface TaskHandover extends TaskHandoverInput {
+    /** When the bundle was attached/replaced (ms epoch, stamped by the use case). */
+    bundledAt: number;
+}
+/** Most references a bundle may carry. */
+export declare const HANDOVER_MAX_REFERENCES = 32;
+/** Per-reference UTF-8 byte cap. */
+export declare const HANDOVER_MAX_REFERENCE_BYTES = 512;
+/** Total references UTF-8 byte cap. */
+export declare const HANDOVER_MAX_TOTAL_BYTES: number;
+/** Per target-id (workspace/preset) byte cap. */
+export declare const HANDOVER_MAX_TARGET_BYTES = 256;
+/** The board's notion of the deployment session-default permission (fail-safe default). */
+export declare const DEFAULT_SESSION_PERMISSION: TaskPermission;
+/** Permission elevation rank (higher = more authority). */
+export declare const PERMISSION_RANK: ReadonlyMap<TaskPermission, number>;
+/**
+ * Gate a handover bundle from the wire or disk: exact keys, string targets
+ * under the byte cap, a known permission, and a bounded string reference
+ * list. Returns the sanitized bundle, or undefined when rejected.
+ */
+export declare function sanitizeHandover(value: unknown): TaskHandoverInput | undefined;
+/** Build the persisted bundle from a sanitized input, stamping bundledAt. */
+export declare function handoverOf(input: TaskHandoverInput, now: number): TaskHandover;
+/** The permission an execution session would actually run under. */
+export declare function effectivePermission(task: Pick<TaskRecord, 'permission' | 'handover'>): TaskPermission | undefined;
+/** Whether a binding's permission is elevated above the session default. */
+export declare function exceedsSessionDefault(permission: TaskPermission | undefined, sessionDefault: TaskPermission): boolean;
+/**
+ * The confirmation-gate predicate: an elevated permission without a human
+ * confirmation stamp. Manual run/rerun and cron must refuse such a card.
+ */
+export declare function requiresPermissionConfirmation(task: Pick<TaskRecord, 'permission' | 'handover' | 'permissionConfirmedAt'>, sessionDefault?: TaskPermission): boolean;

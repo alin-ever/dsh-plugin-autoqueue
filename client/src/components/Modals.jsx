@@ -31,6 +31,7 @@ export function NewTaskModal(props) {
   var webhook = React.useState(config.webhook || "");
   var autoArchive = React.useState(config.autoArchive !== false);
   var enableNotifications = React.useState(config.enableNotifications === true);
+  var reuseSession = React.useState(true);
   var advancedOpen = React.useState(false);
   var notifyOpen = React.useState(false);
   var error = React.useState("");
@@ -53,6 +54,7 @@ export function NewTaskModal(props) {
     if (timeoutMinutes[0]) data.timeoutMs = parseInt(timeoutMinutes[0], 10) * 60000;
     if (maxAttempts[0]) data.maxAttempts = parseInt(maxAttempts[0], 10);
     if (webhook[0].trim()) data.webhook = webhook[0].trim();
+    if (cron[0] && reuseSession[0]) data.reuseSession = true;
 
     submitting[1](true); error[1]("");
     props.onCreate(data).catch(function (caught) {
@@ -75,6 +77,7 @@ export function NewTaskModal(props) {
         h(Field, { label: "一次性定时" }, h("input", { type: "datetime-local", value: schedule[0], onChange: function (event) { schedule[1](event.target.value); } }))
       ),
       h(CronField, { label: "执行截止时间", value: deadline[0], onChange: deadline[1], presets: DEADLINE_PRESETS, placeholder: "0 21 * * *" }),
+      cron[0] && h(CheckField, { checked: reuseSession[0], onChange: reuseSession[1], label: "复用会话（循环任务在同一会话中继续执行，保留上下文）" }),
       h(Disclosure, { title: "高级设置", open: advancedOpen[0], onToggle: function () { advancedOpen[1](!advancedOpen[0]); } },
         h("div", { className: "aq-row three" },
           h(Field, { label: "最多推进轮数" }, h("input", { type: "number", min: "1", max: "100", value: maxGoalRounds[0], onChange: function (event) { maxGoalRounds[1](event.target.value); } })),
@@ -110,6 +113,7 @@ export function EditTaskModal(props) {
   var timeoutMinutes = React.useState(task.timeoutMs ? String(Math.round(task.timeoutMs / 60000)) : "");
   var maxAttempts = React.useState(task.maxAttempts == null ? "" : String(task.maxAttempts));
   var webhook = React.useState(task.webhook || "");
+  var reuseSession = React.useState(task.reuseSession === true);
   var advancedOpen = React.useState(false);
   var notifyOpen = React.useState(false);
   var error = React.useState("");
@@ -134,6 +138,7 @@ export function EditTaskModal(props) {
     add("timeoutMs", timeoutMinutes[0] ? parseInt(timeoutMinutes[0], 10) * 60000 : null, task.timeoutMs ?? null);
     add("maxAttempts", numberOrUndefined(maxAttempts[0]) ?? null, task.maxAttempts ?? null);
     add("webhook", webhook[0].trim() || null, task.webhook || null);
+    add("reuseSession", reuseSession[0], task.reuseSession === true);
     if (!Object.keys(patch).length) { props.onClose(); return; }
     submitting[1](true); error[1]("");
     props.onUpdate(task.key, patch).catch(function (caught) { error[1](caught.message || "保存失败"); }).finally(function () { submitting[1](false); });
@@ -153,6 +158,7 @@ export function EditTaskModal(props) {
         h(Field, { label: "一次性定时" }, h("input", { type: "datetime-local", value: schedule[0], onChange: function (event) { schedule[1](event.target.value); } })),
         h(CronField, { label: "执行截止时间", value: deadline[0], onChange: deadline[1], presets: DEADLINE_PRESETS, placeholder: "0 21 * * *" })
       ),
+      cron[0] && h(CheckField, { checked: reuseSession[0], onChange: reuseSession[1], label: "复用会话（循环任务在同一会话中继续执行，保留上下文）" }),
       h(Disclosure, { title: "高级设置", open: advancedOpen[0], onToggle: function () { advancedOpen[1](!advancedOpen[0]); } },
         h("div", { className: "aq-row three" },
           h(Field, { label: "最多推进轮数" }, h("input", { type: "number", min: "1", max: "100", value: maxGoalRounds[0], onChange: function (event) { maxGoalRounds[1](event.target.value); }, placeholder: "默认 40" })),
@@ -253,7 +259,8 @@ export function ConfigPanel(props) {
         h(CheckField, { checked: enableNotifications[0], onChange: function (checked) { enableNotifications[1](checked); if (checked) requestNotificationPermission(); }, label: "浏览器结果通知" })
       ),
       h(ConfigSection, { title: "存储" },
-        h(Field, { label: "队列根目录", help: "只读，由启动配置决定" }, h("input", { value: config.queueDir || "由启动配置决定", disabled: true, readOnly: true }))
+        h(Field, { label: "队列根目录", help: "只读，由启动配置决定" }, h("input", { value: config.queueDir || "由启动配置决定", disabled: true, readOnly: true })),
+        h(Field, { label: "AI 直接操作队列", help: "只读，在插件启动配置中设置 enableHostAiTools" }, h("input", { value: config.enableHostAiTools !== false ? "已启用" : "已关闭", disabled: true, readOnly: true }))
       ),
       h("div", { className: "aq-d-actions aq-config-actions" },
         h("button", { type: "button", className: "aq-btn", onClick: props.onClose, disabled: saving[0] }, "取消"),
@@ -316,7 +323,7 @@ function CronField(props) {
   return h("div", { className: "aq-field" },
     h("span", { className: "aq-field-label" }, props.label),
     h("div", { className: "aq-cron-field" },
-      h("select", { "aria-label": props.label + "预设", value: selectValue[0], onChange: function (event) { var value = event.target.value; selectValue[1](value); props.onChange(value === "__custom__" ? "" : value); } },
+      h("select", { "aria-label": props.label + "预设", value: selectValue[0], onChange: function (event) { var value = event.target.value; selectValue[1](value); if (value !== "__custom__") props.onChange(value); } },
         (props.presets || []).map(function (preset) { return h("option", { key: preset.value, value: preset.value }, preset.label); })
       ),
       h("input", { "aria-label": props.label + "自定义表达式", value: custom ? props.value : "", onChange: function (event) { props.onChange(event.target.value); }, placeholder: props.placeholder, disabled: !custom })

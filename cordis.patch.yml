@@ -11,7 +11,7 @@
         maxAttempts: 3
         taskTimeoutMs: 10800000
         enableNotifications: false
-        enableHostAiTools: false   # 避免改变普通 DSH 会话的 tool catalog
+        enableHostAiTools: true   # 默认注入 AI 工具，让 Host 会话可直接操作队列
         priority: 5
         scanIntervalMs: 15000
         maxConcurrent: 1

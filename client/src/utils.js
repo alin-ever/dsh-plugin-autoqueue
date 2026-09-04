@@ -1,4 +1,4 @@
-﻿export var STATUS_CONFIG = {
+export var STATUS_CONFIG = {
   pending: { label: "\u5F85\u6267\u884C", color: "#596579" },
   running: { label: "\u6267\u884C\u4E2D", color: "#175cd3" },
   done: { label: "\u5DF2\u5B8C\u6210", color: "#067647" },
@@ -65,13 +65,23 @@ export function cronToHuman(cron) {
   var parts = cron.trim().split(/\s+/);
   if (parts.length !== 5) return cron;
   var min = parts[0], hour = parts[1], dom = parts[2], month = parts[3], dow = parts[4];
-  var time = hour.padStart(2, "0") + ":" + min.padStart(2, "0");
-  if (dom === "*" && month === "*" && dow === "*") return "\u6BCF\u5929 " + time;
+
+  // Every minute: * * * * *
+  if (min === "*" && hour === "*" && dom === "*" && month === "*" && dow === "*") return "\u6BCF\u5206\u949F";
+
+  // Every N minutes: */N * * * *
+  if (min.indexOf("*/") === 0 && hour === "*" && dom === "*" && month === "*" && dow === "*") return "\u6BCF" + min.slice(2) + "\u5206\u949F";
+
+  var time = (hour !== "*" ? hour.padStart(2, "0") : "*") + ":" + (min !== "*" ? min.padStart(2, "0") : "*");
+  if (dom === "*" && month === "*" && dow === "*") {
+    if (hour === "*") return "\u6BCF\u5C0F\u65F6" + min.padStart(2, "0") + "\u5206";
+    if (min === "*") return "\u6BCF\u5929" + hour.padStart(2, "0") + ":00";
+    return "\u6BCF\u5929 " + time;
+  }
   if (dom === "*" && month === "*" && dow === "1-5") return "\u5DE5\u4F5C\u65E5 " + time;
   var DOW_MAP = { 0: "\u65E5", 1: "\u4E00", 2: "\u4E8C", 3: "\u4E09", 4: "\u56DB", 5: "\u4E94", 6: "\u516D" };
   if (dom === "*" && month === "*" && /^\d$/.test(dow) && DOW_MAP[dow]) return "\u6BCF\u5468" + DOW_MAP[dow] + " " + time;
   if (/^\d+$/.test(dom) && month === "*" && dow === "*") return "\u6BCF\u6708" + parseInt(dom, 10) + "\u65E5 " + time;
-  if (min.indexOf("*/") === 0) return "\u6BCF" + min.slice(2) + "\u5206\u949F";
   return cron;
 }
 
