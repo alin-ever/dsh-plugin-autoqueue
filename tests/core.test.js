@@ -832,7 +832,7 @@ test("runtime poll dirty latch coalesces bursts and replays events received duri
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(pollCalls, 2, "the follow-up pass consumes the dirty latch exactly once");
 
-  engine.dispose();
+  await engine.dispose();
   assert.equal(engine.requestRuntimePoll(), false);
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(pollCalls, 2);
@@ -950,7 +950,7 @@ test("native runtime listeners only dirty-latch relevant edges and uninstall cle
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(pollCalls, 1, "unloaded listeners cannot schedule later polls");
   assert.equal(scanCalls, 1, "unloaded listeners cannot schedule later scans");
-  engine.dispose();
+  await engine.dispose();
 });
 
 test("overlapping create scan replays after the active inbox snapshot", async () => {
@@ -986,7 +986,7 @@ test("overlapping create scan replays after the active inbox snapshot", async ()
 
   assert.deepEqual(dispatched, ["snapshot-old", "snapshot-new"]);
   assert.equal(gateCalls, 2, "the retained edge performs one authoritative replay");
-  engine.dispose();
+  await engine.dispose();
 });
 
 test("scan blocked by a provisional dispatch reservation replays after final Host rejection", async () => {
@@ -1053,7 +1053,7 @@ test("scan blocked by a provisional dispatch reservation replays after final Hos
     [findByKey("reservation-old").status, findByKey("reservation-new").status].sort(),
     ["pending", "running"],
   );
-  engine.dispose();
+  await engine.dispose();
 });
 
 test("a retained edge waits for the last reservation release and replays once", async () => {
@@ -1131,7 +1131,7 @@ test("a retained edge waits for the last reservation release and replays once", 
   assert.equal(statuses.filter(status => status === "pending").length, 2);
   await new Promise(resolve => setTimeout(resolve, 25));
   assert.equal(createdSessionIds.length, 2, "the replay neither exceeds concurrency nor self-rearms");
-  engine.dispose();
+  await engine.dispose();
 });
 
 test("queued pending scan respects dispose and a busy Host does not self-spin", async () => {
@@ -3378,7 +3378,7 @@ test("unknown Host state preempts owned work and dispose cannot resume it", asyn
 
   const polling = engine.pollRunning();
   await pauseStarted.promise;
-  engine.dispose();
+  await engine.dispose();
   pauseResult.resolve({ id: "goal-unknown", revision: 2 });
   await polling;
 
@@ -3413,7 +3413,7 @@ test("dispose gates queued dispatch and contains a goal that resolves across cle
   const task = listTaskFiles().find(item => item.key === "dispose-race");
   const dispatch = engine._dispatch(task);
   await goalStarted.promise;
-  engine.dispose();
+  await engine.dispose();
   goalResult.resolve(ok({ ref: { id: "goal-dispose", revision: 1 } }));
   await dispatch;
 
