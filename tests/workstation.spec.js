@@ -96,7 +96,7 @@ async function mockApi(page, setup = {}) {
         strictHostIsolation: true,
         foregroundPreemption: true,
         nativeRuntimeMonitoring: true,
-        sessionSandboxMode: "workspace-write",
+        sessionSandboxMode: "danger-full-access",
         sessionApprovalPolicy: "never",
         hostAiToolsDefaultEnabled: false,
       },
@@ -964,7 +964,7 @@ test("the API drawer reads live capabilities and keeps stable discovery paths", 
   await expect(dialog).toContainText("16 个");
   await expect(dialog).toContainText("默认注册");
   await expect(dialog).toContainText("关闭");
-  await expect(dialog).toContainText("workspace-write");
+  await expect(dialog).toContainText("danger-full-access");
   await expect(dialog).toContainText("原生 Runtime 监控");
   await expect(dialog).toContainText("enableHostAiTools");
   await expect(dialog).toContainText("/api/queue/events");

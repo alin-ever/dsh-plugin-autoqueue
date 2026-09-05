@@ -458,7 +458,7 @@ function TaskRow(props) {
   var attention = taskNeedsAttention(task);
   var selectable = task.status !== "running" && !task.archivedAt;
   var sessionId = task.sessionId || task.lastSessionId || (task.executions && task.executions.length ? task.executions[task.executions.length - 1].sessionId : null);
-  var plan = task.cron ? cronToHuman(task.cron) + (task.reuseSession !== false ? " · 复用会话" : "") : (task.schedule ? formatIso(task.schedule) : "即时派发");
+  var plan = task.cron ? cronToHuman(task.cron) : (task.schedule ? formatIso(task.schedule) : "即时派发");
   var recent = task.status === "pending"
     ? pendingReason(task, props.snap)
     : (task.status === "running"
