@@ -19,7 +19,7 @@ autoqueue 不是普通会话的全局自动化开关。每次执行都遵守以�
 5. 任务正文只通过一次完整的 `goals.create.objective` 入场。不会调用 `workspace.create`、不会调用 `session.selectModel`，也不会再发送一条重复的初始 queue prompt。
 6. DSH 原生 `agent/status`、owned `goal/changed` 与 `session/disposed` 事件只负责唤醒权威对账；每轮仍读取 `sessions.list` / history。存在活跃普通会话或列表不可信时拒绝新派发，运行中的 owned goal 先持久 pause、再暂停并协作取消 turn；连续两次可信空闲后才无 prompt 恢复。
 7. 手动停止、deadline、超时和清理先持久化取消意图。`sessions.cancel` 成功只代表 DSH 受理请求；ownership 会一直保留到受理之后连续两次权威 idle/缺席观察，再结算或重试。
-8. 默认最大并发为 `1`、终态自动归档开启、浏览器通知关闭。Host 普通会话中的 `autoqueue_*` AI 工具也默认关闭，避免改变其 prompt 与 tool catalog。
+8. 默认最大并发为 `1`、终态自动归档开启、浏览器通知关闭。插件加载后会向普通 Host 会话自动注册 16 个 `autoqueue_*` 工具；它们不会自行执行或改变普通会话状态，且在 `autoqueue-session-*` 自有任务 Agent 中被隐藏并由执行 guard 拒绝。
 
 DSH rc.2 的公开选择接口会持久化 Host 默认路由，因此任务和运行时配置都不能覆盖模型、工作区或任意 Agent preset。`GET /api/queue/options` 会明确返回三类空数组和隔离锁，而不是枚举 Host 状态。
 
@@ -95,7 +95,7 @@ React 看板已暴露安全业务能力的完整操作面：
 
 ## 外部 AI 与 HTTP API
 
-外部 AI 的稳定边界是带鉴权的 HTTP API，而不是 Host 普通会话的工具注入：
+DSH 普通会话默认可直接调用自动注入的 Host 工具；DSH 进程外的 AI 使用带鉴权的 HTTP API：
 
 AI 自然语言中的正式名称是「任务队列」，「老登」是同一能力的别称；例如“交给老登执行”和“加入任务队列”都会映射到现有 `autoqueue_*` 工具。别称不新增工具名、HTTP 路径或第二套控制面。
 
@@ -176,7 +176,7 @@ config:
   maxAttempts: 3
   taskTimeoutMs: 10800000
   enableNotifications: false
-  enableHostAiTools: false
+  enableHostAiTools: true
   priority: 5
   scanIntervalMs: 15000
   maxConcurrent: 1
@@ -184,7 +184,9 @@ config:
 
 - `maxConcurrent` 持久化到账本，范围 `1-8`；插件启动时仅在账本当前值为 `1` 时应用非空启动值。
 - `queueDir`、`allowedHosts`、`apiToken`、`baseUrl`、`enableHostAiTools` 属于启动边界；`queueDir` 不能运行时热切换。
-- `enableHostAiTools: true` 会把 16 个 `autoqueue_*` 工具和系统提示注入 Host 普通会话，只有明确需要时才开启。外部 AI 走 HTTP/OpenAPI，不依赖此开关。
+- `enableHostAiTools` 默认是 `true`：插件加载后自动把 16 个 `autoqueue_*` 工具和一段精简发现提示注入普通 Host 会话。设为 `false` 可关闭注入；外部 AI 的 HTTP/OpenAPI 接入不受影响。
+- 工具默认请求 `http://127.0.0.1:3080`；若 DSH Web 使用其他地址或端口，必须在启动配置中把 `baseUrl` 设为该实例可访问的 HTTP 基地址。
+- 自动注入本身不会给队列任务增加递归控制入口：`autoqueue-session-*` Agent 看不到这些 Host 工具，执行层 guard 也会拒绝绕过可见性的工具调用。直接 HTTP 访问仍遵循前述本机/远程鉴权边界。
 
 ## 架构与开发
 
@@ -195,7 +197,7 @@ lib/
 ├── runner.js    所有 apiProxy 会话/goal 调用和 session ownership 守卫
 ├── ledger.js    原子账本、CAS generation、requestId 去重、并发和恢复
 ├── files.js     收件箱、调度解析、运行目录和安全报告读取
-├── ai-tool.js   可选 Host AI 工具的 HTTP 薄客户端
+├── ai-tool.js   默认自动注册的 16 个 Host AI 工具 HTTP 薄客户端
 └── client.js    由 client/src/ 构建的浏览器 bundle
 ```
 

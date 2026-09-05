@@ -406,7 +406,7 @@ function TaskList(props) {
       active: { title: "没有正在推进的任务", body: "待执行、执行中和中断的任务会显示在这里。", action: "创建任务" },
       cron: { title: "还没有循环任务", body: "创建循环任务后，可在这里查看下一次执行时间。", action: "创建循环任务" },
       schedule: { title: "还没有定时任务", body: "创建一次性定时任务后，可在这里查看执行时间。", action: "创建定时任务" },
-      archived: { title: "归档区为空", body: "归档后的任务会保留状态和详情。", action: "返回任务队列" }
+      archived: { title: "归档区为空", body: "归档后的任务会保留状态和详情。" }
     };
     var empty = emptyByGroup[props.snap.navGroup] || emptyByGroup.all;
     if (props.snap.filter !== "all") empty = { title: "没有符合条件的任务", body: "可以切换状态或修改搜索关键词。", action: "查看全部状态" };
@@ -419,7 +419,7 @@ function TaskList(props) {
       h("div", null,
         h("h2", null, empty.title),
         h("p", null, empty.body),
-        h("button", { className: "aq-btn primary", onClick: onEmptyAction }, empty.action)
+        empty.action && h("button", { className: "aq-btn primary", onClick: onEmptyAction }, empty.action)
       )
     );
   }
@@ -590,6 +590,10 @@ function ApiAccessPanel(props) {
   var tools = data && Array.isArray(data.aiTools) ? data.aiTools : [];
   var aliases = data && Array.isArray(data.aliases) ? data.aliases : [];
   var registration = data && data.aiToolRegistration ? data.aiToolRegistration : null;
+  var hostToolsEnabled = registration
+    ? (typeof registration.enabled === "boolean" ? registration.enabled : registration.defaultEnabled === true)
+    : null;
+  var registrationConfigKey = registration && (registration.configKey || registration.optInConfig);
   var authentication = data && data.authentication && typeof data.authentication === "object" ? data.authentication : null;
   var authSchemes = authentication && Array.isArray(authentication.schemes) ? authentication.schemes : [];
   var localDirect = authentication && authentication.loopbackDirectAccess === true;
@@ -631,10 +635,14 @@ function ApiAccessPanel(props) {
         h("section", { className: "aq-cap-summary", "aria-label": "AI 接入摘要" },
           h(CapabilityFact, { label: "API 版本", value: data.apiVersion || "未知" }),
           h(CapabilityFact, { label: "AI 工具", value: tools.length + " 个" }),
-          h(CapabilityFact, { label: "默认注册", value: registration ? (registration.defaultEnabled ? "开启" : "关闭") : "未知" }),
+          h(CapabilityFact, { label: "当前注册", value: hostToolsEnabled === null ? "未知" : (hostToolsEnabled ? "开启" : "关闭") }),
           h(CapabilityFact, { label: "自然语言别称", value: aliases.length ? aliases.join("、") : "未声明" })
         ),
-        registration && h("p", { className: "aq-cap-optin" }, "AI 工具启用项：", h("code", null, registration.optInConfig || "未声明")),
+        registration && h("p", { className: "aq-cap-optin" }, registration.defaultEnabled
+          ? (hostToolsEnabled
+            ? h(React.Fragment, null, "默认自动注入；如需关闭，请设置 ", h("code", null, (registrationConfigKey || "enableHostAiTools") + ": false"), "。")
+            : h(React.Fragment, null, "当前已通过 ", h("code", null, (registrationConfigKey || "enableHostAiTools") + ": false"), " 关闭自动注入。"))
+          : h(React.Fragment, null, "AI 工具启用项：", h("code", null, registrationConfigKey || "未声明"))),
         h("section", { className: "aq-cap-section" },
           h("h4", null, "核心能力"),
           h("div", { className: "aq-cap-tags" }, Object.keys(features).filter(function (key) {
@@ -735,7 +743,7 @@ function capabilityLabel(key) {
     antiBlock: "自动恢复", retries: "失败重试", webhook: "Webhook", serverSentEvents: "SSE 实时事件",
     batchArchive: "批量归档", readTracking: "已读追踪", externalAiHttpApi: "外部 AI HTTP",
     strictHostIsolation: "严格宿主隔离", foregroundPreemption: "前台优先",
-    nativeRuntimeMonitoring: "原生 Runtime 监控"
+    nativeRuntimeMonitoring: "原生 Runtime 监控", hostAiToolsDefaultEnabled: "AI 工具默认自动注入"
   };
   return labels[key] || key;
 }

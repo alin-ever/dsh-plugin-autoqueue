@@ -470,10 +470,14 @@ async function main() {
     await board().getByRole("button", { name: "AI / API 接入", exact: true }).click();
     const capabilities = await browserResponseJson(await responsePromise, "capabilities UI");
     assert.equal(capabilities?.aiTools?.length, 16);
+    assert.equal(capabilities?.aiToolRegistration?.defaultEnabled, true);
+    assert.equal(capabilities?.aiToolRegistration?.enabled, true);
     const openapi = await fetchJson("/api/autoqueue/openapi.json");
     assert.match(String(openapi.openapi), /^3\./);
     const dialog = page.getByRole("dialog", { name: "AI / API 接入" });
     await pwExpect(dialog).toContainText("Host AI tools");
+    await pwExpect(dialog).toContainText("当前注册");
+    await pwExpect(dialog).toContainText("默认自动注入");
     await pwExpect(dialog).toContainText("OpenAPI 3.1");
     await dialog.getByRole("button", { name: "关闭接入面板" }).click();
   });
