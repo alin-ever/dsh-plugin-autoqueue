@@ -9,7 +9,7 @@
 | files | `lib/files.js` | 私有目录、原子文件 I/O、任务 key/调度校验、收件箱和报告安全读取 |
 | ledger | `lib/ledger.js` | 权威账本、schema/容量校验、原子事务、CAS generation、requestId 去重、并发和恢复 |
 | runner | `lib/runner.js` | 唯一的 `apiProxy` 调用层；专属 session/goal 生命周期和 ownership 守卫 |
-| engine | `lib/engine.js` | 扫描、派发、前台让行、轮询、反阻塞、重试、动作、配置和结算 |
+| engine | `lib/engine-v2.js` | 扫描、派发、前台让行、轮询、反阻塞、重试、动作、配置和结算 |
 | Host 入口 | `lib/index.js` | DSH 服务装配、approval policy、owned presets、HTTP/SSE、鉴权和 AI 工具自动注入 |
 
 依赖方向是 `index/UI/AI → HTTP → engine → runner/ledger/files`。Host AI 工具是 HTTP 薄客户端，不能绕过 HTTP 校验直接调用 engine 或 ledger。

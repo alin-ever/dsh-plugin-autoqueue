@@ -12,20 +12,24 @@ autoqueue 是 DSH 的无人值守任务队列插件。丢 .md 文件进收件箱
 |---|---|---|
 | 设计文档 | `autoqueue-design.md` | 理解架构、隔离决策、执行模型、UI/外部 AI 能力面 |
 | HTTP API | `docs/api.md` | 视图层开发、外部集成、接口说明 |
-| 核心层 API | `docs/core-api.md` | 内部模块接口（engine/runner/ledger/files） |
+| 核心层 API | `docs/core-api.md` | 内部模块接口（engine-v2/runner/ledger/files/state-machine） |
 | README | `README.md` | 快速了解项目、安装使用 |
 
 ## 源码位置
 
 ```
 lib/
-├── index.js     ← 插件入口：鉴权/路由/SSE/定时器/owned preset/approval policy/AI 工具注入
-├── engine.js    ← 编排层：派发 / 前台协作让行 / 轮询结算 / 反阻塞 / 重试 / containment
-├── runner.js    ← 会话驱动：所有 apiProxy 调用 + autoqueue session ownership 守卫
-├── ledger.js    ← 账本：原子读写 / 去重 / 并发控制 / 重启恢复
-├── files.js     ← I/O 层：收件箱扫描 / 调度解析 / 原子写入
-├── ai-tool.js   ← Host AI 工具层：16 个默认自动注册的 HTTP 薄客户端工具
-└── client.js    ← 浏览器看板：esbuild 构建产物，源文件在 client/src/
+├── index.js         ← 插件入口：鉴权/路由/SSE/定时器/owned preset/approval policy/AI 工具注入
+├── engine-v2.js     ← 编排层：派发 / 前台协作让行 / 轮询结算 / 反阻塞 / 重试 / containment
+├── runner.js        ← 会话驱动：所有 apiProxy 调用 + autoqueue session ownership 守卫
+├── ledger.js        ← 账本：原子读写 / 去重 / 并发控制 / 重启恢复
+├── files.js         ← I/O 层：收件箱扫描 / 调度解析 / 原子写入
+├── state-machine.js ← 状态机：execution + cancellation 双区域纯函数转换
+├── scheduler.js     ← 调度器：cron 解析、nextRunAt 计算、catch-up
+├── lifecycle.js     ← 生命周期：反阻塞 / 重试退避 / 结算 / 超时检测
+├── cancellation.js  ← 取消收敛：clear goal → cancel session → 两次空闲确认
+├── ai-tool.js       ← Host AI 工具层：16 个默认自动注册的 HTTP 薄客户端工具
+└── client.js        ← 浏览器看板：esbuild 构建产物，源文件在 client/src/
 
 client/src/
 ├── index.jsx              ← 入口：ModuleLoader 包装 + DOM 挂载
@@ -69,7 +73,7 @@ npm run watch:client
 ## 开发约定
 
 - 所有 apiProxy 调用集中在 `runner.js`，其他模块不碰
-- 状态机逻辑在 `engine.js` 内联，没有独立 state-machine 模块
+- 状态机逻辑在 `state-machine.js` 独立模块，`lifecycle.js` 封装重试/反阻塞/结算，`engine-v2.js` 编排组装
 - AI 工具层通过 HTTP 透传到 engine，不直接访问 engine 内部；默认随插件加载向普通 Host 会话注册，`enableHostAiTools: false` 可显式关闭
 - `autoqueue-session-*` 自有任务 Agent 必须通过作用域隐藏与执行 guard 禁止调用这 16 个队列控制工具，避免递归建任务或修改队列
 - 外部 AI 的默认接入流程是 capabilities → OpenAPI → compact state → detail，不依赖 Host AI 工具
