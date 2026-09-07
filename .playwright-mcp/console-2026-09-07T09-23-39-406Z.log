@@ -1,0 +1,36 @@
+[   21504ms] [ERROR] TypeError: createTableHook(...) is not a function
+    at CompactTaskList (http://127.0.0.1:3080/plugins/@alintever/dsh-plugin-autoqueue/client.js?rev=814506293b89:16116:7)
+    at Xo (http://127.0.0.1:3080/assets/index-ClqxG24t.js:54:17240)
+    at al (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:3159)
+    at v0 (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:45131)
+    at p0 (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:40016)
+    at q4 (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:39944)
+    at mi (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:39797)
+    at Sl (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:36121)
+    at c0 (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:35069)
+    at Z (http://127.0.0.1:3080/assets/index-ClqxG24t.js:41:1627) @ http://127.0.0.1:3080/assets/index-ClqxG24t.js:55
+[   21506ms] TypeError: createTableHook(...) is not a function
+    at CompactTaskList (http://127.0.0.1:3080/plugins/@alintever/dsh-plugin-autoqueue/client.js?rev=814506293b89:16116:7)
+    at Xo (http://127.0.0.1:3080/assets/index-ClqxG24t.js:54:17240)
+    at al (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:3159)
+    at v0 (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:45131)
+    at p0 (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:40016)
+    at q4 (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:39944)
+    at mi (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:39797)
+    at Sl (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:36121)
+    at c0 (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:35069)
+    at Z (http://127.0.0.1:3080/assets/index-ClqxG24t.js:41:1627)
+[  281707ms] [WARNING] [web-runtime] connection lost, retry #1 @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:115
+[  281713ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_RESET @ http://127.0.0.1:3080/plugins/events:0
+[  281714ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_RESET @ http://127.0.0.1:3080/api/queue/events?archived=1:0
+[  284049ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:3080/api/events.mux' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:10132
+[  284049ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:3080/api/host.describe:0
+[  284049ms] [WARNING] WebSocket connection to 'ws://127.0.0.1:3080/api/events.mux' failed: WebSocket is closed before the connection is established. @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:10167
+[  284049ms] [WARNING] WebSocket connection to 'ws://127.0.0.1:3080/api/events.host' failed: WebSocket is closed before the connection is established. @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:10167
+[  284049ms] [WARNING] [web-runtime] connection lost, retry #2 @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:115
+[  286769ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:3080/plugins/events:0
+[  286769ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:3080/api/queue/events?archived=1:0
+[  286816ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:3080/api/host.describe:0
+[  286816ms] [WARNING] WebSocket connection to 'ws://127.0.0.1:3080/api/events.mux' failed: WebSocket is closed before the connection is established. @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:10167
+[  286816ms] [WARNING] WebSocket connection to 'ws://127.0.0.1:3080/api/events.host' failed: WebSocket is closed before the connection is established. @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:10167
+[  286817ms] [WARNING] [web-runtime] connection lost, retry #3 @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:115

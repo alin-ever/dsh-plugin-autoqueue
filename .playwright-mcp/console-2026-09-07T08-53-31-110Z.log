@@ -1,0 +1,3 @@
+[  264904ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_RESET @ http://127.0.0.1:3080/api/queue/events?archived=1:0
+[  264905ms] [WARNING] [web-runtime] connection lost, retry #1 @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:115
+[  264909ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_RESET @ http://127.0.0.1:3080/plugins/events:0

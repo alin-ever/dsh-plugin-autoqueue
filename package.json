@@ -28,6 +28,7 @@
   },
   "files": [
     "lib/*.js",
+    "templates/*.md",
     "cordis.patch.yml",
     "docs/api.md",
     "docs/core-api.md",
@@ -58,9 +59,10 @@
     "dsh": ">=0.1.1-rc.2 <0.1.2"
   },
   "scripts": {
-    "build:client": "esbuild client/src/index.jsx --bundle --outfile=lib/client.js --format=iife --external:react --external:react-dom/client --loader:.css=text --loader:.png=dataurl --define:React=window.__React --tree-shaking=false",
+    "build:css": "npx @tailwindcss/cli -i client/src/styles/tailwind.css -o client/src/styles/tailwind-output.css --minify",
+    "build:client": "npm run build:css && esbuild client/src/index.jsx --bundle --outfile=lib/client.js --format=iife --alias:react=./client/src/react-shim.js --alias:react/jsx-runtime=./client/src/react-jsx-runtime-shim.js --alias:react-dom=./client/src/react-dom-shim.js --external:react-dom/client --loader:.css=text --loader:.png=dataurl --define:React=window.__React --banner:js=\"window.React=window.React||window.__React;window.ReactDOM=window.ReactDOM||window.__ReactDOM;\" --tree-shaking=false",
     "build:test-harness": "esbuild tests/harness.jsx --bundle --outfile=tests/.generated/harness.js --loader:.css=text --loader:.png=dataurl",
-    "watch:client": "esbuild client/src/index.jsx --bundle --outfile=lib/client.js --format=iife --external:react --external:react-dom/client --loader:.css=text --loader:.png=dataurl --define:React=window.__React --tree-shaking=false --watch=forever",
+    "watch:client": "esbuild client/src/index.jsx --bundle --outfile=lib/client.js --format=iife --alias:react=./client/src/react-shim.js --alias:react/jsx-runtime=./client/src/react-jsx-runtime-shim.js --alias:react-dom=./client/src/react-dom-shim.js --external:react-dom/client --loader:.css=text --loader:.png=dataurl --define:React=window.__React --banner:js=\"window.React=window.React||window.__React;window.ReactDOM=window.ReactDOM||window.__ReactDOM;\" --tree-shaking=false --watch=forever",
     "build": "npm run build:client",
     "prepack": "npm run build:client",
     "prepublishOnly": "npm run build:client && npm run test:unit",
@@ -82,5 +84,10 @@
     "esbuild": "^0.28.2",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
+  },
+  "dependencies": {
+    "@headlessui/react": "^2.2.10",
+    "@tailwindcss/cli": "^4.3.3",
+    "tailwindcss": "^4.3.3"
   }
 }

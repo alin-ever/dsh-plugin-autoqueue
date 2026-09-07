@@ -1,0 +1,37 @@
+- generic [active] [ref=f3e1]:
+  - generic [ref=f3e4]:
+    - generic [ref=f3e7]:
+      - generic [ref=f3e8]:
+        - button "新建会话" [ref=f3e9] [cursor=pointer]
+        - button "收起侧边栏" [ref=f3e38] [cursor=pointer]
+      - button "新建会话" [ref=f3e41] [cursor=pointer]:
+        - generic [ref=f3e44]: 新会话
+      - button "AutoQueue 任务队列" [ref=f3e45] [cursor=pointer]:
+        - generic [ref=f3e52]: 任务队列
+      - generic [ref=f3e55]:
+        - generic [ref=f3e56]:
+          - generic [ref=f3e57]: 工作区
+          - generic [ref=f3e59]:
+            - button "搜索会话" [ref=f3e60] [cursor=pointer]
+            - textbox "搜索会话…"
+          - generic [ref=f3e64]:
+            - button "视图选项" [ref=f3e66] [cursor=pointer]
+            - button "添加工作区" [ref=f3e69] [cursor=pointer]
+        - tree "会话" [ref=f3e75]:
+          - generic [ref=f3e76]: 暂无会话
+      - button "设置" [ref=f3e80] [cursor=pointer]
+    - generic [ref=f3e94]:
+      - generic [ref=f3e97]:
+        - generic [ref=f3e102]: 探索未至之境
+        - generic [ref=f3e103]: 预览版
+      - button "选择工作区" [ref=f3e105] [cursor=pointer]
+      - generic [ref=f3e113] [cursor=pointer]:
+        - textbox "选择工作区" [ref=f3e116]:
+          - /placeholder: 选择一个工作区开始
+        - generic [ref=f3e117]:
+          - generic [ref=f3e118]:
+            - button "命令" [disabled]
+          - generic [ref=f3e119]:
+            - button "发送消息" [disabled]
+  - button "打开任务队列" [ref=f3e122] [cursor=pointer]:
+    - generic [ref=f3e125]: 任务队列

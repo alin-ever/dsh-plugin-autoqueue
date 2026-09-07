@@ -1,0 +1,63 @@
+[    1707ms] [ERROR] Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem. @ http://127.0.0.1:3080/plugins/@alintever/dsh-plugin-autoqueue/client.js?rev=2f9d41714de0:418
+[    1714ms] [ERROR] Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem. @ http://127.0.0.1:3080/plugins/@alintever/dsh-plugin-autoqueue/client.js?rev=2f9d41714de0:418
+[    1724ms] [ERROR] TypeError: Cannot read properties of null (reading 'useRef')
+    at exports.useRef (http://127.0.0.1:3080/plugins/@alintever/dsh-plugin-autoqueue/client.js?rev=2f9d41714de0:983:37)
+    at Ie (http://127.0.0.1:3080/plugins/@alintever/dsh-plugin-autoqueue/client.js?rev=2f9d41714de0:7470:108)
+    at Xo (http://127.0.0.1:3080/assets/index-ClqxG24t.js:54:17240)
+    at D3 (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:1576)
+    at v0 (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:46328)
+    at p0 (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:40016)
+    at q4 (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:39944)
+    at mi (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:39797)
+    at Sl (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:36121)
+    at c0 (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:35069) @ http://127.0.0.1:3080/assets/index-ClqxG24t.js:55
+[    1736ms] TypeError: Cannot read properties of null (reading 'useRef')
+    at exports.useRef (http://127.0.0.1:3080/plugins/@alintever/dsh-plugin-autoqueue/client.js?rev=2f9d41714de0:983:37)
+    at Ie (http://127.0.0.1:3080/plugins/@alintever/dsh-plugin-autoqueue/client.js?rev=2f9d41714de0:7470:108)
+    at Xo (http://127.0.0.1:3080/assets/index-ClqxG24t.js:54:17240)
+    at D3 (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:1576)
+    at v0 (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:46328)
+    at p0 (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:40016)
+    at q4 (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:39944)
+    at mi (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:39797)
+    at Sl (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:36121)
+    at c0 (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:35069)
+[  296215ms] Error: Dynamic require of "react-dom" is not supported
+    at http://127.0.0.1:3080/plugins/@alintever/dsh-plugin-autoqueue/client.js?rev=2f9d41714de0:13:11
+    at http://127.0.0.1:3080/plugins/@alintever/dsh-plugin-autoqueue/client.js?rev=2f9d41714de0:3497:26
+    at http://127.0.0.1:3080/plugins/@alintever/dsh-plugin-autoqueue/client.js?rev=2f9d41714de0:8955:3
+[  382148ms] [WARNING] [web-runtime] connection lost, retry #1 @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:115
+[  382159ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_RESET @ http://127.0.0.1:3080/plugins/events:0
+[  384664ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:3080/api/host.describe:0
+[  384664ms] [WARNING] WebSocket connection to 'ws://127.0.0.1:3080/api/events.mux' failed: WebSocket is closed before the connection is established. @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:10167
+[  384665ms] [WARNING] WebSocket connection to 'ws://127.0.0.1:3080/api/events.host' failed: WebSocket is closed before the connection is established. @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:10167
+[  384665ms] [WARNING] [web-runtime] connection lost, retry #2 @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:115
+[  387205ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:3080/plugins/events:0
+[  387407ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:3080/api/host.describe:0
+[  387407ms] [WARNING] WebSocket connection to 'ws://127.0.0.1:3080/api/events.mux' failed: WebSocket is closed before the connection is established. @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:10167
+[  387407ms] [WARNING] WebSocket connection to 'ws://127.0.0.1:3080/api/events.host' failed: WebSocket is closed before the connection is established. @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:10167
+[  387408ms] [WARNING] [web-runtime] connection lost, retry #3 @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:115
+[  390601ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:3080/api/host.describe:0
+[  390601ms] [WARNING] WebSocket connection to 'ws://127.0.0.1:3080/api/events.mux' failed: WebSocket is closed before the connection is established. @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:10167
+[  390601ms] [WARNING] WebSocket connection to 'ws://127.0.0.1:3080/api/events.host' failed: WebSocket is closed before the connection is established. @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:10167
+[  390602ms] [WARNING] [web-runtime] connection lost, retry #4 @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:115
+[  390858ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:3080/plugins/events:0
+[  395923ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:3080/plugins/events:0
+[  396078ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:3080/api/host.describe:0
+[  396078ms] [WARNING] WebSocket connection to 'ws://127.0.0.1:3080/api/events.mux' failed: WebSocket is closed before the connection is established. @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:10167
+[  396078ms] [WARNING] WebSocket connection to 'ws://127.0.0.1:3080/api/events.host' failed: WebSocket is closed before the connection is established. @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:10167
+[  396078ms] [WARNING] [web-runtime] connection lost, retry #5 @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:115
+[  400980ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:3080/plugins/events:0
+[  404545ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:3080/api/host.describe:0
+[  404545ms] [WARNING] WebSocket connection to 'ws://127.0.0.1:3080/api/events.mux' failed: WebSocket is closed before the connection is established. @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:10167
+[  404545ms] [WARNING] WebSocket connection to 'ws://127.0.0.1:3080/api/events.host' failed: WebSocket is closed before the connection is established. @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:10167
+[  404545ms] [WARNING] [web-runtime] connection lost, retry #6 @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:115
+[  404810ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:3080/plugins/events:0

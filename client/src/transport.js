@@ -52,6 +52,11 @@ export function createTransport() {
         body: JSON.stringify({ requestId: crypto.randomUUID(), action: action })
       });
     },
+    listTemplates: function () { return request("/templates"); },
+    getTemplate: function (name) { return request("/templates?name=" + encodeURIComponent(name)); },
+    resolveTemplate: function (name, params) {
+      return request("/templates/resolve", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: name, params: params || {} }) });
+    },
     markRead: function (key, read) {
       return request("/mark-read", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key: key, read: read !== false }) });
     },

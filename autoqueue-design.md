@@ -2,7 +2,7 @@
 
 > DSH 无人值守任务队列：接收 Markdown 任务，在不打扰普通前台会话的前提下自动执行、恢复、结算和归档。
 
-版本 `0.3.1`。实现、RPC 形状和安全结论的精确审计基线是 **`@deepseek-ai/dsh 0.1.1-rc.2`**。插件清单接受 `>=0.1.1-rc.2 <0.1.2`，但不同版本仍需重新验证 Host session、goal 与选择状态语义。
+实现、RPC 形状和安全结论的精确审计基线是 **`@deepseek-ai/dsh 0.1.1-rc.2`**。插件清单接受 `>=0.1.1-rc.2 <0.1.2`，但不同版本仍需重新验证 Host session、goal 与选择状态语义。
 
 ## 1. 产品目标
 
@@ -35,7 +35,7 @@ React workstation ──┘                              │
 | 模块 | 作用 |
 |---|---|
 | `lib/index.js` | 装配 DSH 服务、owned presets、session approval policy、HTTP/SSE 和 AI 工具自动注入 |
-| `lib/engine.js` | 扫描、调度、前台让行、派发、轮询、反阻塞、重试、动作和结算 |
+| `lib/engine-v2.js` | 扫描、调度、前台让行、派发、轮询、反阻塞、重试、动作和结算 |
 | `lib/runner.js` | 所有 `apiProxy` RPC、session ownership 校验、goal 转移与清理 |
 | `lib/ledger.js` | 原子账本、schema/容量、requestId 去重、generation CAS、并发和恢复 |
 | `lib/files.js` | 收件箱、cron/ISO 解析、独立运行目录、安全报告 I/O |
@@ -108,7 +108,7 @@ DSH rc.2 的公开选择接口会持久化 Host 默认路由。autoqueue 因此�
 - 不调用 `session.selectModel`。
 - 不创建或选择 Host 全局工作区。
 - 不接受任意 Agent preset。
-- 任务、配置、HTTP、AI 工具和 UI 都不开放这些覆盖。
+- 任务、配置、HTTP、AI 工具和 UI 都不开放 `workspace` 和 `agentPreset` 覆盖；`provider` 和 `model` 允许覆盖，默认继承 Host 当前模型。
 - `/api/queue/options` 只返回三类空数组和 `isolation.overridesLocked`。
 
 任务继承 Host 已有默认路由，但插件不主动读取、展示或改变它。
@@ -208,7 +208,7 @@ archivedAt 是独立标志，不是状态。
 
 合法状态共六个：`pending`、`running`、`done`、`failed`、`stopped`、`interrupted`。terminal 集合是 `done` / `failed` / `stopped` / `interrupted`。
 
-默认 `autoArchive=true`：terminal 结算后归档插件自有 sessions，并设置 `archivedAt`；归档失败时不提前隐藏任务。任务级显式设置可覆盖此默认。
+默认 `autoArchive=false`：terminal 结算后不自动归档，可在任务或全局配置中开启。
 
 stop/deadline/timeout/cleanup 走另一条持久取消子状态：先落 cancel intent，再请求 DSH；`sessions.cancel=true` 只记录受理，不直接结算。只有两次因果上晚于受理的可信 idle/缺席观察后才能 stopped/retry。旧快照、未知列表、running 回弹、重启或新 goal ref 都不会释放 ownership。
 
@@ -296,7 +296,7 @@ cron 使用本地时间，支持 `*`、数字、步长、范围和逗号；日�
   "models": [],
   "isolation": {
     "strict": true,
-    "overridesLocked": ["workspace", "agentPreset", "model"]
+    "overridesLocked": ["workspace", "agentPreset"]
   }
 }
 ```
@@ -335,7 +335,7 @@ UI 不是只读监控页，而是安全核心能力的完整工作台。
 | 键 | 默认值 |
 |---|---|
 | `maxConcurrent` | `1` |
-| `autoArchive` | `true` |
+| `autoArchive` | `false` |
 | `enableNotifications` | `false` |
 | `enableHostAiTools` | `true` |
 | `maxGoalRounds` | `40` |

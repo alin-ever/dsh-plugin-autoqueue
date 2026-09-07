@@ -66,7 +66,7 @@ runner 在 `sessions.create` / `sessions.rename` 之后、`goals.create` 之前�
 
 ### 2.5 Host selection locks
 
-DSH rc.2 的选择接口会持久化 Host 默认状态。核心层通过 `assertNoIsolationOverrides()` 在 engine 构造、任务创建、任务更新和运行时配置更新边界拒绝这类覆盖；HTTP schema 也不接受这些字段。内部遗留账本值可以被读取用于迁移诊断，但不能驱动执行。
+DSH rc.2 的选择接口会持久化 Host 默认状态。核心层通过 `assertNoIsolationOverrides()` 在 engine 构造、任务创建、任务更新和运行时配置更新边界拒绝 `workspace` 和 `agentPreset` 覆盖；`provider` 和 `model` 允许覆盖，任务默认继承 Host 当前模型。HTTP schema 也不接受 `workspace`/`agentPreset` 字段。内部遗留账本值可以被读取用于迁移诊断，但不能驱动执行。
 
 ### 2.6 Foreground cooperative yield
 
@@ -99,7 +99,7 @@ DSH rc.2 的选择接口会持久化 Host 默认状态。核心层通过 `assert
 |---|---|---|
 | `maxGoalRounds` | `40` | 每个 Goal 最大轮数 |
 | `maxBlockedResumes` | `3` | blocked 后 steering + resume 上限 |
-| `autoArchive` | `true` | terminal 后默认自动归档 |
+| `autoArchive` | `false` | terminal 后默认不自动归档，可在任务或全局配置中开启 |
 | `unknownThreshold` | `3` | 连续不可达阈值 |
 | `maxAttempts` | `3` | attempt 上限 |
 | `taskTimeoutMs` | `10800000` | 180 分钟，允许 10 分钟至 24 小时 |
@@ -413,4 +413,4 @@ cron 是 5 字段本地时间表达式，支持 `*`、数字、`*/step`、范围
 - 外部 AI：Capabilities → OpenAPI → compact state → detail。
 - Host AI：16 个工具默认自动注册，`enableHostAiTools=false` 可关闭；列表/详情结构化结果含 runtime 和派生运行事实。自有任务 Agent 通过作用域 deny、提示遮蔽与执行 guard 不能调用这组 Host 队列控制工具；直接 HTTP 访问仍遵循 API 的本机/远程鉴权边界。
 - UI：五个范围工作区、原生 runtime 观测、SSE 健康、完整安全任务表单/动作、批量归档、详情四页签、配置与动态 AI/API 接入抽屉、已读状态均已暴露。
-- `/api/queue/options` 返回 `workspaces: []`、`presets: []`、`models: []` 和 `isolation.overridesLocked`；它是锁声明，不是 Host 枚举接口。
+- `/api/queue/options` 返回 `workspaces: []`、`presets: []`、`models: []` 和 `isolation.overridesLocked`；它是锁声明，不是 Host 枚举接口。`overridesLocked` 仅包含 `workspace` 和 `agentPreset`，`model` 允许覆盖。

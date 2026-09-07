@@ -1,0 +1,24 @@
+[   67122ms] [WARNING] [web-runtime] connection lost, retry #1 @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:115
+[   67126ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_RESET @ http://127.0.0.1:3080/plugins/events:0
+[   67127ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_RESET @ http://127.0.0.1:3080/api/queue/events?archived=1:0
+[   69671ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:3080/api/host.describe:0
+[   69672ms] [WARNING] WebSocket connection to 'ws://127.0.0.1:3080/api/events.mux' failed: WebSocket is closed before the connection is established. @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:10167
+[   69672ms] [WARNING] WebSocket connection to 'ws://127.0.0.1:3080/api/events.host' failed: WebSocket is closed before the connection is established. @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:10167
+[   69672ms] [WARNING] [web-runtime] connection lost, retry #2 @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:115
+[   72171ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:3080/plugins/events:0
+[   72188ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:3080/api/queue/events?archived=1:0
+[   72513ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://127.0.0.1:3080/api/host.describe:0
+[   72514ms] [WARNING] WebSocket connection to 'ws://127.0.0.1:3080/api/events.mux' failed: WebSocket is closed before the connection is established. @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:10167
+[   72514ms] [WARNING] WebSocket connection to 'ws://127.0.0.1:3080/api/events.host' failed: WebSocket is closed before the connection is established. @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:10167
+[   72514ms] [WARNING] [web-runtime] connection lost, retry #3 @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:115
+[  244019ms] TypeError: Cannot read properties of undefined (reading 'open')
+    at Object.onSession (http://127.0.0.1:3080/plugins/@alintever/dsh-plugin-autoqueue/client.js?rev=8e2d71f2fb63:8884:32)
+    at onClick (http://127.0.0.1:3080/plugins/@alintever/dsh-plugin-autoqueue/client.js?rev=8e2d71f2fb63:8995:19)
+    at Object.Ca (http://127.0.0.1:3080/assets/index-ClqxG24t.js:53:9842)
+    at ga (http://127.0.0.1:3080/assets/index-ClqxG24t.js:53:9996)
+    at va (http://127.0.0.1:3080/assets/index-ClqxG24t.js:53:10053)
+    at A2 (http://127.0.0.1:3080/assets/index-ClqxG24t.js:53:31420)
+    at F2 (http://127.0.0.1:3080/assets/index-ClqxG24t.js:53:31837)
+    at http://127.0.0.1:3080/assets/index-ClqxG24t.js:53:36839
+    at El (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:37151)
+    at Qs (http://127.0.0.1:3080/assets/index-ClqxG24t.js:53:8979)

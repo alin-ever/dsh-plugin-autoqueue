@@ -1,0 +1,470 @@
+- generic [ref=f25e1]:
+  - generic [ref=f25e4]:
+    - generic [ref=f25e7]:
+      - generic [ref=f25e8]:
+        - button "新建会话" [ref=f25e9] [cursor=pointer]
+        - button "收起侧边栏" [ref=f25e38] [cursor=pointer]
+      - button "新建会话" [ref=f25e41] [cursor=pointer]:
+        - generic [ref=f25e44]: 新会话
+      - generic [ref=f25e47]:
+        - generic [ref=f25e48]:
+          - generic [ref=f25e49]: 工作区
+          - generic [ref=f25e51]:
+            - button "搜索会话" [ref=f25e52] [cursor=pointer]
+            - textbox "搜索会话…"
+          - generic [ref=f25e56]:
+            - button "视图选项" [ref=f25e58] [cursor=pointer]
+            - button "添加工作区" [ref=f25e61] [cursor=pointer]
+        - tree "会话" [ref=f25e67]:
+          - generic [ref=f25e68]:
+            - treeitem "dsh-plugin-autoqueue" [expanded] [ref=f25e70] [cursor=pointer]
+            - treeitem "新会话" [selected] [ref=f25e145] [cursor=pointer]
+            - treeitem "1. 产品定位 autoqueue 在 DSH 4小时" [ref=f25e149] [cursor=pointer]:
+              - generic [ref=f25e151]: 1. 产品定位 autoqueue 在 DSH
+              - generic [ref=f25e152]: 4小时
+            - treeitem "我们的代码核心层，http，ai层 5小时" [ref=f25e154] [cursor=pointer]:
+              - generic [ref=f25e156]: 我们的代码核心层，http，ai层
+              - generic [ref=f25e157]: 5小时
+            - treeitem "我们刚才加了一个重启，这个 8小时" [ref=f25e159] [cursor=pointer]:
+              - generic [ref=f25e161]: 我们刚才加了一个重启，这个
+              - generic [ref=f25e162]: 8小时
+            - treeitem "本地这个D:\\myqueue\\dsh-plugin-autoqu 9小时" [ref=f25e164] [cursor=pointer]:
+              - generic [ref=f25e166]: 本地这个D:\myqueue\dsh-plugin-autoqu
+              - generic [ref=f25e167]: 9小时
+            - button "展开其余 21 个会话" [ref=f25e168] [cursor=pointer]
+          - treeitem "github" [ref=f25e79] [cursor=pointer]
+          - treeitem "dsh-plugin-autoqueue" [ref=f25e87] [cursor=pointer]
+          - treeitem "未分组" [ref=f25e170] [cursor=pointer]
+      - button "设置" [ref=f25e96] [cursor=pointer]
+    - generic [ref=f25e110]:
+      - generic [ref=f25e113]:
+        - generic [ref=f25e118]: 探索未至之境
+        - generic [ref=f25e119]: 预览版
+      - generic [ref=f25e120]:
+        - button "选择工作区" [ref=f25e121] [cursor=pointer]:
+          - generic [ref=f25e124]: dsh-plugin-autoqueue
+        - button "标准模式" [ref=f25e181] [cursor=pointer]
+      - generic [ref=f25e129]:
+        - textbox "描述你想要构建的内容" [active] [ref=f25e189]
+        - generic [ref=f25e133]:
+          - generic [ref=f25e134]:
+            - button "命令" [ref=f25e190] [cursor=pointer]
+            - button "访问模式，当前：Workspace Write" [ref=f25e195] [cursor=pointer]:
+              - generic [ref=f25e203]: Workspace Write
+          - generic [ref=f25e135]:
+            - button "选择模型，当前 deepseek-v4-pro" [ref=f25e209] [cursor=pointer]:
+              - generic [ref=f25e210]: deepseek-v4-pro
+            - button "发送消息" [disabled] [ref=f25e213]
+    - generic [ref=f25e217]:
+      - generic [ref=f25e218]:
+        - generic: 详情
+        - button "关闭详情" [ref=f25e219] [cursor=pointer]
+      - generic [ref=f25e222]: 点击消息流中的工具行查看详情
+  - generic:
+    - generic:
+      - generic [ref=f25e224]:
+        - banner [ref=f25e225]:
+          - generic [ref=f25e226]:
+            - generic [ref=f25e227]: 任务队列
+            - generic [ref=f25e230]: 24 个任务
+          - generic [ref=f25e231]: 扫描完成
+          - button "扫描" [ref=f25e232] [cursor=pointer]
+          - button "运行设置" [ref=f25e236] [cursor=pointer]
+          - button "关闭" [ref=f25e240] [cursor=pointer]
+        - generic [ref=f25e244]:
+          - generic [ref=f25e245]:
+            - generic [ref=f25e246]: "0"
+            - generic [ref=f25e247]: 运行中
+          - generic [ref=f25e248]:
+            - generic [ref=f25e249]: "0"
+            - generic [ref=f25e250]: 等待中
+          - generic [ref=f25e251]:
+            - generic [ref=f25e252]: "23"
+            - generic [ref=f25e253]: 24h 完成
+          - generic [ref=f25e254]:
+            - generic [ref=f25e255]: 待确认
+            - generic [ref=f25e256]: 隔离
+        - generic [ref=f25e257]:
+          - searchbox "搜索任务…" [ref=f25e260]
+          - generic [ref=f25e261]:
+            - button "全部24" [ref=f25e262]
+            - button "运行中" [ref=f25e263]
+            - button "待执行" [ref=f25e264]
+            - button "失败" [ref=f25e265]
+            - button "已完成24" [ref=f25e266]
+          - button "新建" [ref=f25e267] [cursor=pointer]
+        - table [ref=f25e270]:
+          - rowgroup [ref=f25e278]:
+            - row [ref=f25e279]:
+              - columnheader [ref=f25e280]
+              - columnheader "任务" [ref=f25e281]
+              - columnheader "类型" [ref=f25e282]
+              - columnheader "调度" [ref=f25e283]
+              - columnheader "状态" [ref=f25e284]
+              - columnheader [ref=f25e285]
+          - rowgroup [ref=f25e286]:
+            - row [ref=f25e287] [cursor=pointer]:
+              - cell [ref=f25e288]:
+                - checkbox [ref=f25e289]
+              - cell "v20 · 验证" [ref=f25e291]:
+                - generic [ref=f25e292]:
+                  - generic [ref=f25e293]: v20
+                  - generic [ref=f25e294]: · 验证
+              - cell "手动" [ref=f25e295]
+              - cell "即时" [ref=f25e296]
+              - cell "第 1 轮完成 · 46 分钟前" [ref=f25e297]
+              - cell [ref=f25e298]:
+                - generic [ref=f25e299]:
+                  - button "重跑" [ref=f25e300]
+                  - button "归档" [ref=f25e301]
+                  - button "会话" [ref=f25e302]
+            - row [ref=f25e303] [cursor=pointer]:
+              - cell [ref=f25e304]:
+                - checkbox [ref=f25e305]
+              - cell "v21 · 验证" [ref=f25e307]:
+                - generic [ref=f25e308]:
+                  - generic [ref=f25e309]: v21
+                  - generic [ref=f25e310]: · 验证
+              - cell "手动" [ref=f25e311]
+              - cell "即时" [ref=f25e312]
+              - cell "第 1 轮完成 · 46 分钟前" [ref=f25e313]
+              - cell [ref=f25e314]:
+                - generic [ref=f25e315]:
+                  - button "重跑" [ref=f25e316]
+                  - button "归档" [ref=f25e317]
+                  - button "会话" [ref=f25e318]
+            - row [ref=f25e319] [cursor=pointer]:
+              - cell [ref=f25e320]:
+                - checkbox [ref=f25e321]
+              - cell "v22 · 验证" [ref=f25e323]:
+                - generic [ref=f25e324]:
+                  - generic [ref=f25e325]: v22
+                  - generic [ref=f25e326]: · 验证
+              - cell "手动" [ref=f25e327]
+              - cell "即时" [ref=f25e328]
+              - cell "第 1 轮完成 · 3 小时前" [ref=f25e329]
+              - cell [ref=f25e330]:
+                - generic [ref=f25e331]:
+                  - button "重跑" [ref=f25e332]
+                  - button "归档" [ref=f25e333]
+                  - button "会话" [ref=f25e334]
+            - row [ref=f25e335] [cursor=pointer]:
+              - cell [ref=f25e336]:
+                - checkbox [ref=f25e337]
+              - cell "v19 · 验证" [ref=f25e339]:
+                - generic [ref=f25e340]:
+                  - generic [ref=f25e341]: v19
+                  - generic [ref=f25e342]: · 验证
+              - cell "手动" [ref=f25e343]
+              - cell "即时" [ref=f25e344]
+              - cell "第 1 轮完成 · 9 小时前" [ref=f25e345]
+              - cell [ref=f25e346]:
+                - generic [ref=f25e347]:
+                  - button "重跑" [ref=f25e348]
+                  - button "归档" [ref=f25e349]
+                  - button "会话" [ref=f25e350]
+            - row [ref=f25e351] [cursor=pointer]:
+              - cell [ref=f25e352]:
+                - checkbox [ref=f25e353]
+              - cell "v18 · 验证" [ref=f25e355]:
+                - generic [ref=f25e356]:
+                  - generic [ref=f25e357]: v18
+                  - generic [ref=f25e358]: · 验证
+              - cell "手动" [ref=f25e359]
+              - cell "即时" [ref=f25e360]
+              - cell "第 1 轮完成 · 9 小时前" [ref=f25e361]
+              - cell [ref=f25e362]:
+                - generic [ref=f25e363]:
+                  - button "重跑" [ref=f25e364]
+                  - button "归档" [ref=f25e365]
+                  - button "会话" [ref=f25e366]
+            - row [ref=f25e367] [cursor=pointer]:
+              - cell [ref=f25e368]:
+                - checkbox [ref=f25e369]
+              - cell "v17 · 验证" [ref=f25e371]:
+                - generic [ref=f25e372]:
+                  - generic [ref=f25e373]: v17
+                  - generic [ref=f25e374]: · 验证
+              - cell "手动" [ref=f25e375]
+              - cell "即时" [ref=f25e376]
+              - cell "第 1 轮完成 · 9 小时前" [ref=f25e377]
+              - cell [ref=f25e378]:
+                - generic [ref=f25e379]:
+                  - button "重跑" [ref=f25e380]
+                  - button "归档" [ref=f25e381]
+                  - button "会话" [ref=f25e382]
+            - row [ref=f25e383] [cursor=pointer]:
+              - cell [ref=f25e384]:
+                - checkbox [ref=f25e385]
+              - cell "v16 · 验证" [ref=f25e387]:
+                - generic [ref=f25e388]:
+                  - generic [ref=f25e389]: v16
+                  - generic [ref=f25e390]: · 验证
+              - cell "手动" [ref=f25e391]
+              - cell "即时" [ref=f25e392]
+              - cell "第 1 轮完成 · 9 小时前" [ref=f25e393]
+              - cell [ref=f25e394]:
+                - generic [ref=f25e395]:
+                  - button "重跑" [ref=f25e396]
+                  - button "归档" [ref=f25e397]
+                  - button "会话" [ref=f25e398]
+            - row [ref=f25e399] [cursor=pointer]:
+              - cell [ref=f25e400]:
+                - checkbox [ref=f25e401]
+              - cell "v15 · 验证" [ref=f25e403]:
+                - generic [ref=f25e404]:
+                  - generic [ref=f25e405]: v15
+                  - generic [ref=f25e406]: · 验证
+              - cell "手动" [ref=f25e407]
+              - cell "即时" [ref=f25e408]
+              - cell "第 1 轮完成 · 9 小时前" [ref=f25e409]
+              - cell [ref=f25e410]:
+                - generic [ref=f25e411]:
+                  - button "重跑" [ref=f25e412]
+                  - button "归档" [ref=f25e413]
+                  - button "会话" [ref=f25e414]
+            - row [ref=f25e415] [cursor=pointer]:
+              - cell [ref=f25e416]:
+                - checkbox [ref=f25e417]
+              - cell "v14 · 验证" [ref=f25e419]:
+                - generic [ref=f25e420]:
+                  - generic [ref=f25e421]: v14
+                  - generic [ref=f25e422]: · 验证
+              - cell "手动" [ref=f25e423]
+              - cell "即时" [ref=f25e424]
+              - cell "第 1 轮完成 · 9 小时前" [ref=f25e425]
+              - cell [ref=f25e426]:
+                - generic [ref=f25e427]:
+                  - button "重跑" [ref=f25e428]
+                  - button "归档" [ref=f25e429]
+                  - button "会话" [ref=f25e430]
+            - row [ref=f25e431] [cursor=pointer]:
+              - cell [ref=f25e432]:
+                - checkbox [ref=f25e433]
+              - cell "v13 · 验证" [ref=f25e435]:
+                - generic [ref=f25e436]:
+                  - generic [ref=f25e437]: v13
+                  - generic [ref=f25e438]: · 验证
+              - cell "手动" [ref=f25e439]
+              - cell "即时" [ref=f25e440]
+              - cell "第 1 轮完成 · 9 小时前" [ref=f25e441]
+              - cell [ref=f25e442]:
+                - generic [ref=f25e443]:
+                  - button "重跑" [ref=f25e444]
+                  - button "归档" [ref=f25e445]
+                  - button "会话" [ref=f25e446]
+            - row [ref=f25e447] [cursor=pointer]:
+              - cell [ref=f25e448]:
+                - checkbox [ref=f25e449]
+              - cell "v12 · 验证权限" [ref=f25e451]:
+                - generic [ref=f25e452]:
+                  - generic [ref=f25e453]: v12
+                  - generic [ref=f25e454]: · 验证权限
+              - cell "手动" [ref=f25e455]
+              - cell "即时" [ref=f25e456]
+              - cell "第 1 轮完成 · 10 小时前" [ref=f25e457]
+              - cell [ref=f25e458]:
+                - generic [ref=f25e459]:
+                  - button "重跑" [ref=f25e460]
+                  - button "归档" [ref=f25e461]
+                  - button "会话" [ref=f25e462]
+            - row [ref=f25e463] [cursor=pointer]:
+              - cell [ref=f25e464]:
+                - checkbox [ref=f25e465]
+              - cell "v11 · 验证权限" [ref=f25e467]:
+                - generic [ref=f25e468]:
+                  - generic [ref=f25e469]: v11
+                  - generic [ref=f25e470]: · 验证权限
+              - cell "手动" [ref=f25e471]
+              - cell "即时" [ref=f25e472]
+              - cell "第 1 轮完成 · 10 小时前" [ref=f25e473]
+              - cell [ref=f25e474]:
+                - generic [ref=f25e475]:
+                  - button "重跑" [ref=f25e476]
+                  - button "归档" [ref=f25e477]
+                  - button "会话" [ref=f25e478]
+            - row [ref=f25e479] [cursor=pointer]:
+              - cell [ref=f25e480]:
+                - checkbox [ref=f25e481]
+              - cell "v10 · 验证" [ref=f25e483]:
+                - generic [ref=f25e484]:
+                  - generic [ref=f25e485]: v10
+                  - generic [ref=f25e486]: · 验证
+              - cell "手动" [ref=f25e487]
+              - cell "即时" [ref=f25e488]
+              - cell "第 1 轮完成 · 10 小时前" [ref=f25e489]
+              - cell [ref=f25e490]:
+                - generic [ref=f25e491]:
+                  - button "重跑" [ref=f25e492]
+                  - button "归档" [ref=f25e493]
+                  - button "会话" [ref=f25e494]
+            - row [ref=f25e495] [cursor=pointer]:
+              - cell [ref=f25e496]:
+                - checkbox [ref=f25e497]
+              - cell "v9 · 验证" [ref=f25e499]:
+                - generic [ref=f25e500]:
+                  - generic [ref=f25e501]: v9
+                  - generic [ref=f25e502]: · 验证
+              - cell "手动" [ref=f25e503]
+              - cell "即时" [ref=f25e504]
+              - cell "第 1 轮完成 · 10 小时前" [ref=f25e505]
+              - cell [ref=f25e506]:
+                - generic [ref=f25e507]:
+                  - button "重跑" [ref=f25e508]
+                  - button "归档" [ref=f25e509]
+                  - button "会话" [ref=f25e510]
+            - row [ref=f25e511] [cursor=pointer]:
+              - cell [ref=f25e512]:
+                - checkbox [ref=f25e513]
+              - cell "v8 · 验证" [ref=f25e515]:
+                - generic [ref=f25e516]:
+                  - generic [ref=f25e517]: v8
+                  - generic [ref=f25e518]: · 验证
+              - cell "手动" [ref=f25e519]
+              - cell "即时" [ref=f25e520]
+              - cell "第 1 轮完成 · 10 小时前" [ref=f25e521]
+              - cell [ref=f25e522]:
+                - generic [ref=f25e523]:
+                  - button "重跑" [ref=f25e524]
+                  - button "归档" [ref=f25e525]
+                  - button "会话" [ref=f25e526]
+            - row [ref=f25e527] [cursor=pointer]:
+              - cell [ref=f25e528]:
+                - checkbox [ref=f25e529]
+              - cell "v7 · 验证" [ref=f25e531]:
+                - generic [ref=f25e532]:
+                  - generic [ref=f25e533]: v7
+                  - generic [ref=f25e534]: · 验证
+              - cell "手动" [ref=f25e535]
+              - cell "即时" [ref=f25e536]
+              - cell "第 1 轮完成 · 10 小时前" [ref=f25e537]
+              - cell [ref=f25e538]:
+                - generic [ref=f25e539]:
+                  - button "重跑" [ref=f25e540]
+                  - button "归档" [ref=f25e541]
+                  - button "会话" [ref=f25e542]
+            - row [ref=f25e543] [cursor=pointer]:
+              - cell [ref=f25e544]:
+                - checkbox [ref=f25e545]
+              - cell "v6 · 验证" [ref=f25e547]:
+                - generic [ref=f25e548]:
+                  - generic [ref=f25e549]: v6
+                  - generic [ref=f25e550]: · 验证
+              - cell "手动" [ref=f25e551]
+              - cell "即时" [ref=f25e552]
+              - cell "第 1 轮完成 · 10 小时前" [ref=f25e553]
+              - cell [ref=f25e554]:
+                - generic [ref=f25e555]:
+                  - button "重跑" [ref=f25e556]
+                  - button "归档" [ref=f25e557]
+                  - button "会话" [ref=f25e558]
+            - row [ref=f25e559] [cursor=pointer]:
+              - cell [ref=f25e560]:
+                - checkbox [ref=f25e561]
+              - cell "v5 · 验证权限" [ref=f25e563]:
+                - generic [ref=f25e564]:
+                  - generic [ref=f25e565]: v5
+                  - generic [ref=f25e566]: · 验证权限
+              - cell "手动" [ref=f25e567]
+              - cell "即时" [ref=f25e568]
+              - cell "第 1 轮完成 · 10 小时前" [ref=f25e569]
+              - cell [ref=f25e570]:
+                - generic [ref=f25e571]:
+                  - button "重跑" [ref=f25e572]
+                  - button "归档" [ref=f25e573]
+                  - button "会话" [ref=f25e574]
+            - row [ref=f25e575] [cursor=pointer]:
+              - cell [ref=f25e576]:
+                - checkbox [ref=f25e577]
+              - cell "verify-cwd · 验证工作区" [ref=f25e579]:
+                - generic [ref=f25e580]:
+                  - generic [ref=f25e581]: verify-cwd
+                  - generic [ref=f25e582]: · 验证工作区
+              - cell "手动" [ref=f25e583]
+              - cell "即时" [ref=f25e584]
+              - cell "第 1 轮完成 · 11 小时前" [ref=f25e585]
+              - cell [ref=f25e586]:
+                - generic [ref=f25e587]:
+                  - button "重跑" [ref=f25e588]
+                  - button "归档" [ref=f25e589]
+                  - button "会话" [ref=f25e590]
+            - row [ref=f25e591] [cursor=pointer]:
+              - cell [ref=f25e592]:
+                - checkbox [ref=f25e593]
+              - cell "从一数到十-20260907-091412 · 从一数到十" [ref=f25e595]:
+                - generic [ref=f25e596]:
+                  - generic [ref=f25e597]: 从一数到十-20260907-091412
+                  - generic [ref=f25e598]: · 从一数到十
+              - cell "手动" [ref=f25e599]
+              - cell "即时" [ref=f25e600]
+              - cell "第 1 轮完成 · 11 小时前" [ref=f25e601]
+              - cell [ref=f25e602]:
+                - generic [ref=f25e603]:
+                  - button "重跑" [ref=f25e604]
+                  - button "归档" [ref=f25e605]
+                  - button "会话" [ref=f25e606]
+            - row [ref=f25e607] [cursor=pointer]:
+              - cell [ref=f25e608]:
+                - checkbox [ref=f25e609]
+              - cell "ai-test · AI工具测试" [ref=f25e611]:
+                - generic [ref=f25e612]:
+                  - generic [ref=f25e613]: ai-test
+                  - generic [ref=f25e614]: · AI工具测试
+              - cell "手动" [ref=f25e615]
+              - cell "即时" [ref=f25e616]
+              - cell "第 2 轮完成 · 11 小时前" [ref=f25e617]
+              - cell [ref=f25e618]:
+                - generic [ref=f25e619]:
+                  - button "重跑" [ref=f25e620]
+                  - button "归档" [ref=f25e621]
+                  - button "会话" [ref=f25e622]
+            - row [ref=f25e623] [cursor=pointer]:
+              - cell [ref=f25e624]:
+                - checkbox [ref=f25e625]
+              - cell "http-default · HTTP默认测试" [ref=f25e627]:
+                - generic [ref=f25e628]:
+                  - generic [ref=f25e629]: http-default
+                  - generic [ref=f25e630]: · HTTP默认测试
+              - cell "手动" [ref=f25e631]
+              - cell "即时" [ref=f25e632]
+              - cell "第 1 轮完成 · 11 小时前" [ref=f25e633]
+              - cell [ref=f25e634]:
+                - generic [ref=f25e635]:
+                  - button "重跑" [ref=f25e636]
+                  - button "归档" [ref=f25e637]
+                  - button "会话" [ref=f25e638]
+            - row [ref=f25e639] [cursor=pointer]:
+              - cell [ref=f25e640]:
+                - checkbox [ref=f25e641]
+              - cell "noarchive2 · 不归档测试2" [ref=f25e643]:
+                - generic [ref=f25e644]:
+                  - generic [ref=f25e645]: noarchive2
+                  - generic [ref=f25e646]: · 不归档测试2
+              - cell "手动" [ref=f25e647]
+              - cell "即时" [ref=f25e648]
+              - cell "第 1 轮完成 · 21 小时前" [ref=f25e649]
+              - cell [ref=f25e650]:
+                - generic [ref=f25e651]:
+                  - button "重跑" [ref=f25e652]
+                  - button "归档" [ref=f25e653]
+                  - button "会话" [ref=f25e654]
+            - row [ref=f25e655] [cursor=pointer]:
+              - cell [ref=f25e656]:
+                - checkbox [ref=f25e657]
+              - cell "复杂任务 · 扫描插件，看看是否有必要升级dsh版本，多用互联网" [ref=f25e659]:
+                - generic [ref=f25e660]:
+                  - generic [ref=f25e661]: 复杂任务
+                  - generic [ref=f25e662]: · 扫描插件，看看是否有必要升级dsh版本，多用互联网
+              - cell "手动" [ref=f25e663]
+              - cell "即时" [ref=f25e664]
+              - cell "已完成 · 7 天前" [ref=f25e665]
+              - cell [ref=f25e666]:
+                - generic [ref=f25e667]:
+                  - button "重跑" [ref=f25e668]
+                  - button "归档" [ref=f25e669]
+                  - button "会话" [ref=f25e670]
+      - button "关闭任务队列" [ref=f25e671] [cursor=pointer]:
+        - generic [ref=f25e143]: 关闭
+        - generic [ref=f25e672]: "21"
+  - button "打开任务队列" [ref=f25e674] [cursor=pointer]:
+    - generic [ref=f25e679]: 任务队列

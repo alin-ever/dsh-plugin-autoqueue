@@ -6,7 +6,7 @@
       config:
         maxGoalRounds: 40
         maxBlockedResumes: 3
-        autoArchive: true
+        autoArchive: false
         unknownThreshold: 3
         maxAttempts: 3
         taskTimeoutMs: 10800000

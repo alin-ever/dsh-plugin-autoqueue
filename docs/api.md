@@ -66,6 +66,8 @@ Capabilities 与 OpenAPI 使用和业务接口相同的鉴权。Capabilities 中
 | `GET\|POST` | `/api/queue/config` | 读取/更新安全运行时配置 |
 | `POST` | `/api/queue/mark-read` | 标记已读或未读 |
 | `GET` | `/api/queue/events` | compact SSE 快照 |
+| `GET` | `/api/queue/templates` | 列出模板库 / 获取单个模板 |
+| `POST` | `/api/queue/templates/resolve` | 解析模板参数 |
 
 ## 4. `GET /api/queue/state`
 
@@ -160,18 +162,25 @@ Capabilities 与 OpenAPI 使用和业务接口相同的鉴权。Capabilities 中
 | `key` | string | 否 | 最长 200 字符 | 省略时生成；冲突时生成不重复 key |
 | `content` | string | 是 | 非空，UTF-8 ≤ 2 MiB | Markdown 任务正文 |
 | `priority` | integer | 否 | `5`，范围 1-10 | 数值越高越先派发 |
-| `schedule` | string | 否 | ISO 8601 | 一次性调度；与 `cron` 互斥 |
-| `cron` | string | 否 | 5 字段 cron | 循环调度；与 `schedule` 互斥 |
+| `cron` | string | 否 | 5 字段 cron | 循环调度 |
 | `deadline` | string | 否 | 5 字段 cron | 墙上时钟截止窗口 |
 | `maxGoalRounds` | integer | 否 | `40`，范围 1-100 | Goal 最大轮数 |
 | `maxBlockedResumes` | integer | 否 | `3`，范围 0-10 | 反阻塞恢复上限 |
 | `timeoutMs` | integer | 否 | `10800000`，范围 600000-86400000 | 单 attempt 相对超时 |
 | `maxAttempts` | integer | 否 | `3`，范围 1-10 | 派发/恢复尝试上限 |
 | `webhook` | string/null | 否 | http/https | 终态回调；不允许 URL 内凭据 |
-| `autoArchive` | boolean | 否 | 全局默认 `true` | 终态后自动归档 |
+| `autoArchive` | boolean | 否 | 全局默认 `false` | 终态后自动归档 |
 | `enableNotifications` | boolean | 否 | 全局默认 `false` | 浏览器终态通知 |
+| `title` | string | 否 | — | 会话标题，省略时自动生成 |
+| `provider` | string | 否 | — | LLM 提供商；Host AI 工具自动捕获当前会话的 provider |
+| `model` | string | 否 | — | LLM 模型名；Host AI 工具自动捕获当前会话的 model |
+| `cwd` | string | 否 | — | 任务会话工作目录；Host AI 工具自动捕获当前会话的 cwd |
+| `sourceSessionId` | string | 否 | — | 发起任务的源会话 ID；Host AI 工具自动捕获 |
+| `sandbox` | string | 否 | — | sandbox 模式；Host AI 工具自动捕获当前会话的 sandbox 策略 |
 
-隔离覆盖字段不在请求 schema 中；发送这类字段会得到未知字段错误，而不是被默默应用。
+`provider`、`model`、`cwd`、`sourceSessionId`、`sandbox` 由 Host AI 工具在创建任务时自动从当前会话捕获，外部 HTTP 调用方通常不需要手动传递。`provider` 和 `model` 允许任务覆盖 Host 默认模型。
+
+隔离覆盖字段（`workspace`、`agentPreset`）不在请求 schema 中；发送这类字段会得到未知字段错误，而不是被默默应用。`provider` 和 `model` 允许覆盖，任务默认继承 Host 当前模型。
 
 ### 示例
 
@@ -268,7 +277,7 @@ Capabilities 与 OpenAPI 使用和业务接口相同的鉴权。Capabilities 中
 可更新字段：
 
 - `content`
-- `schedule` / `cron`（二者互斥；空字符串清除）
+- `cron`（空字符串清除）
 - `deadline`（空字符串清除）
 - `priority`
 - `maxGoalRounds` / `maxBlockedResumes`（`null` 恢复全局默认）
@@ -277,6 +286,8 @@ Capabilities 与 OpenAPI 使用和业务接口相同的鉴权。Capabilities 中
 - `webhook`（空字符串或 `null` 清除）
 - `autoArchive`
 - `enableNotifications`
+- `provider`
+- `model`
 
 ## 7. `GET /api/queue/detail?key=...`
 
@@ -337,7 +348,7 @@ Capabilities 与 OpenAPI 使用和业务接口相同的鉴权。Capabilities 中
   "models": [],
   "isolation": {
     "strict": true,
-    "overridesLocked": ["workspace", "agentPreset", "model"],
+    "overridesLocked": ["workspace", "agentPreset"],
     "reason": "AutoQueue uses a task-local cwd, versioned owned preset, and the Host default model without mutating Host selection state."
   }
 }
@@ -436,9 +447,62 @@ data: {"revision":42,"tasks":[...],"config":{...},"runtime":{...}}
 - 写端持续背压达到 30 秒后，巡检会主动断开。
 - SSE 不包含 `body` / `executions`；需要完整内容时调用 detail。
 
-## 12. Host AI 工具（自动注入）
+## 12. 模板库
 
-启动配置 `enableHostAiTools` 默认是 `true`。插件加载后向普通 DSH 会话注册以下 16 个 HTTP 薄客户端工具；需要保持原始 tool catalog 的部署可显式设置为 `false`。`autoqueue-session-*` 自有任务 Agent 会隐藏这些工具，执行 guard 也会拒绝其通过 Host 工具递归控制队列：
+### `GET /api/queue/templates`
+
+列出所有可用模板（仅元数据，不含正文）：
+
+```json
+{
+  "templates": [
+    {
+      "name": "代码审查",
+      "description": "对代码仓库或指定文件进行深度审查",
+      "category": "开发",
+      "parameters": [
+        { "key": "target", "label": "审查目标", "required": true },
+        { "key": "focus", "label": "审查重点", "required": false, "default": "代码质量、安全性、性能" }
+      ],
+      "file": "代码审查.md"
+    }
+  ]
+}
+```
+
+### `GET /api/queue/templates?name=...`
+
+获取单个模板，包含完整正文和参数 schema：
+
+```json
+{
+  "name": "代码审查",
+  "description": "...",
+  "category": "开发",
+  "parameters": [...],
+  "body": "# 代码审查\n\n请对以下代码..."
+}
+```
+
+### `POST /api/queue/templates/resolve`
+
+用参数值填充模板占位符，返回可用的任务正文：
+
+```json
+// 请求
+{ "name": "代码审查", "params": { "target": "src/", "focus": "安全性" } }
+
+// 响应
+{ "ok": true, "content": "# 代码审查\n\n- **目标路径**: src/\n...", "templateName": "代码审查" }
+```
+
+缺少必填参数时返回 `400` 并列出 `missing` 字段。
+
+模板使用 `{{key}}` 占位符语法，与 YAML frontmatter 中的 `parameters` 定义对应。模板文件位于项目 `templates/` 目录，随插件发布。
+
+## 13. Host AI 工具（自动注入）
+
+启动配置 `enableHostAiTools` 默认是 `true`。插件加载后向普通 DSH 会话注册以下 18 个 HTTP 薄客户端工具；需要保持原始 tool catalog 的部署可显式设置为 `false`。`autoqueue-session-*` 自有任务 Agent 会隐藏这些工具，执行 guard 也会拒绝其通过 Host 工具递归控制队列：
 
 工具默认访问 `http://127.0.0.1:3080`。若当前 DSH Web 不在该地址，启动配置必须提供正确的 `baseUrl`。
 
@@ -462,10 +526,12 @@ data: {"revision":42,"tasks":[...],"config":{...},"runtime":{...}}
 | `autoqueue_update_config` | 更新安全配置 |
 | `autoqueue_force_scan` | 立即检查收件箱 |
 | `autoqueue_set_concurrency` | 设置 1-8 并发 |
+| `autoqueue_list_templates` | 列出可用任务模板 |
+| `autoqueue_get_template` | 获取模板详情和参数 schema |
 
 工具全部通过 HTTP API，不绕过 HTTP 校验直接访问 engine/ledger，也不会暴露 token。外部 AI 不依赖这组 Host 工具；即使关闭自动注入，HTTP API 仍保持可用。
 
-## 13. UI 与 API 能力对应
+## 14. UI 与 API 能力对应
 
 | UI 区域 | 使用的能力 |
 |---|---|

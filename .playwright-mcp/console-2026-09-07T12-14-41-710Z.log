@@ -1,0 +1,21 @@
+[     784ms] Error: Minified React error #130; visit https://reactjs.org/docs/error-decoder.html?invariant=130&args[]=undefined&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings.
+    at gi (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:49700)
+    at $e (http://127.0.0.1:3080/assets/index-ClqxG24t.js:54:11100)
+    at Ye (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:1495)
+    at v0 (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:45868)
+    at p0 (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:40016)
+    at q4 (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:39944)
+    at mi (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:39797)
+    at c0 (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:34833)
+    at Z (http://127.0.0.1:3080/assets/index-ClqxG24t.js:41:1627)
+    at MessagePort.se (http://127.0.0.1:3080/assets/index-ClqxG24t.js:41:2002)
+[    4510ms] [WARNING] [web-runtime] connection lost, retry #1 @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:115
+[    4518ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_RESET @ http://127.0.0.1:3080/plugins/events:0
+[    6831ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:3080/api/host.describe:0
+[    6831ms] [WARNING] WebSocket connection to 'ws://127.0.0.1:3080/api/events.mux' failed: WebSocket is closed before the connection is established. @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:10167
+[    6831ms] [WARNING] WebSocket connection to 'ws://127.0.0.1:3080/api/events.host' failed: WebSocket is closed before the connection is established. @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:10167
+[    6832ms] [WARNING] [web-runtime] connection lost, retry #2 @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:115
+[    9644ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:3080/api/events.mux' failed: Connection closed before receiving a handshake response @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:10132
+[    9644ms] [WARNING] WebSocket connection to 'ws://127.0.0.1:3080/api/events.host' failed: WebSocket is closed before the connection is established. @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:10167
+[    9663ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://127.0.0.1:3080/api/host.describe:0
+[    9664ms] [WARNING] [web-runtime] connection lost, retry #3 @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:115

@@ -1,0 +1,78 @@
+- generic [ref=f41e1]:
+  - generic [ref=f41e4]:
+    - generic [ref=f41e7]:
+      - generic [ref=f41e8]:
+        - button "新建会话" [ref=f41e9] [cursor=pointer]
+        - button "收起侧边栏" [ref=f41e38] [cursor=pointer]
+      - button "新建会话" [ref=f41e41] [cursor=pointer]:
+        - generic [ref=f41e44]: 新会话
+      - generic [ref=f41e47]:
+        - generic [ref=f41e48]:
+          - generic [ref=f41e49]: 工作区
+          - generic [ref=f41e51]:
+            - button "搜索会话" [ref=f41e52] [cursor=pointer]
+            - textbox "搜索会话…"
+          - generic [ref=f41e56]:
+            - button "视图选项" [ref=f41e58] [cursor=pointer]
+            - button "添加工作区" [ref=f41e61] [cursor=pointer]
+        - tree "会话" [ref=f41e67]:
+          - treeitem "dsh-plugin-autoqueue" [ref=f41e123] [cursor=pointer]
+          - treeitem "github" [ref=f41e131] [cursor=pointer]
+          - treeitem "dsh-plugin-autoqueue" [ref=f41e139] [cursor=pointer]
+          - treeitem "未分组" [ref=f41e146] [cursor=pointer]
+      - button "设置" [ref=f41e72] [cursor=pointer]
+    - generic [ref=f41e86]:
+      - generic [ref=f41e89]:
+        - generic [ref=f41e94]: 探索未至之境
+        - generic [ref=f41e95]: 预览版
+      - button "选择工作区" [ref=f41e97] [cursor=pointer]:
+        - generic [ref=f41e100]: dsh-plugin-autoqueue
+      - generic [ref=f41e105]:
+        - textbox "描述你想要构建的内容" [ref=f41e155]
+        - generic [ref=f41e109]:
+          - generic [ref=f41e110]:
+            - button "命令" [ref=f41e156] [cursor=pointer]
+            - button "访问模式，当前：Workspace Write" [ref=f41e161] [cursor=pointer]:
+              - generic [ref=f41e169]: Workspace Write
+          - generic [ref=f41e111]:
+            - button "选择模型，当前 deepseek-v4-pro" [ref=f41e175] [cursor=pointer]:
+              - generic [ref=f41e176]: deepseek-v4-pro
+            - button "发送消息" [disabled] [ref=f41e179]
+    - generic [ref=f41e183]:
+      - generic [ref=f41e184]:
+        - generic: 详情
+        - button "关闭详情" [ref=f41e185] [cursor=pointer]
+      - generic [ref=f41e188]: 点击消息流中的工具行查看详情
+  - generic [ref=f41e113]:
+    - generic [ref=f41e190]:
+      - banner [ref=f41e191]:
+        - generic [ref=f41e192]: 任务队列
+        - button "扫描" [ref=f41e196] [cursor=pointer]
+        - button "运行设置" [ref=f41e200] [cursor=pointer]
+        - button "关闭" [ref=f41e204] [cursor=pointer]
+      - generic [ref=f41e208]:
+        - generic [ref=f41e209]:
+          - generic [ref=f41e210]: "0"
+          - generic [ref=f41e211]: 运行中
+        - generic [ref=f41e212]:
+          - generic [ref=f41e213]: "0"
+          - generic [ref=f41e214]: 等待中
+        - generic [ref=f41e215]:
+          - generic [ref=f41e216]: "0"
+          - generic [ref=f41e217]: 24h 完成
+        - generic [ref=f41e218]:
+          - generic [ref=f41e219]: 待确认
+          - generic [ref=f41e220]: 隔离
+      - generic [ref=f41e221]:
+        - searchbox "搜索任务…" [ref=f41e224]
+        - generic [ref=f41e225]:
+          - button "全部" [ref=f41e226]
+          - button "运行中" [ref=f41e227]
+          - button "待执行" [ref=f41e228]
+          - button "失败" [ref=f41e229]
+          - button "已完成" [ref=f41e230]
+        - button "新建" [ref=f41e231] [cursor=pointer]
+      - generic [ref=f41e233]:
+        - paragraph [ref=f41e234]: 还没有任务
+        - button "创建第一个任务" [ref=f41e235] [cursor=pointer]
+    - button "关闭任务队列" [active] [ref=f41e236] [cursor=pointer]

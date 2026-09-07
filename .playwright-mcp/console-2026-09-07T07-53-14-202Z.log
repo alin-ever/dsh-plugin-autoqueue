@@ -1,0 +1,26 @@
+[    1302ms] Error: Dynamic require of "react-dom" is not supported
+    at http://127.0.0.1:3080/plugins/@alintever/dsh-plugin-autoqueue/client.js?rev=7a979247abb4:13:11
+    at http://127.0.0.1:3080/plugins/@alintever/dsh-plugin-autoqueue/client.js?rev=7a979247abb4:3609:26
+    at http://127.0.0.1:3080/plugins/@alintever/dsh-plugin-autoqueue/client.js?rev=7a979247abb4:9067:3
+[    1304ms] [ERROR] Error: failed to import loader entry c71ae92c (@alintever/dsh-plugin-autoqueue): client-modules: bundle /plugins/@alintever/dsh-plugin-autoqueue/client.js?rev=7a979247abb4 loaded without registering "@alintever/dsh-plugin-autoqueue" via __ModuleLoader__.load
+    at Dt (http://127.0.0.1:3080/assets/index-ClqxG24t.js:17:259)
+    at Dn._init (http://127.0.0.1:3080/assets/index-ClqxG24t.js:17:4088)
+    at async Dn.init (http://127.0.0.1:3080/assets/index-ClqxG24t.js:17:3669)
+    at async Dn.update (http://127.0.0.1:3080/assets/index-ClqxG24t.js:17:2509)
+    at async is.create (http://127.0.0.1:3080/assets/index-ClqxG24t.js:13:13227)
+    at async Proxy.create (http://127.0.0.1:3080/assets/index-ClqxG24t.js:13:16464)
+    at async http://127.0.0.1:3080/assets/index-ClqxG24t.js:93:5811
+    at async Promise.all (index 42)
+    at async Yd.runPluginBoot (http://127.0.0.1:3080/assets/index-ClqxG24t.js:93:5737)
+    at async Yd.run (http://127.0.0.1:3080/assets/index-ClqxG24t.js:93:4849) @ http://127.0.0.1:3080/assets/index-ClqxG24t.js:92
+[  185901ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_RESET @ http://127.0.0.1:3080/plugins/events:0
+[  185902ms] [WARNING] [web-runtime] connection lost, retry #1 @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:115
+[  188314ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:3080/api/host.describe:0
+[  188314ms] [WARNING] WebSocket connection to 'ws://127.0.0.1:3080/api/events.mux' failed: WebSocket is closed before the connection is established. @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:10167
+[  188315ms] [WARNING] WebSocket connection to 'ws://127.0.0.1:3080/api/events.host' failed: WebSocket is closed before the connection is established. @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:10167
+[  188315ms] [WARNING] [web-runtime] connection lost, retry #2 @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:115
+[  190952ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:3080/plugins/events:0
+[  191270ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:3080/api/events.mux' failed: Connection closed before receiving a handshake response @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:10132
+[  191270ms] [WARNING] WebSocket connection to 'ws://127.0.0.1:3080/api/events.host' failed: WebSocket is closed before the connection is established. @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:10167
+[  191296ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://127.0.0.1:3080/api/host.describe:0
+[  191296ms] [WARNING] [web-runtime] connection lost, retry #3 @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:115

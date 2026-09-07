@@ -1,0 +1,39 @@
+- generic [active] [ref=f14e1]:
+  - generic [ref=f14e4]:
+    - generic [ref=f14e7]:
+      - generic [ref=f14e8]:
+        - button "新建会话" [ref=f14e9] [cursor=pointer]
+        - button "收起侧边栏" [ref=f14e38] [cursor=pointer]
+      - button "新建会话" [ref=f14e41] [cursor=pointer]:
+        - generic [ref=f14e44]: 新会话
+      - button "AutoQueue 任务队列" [ref=f14e45] [cursor=pointer]:
+        - generic [ref=f14e52]: 任务队列
+      - generic [ref=f14e55]:
+        - generic [ref=f14e56]:
+          - generic [ref=f14e57]: 工作区
+          - generic [ref=f14e59]:
+            - button "搜索会话" [ref=f14e60] [cursor=pointer]
+            - textbox "搜索会话…"
+          - generic [ref=f14e64]:
+            - button "视图选项" [ref=f14e66] [cursor=pointer]
+            - button "添加工作区" [ref=f14e69] [cursor=pointer]
+        - tree "会话" [ref=f14e75]:
+          - treeitem "dsh-plugin-autoqueue" [expanded] [ref=f14e78] [cursor=pointer]
+          - treeitem "github" [ref=f14e87] [cursor=pointer]
+          - treeitem "dsh-plugin-autoqueue" [ref=f14e95] [cursor=pointer]
+      - button "设置" [ref=f14e104] [cursor=pointer]
+    - generic [ref=f14e118]:
+      - generic [ref=f14e121]:
+        - generic [ref=f14e126]: 探索未至之境
+        - generic [ref=f14e127]: 预览版
+      - button "选择工作区" [ref=f14e129] [cursor=pointer]
+      - generic [ref=f14e137] [cursor=pointer]:
+        - textbox "选择工作区" [ref=f14e140]:
+          - /placeholder: 选择一个工作区开始
+        - generic [ref=f14e141]:
+          - generic [ref=f14e142]:
+            - button "命令" [disabled]
+          - generic [ref=f14e143]:
+            - button "发送消息" [disabled]
+  - button "打开任务队列" [ref=f14e146] [cursor=pointer]:
+    - generic [ref=f14e151]: 任务队列

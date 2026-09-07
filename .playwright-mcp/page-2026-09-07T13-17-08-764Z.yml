@@ -1,0 +1,45 @@
+- generic [ref=f33e1]:
+  - generic [ref=f33e4]:
+    - generic [ref=f33e7]:
+      - generic [ref=f33e8]:
+        - button "新建会话" [ref=f33e9] [cursor=pointer]
+        - button "收起侧边栏" [ref=f33e38] [cursor=pointer]
+      - button "新建会话" [ref=f33e41] [cursor=pointer]:
+        - generic [ref=f33e44]: 新会话
+      - generic [ref=f33e47]:
+        - generic [ref=f33e48]:
+          - generic [ref=f33e49]: 工作区
+          - generic [ref=f33e51]:
+            - button "搜索会话" [ref=f33e52] [cursor=pointer]
+            - textbox "搜索会话…"
+          - generic [ref=f33e56]:
+            - button "视图选项" [ref=f33e58] [cursor=pointer]
+            - button "添加工作区" [ref=f33e61] [cursor=pointer]
+        - tree "会话" [ref=f33e67]:
+          - treeitem "dsh-plugin-autoqueue" [ref=f33e70] [cursor=pointer]
+          - treeitem "github" [ref=f33e78] [cursor=pointer]
+          - treeitem "dsh-plugin-autoqueue" [ref=f33e86] [cursor=pointer]
+          - treeitem "未分组" [ref=f33e93] [cursor=pointer]
+      - button "设置" [ref=f33e102] [cursor=pointer]
+    - generic [ref=f33e116]:
+      - generic [ref=f33e119]:
+        - generic [ref=f33e124]: 探索未至之境
+        - generic [ref=f33e125]: 预览版
+      - button "选择工作区" [ref=f33e127] [cursor=pointer]:
+        - generic [ref=f33e131]: dsh-plugin-autoqueue
+      - generic [ref=f33e136]:
+        - textbox "描述你想要构建的内容" [active] [ref=f33e139]
+        - generic [ref=f33e140]:
+          - generic [ref=f33e141]:
+            - button "命令" [ref=f33e142] [cursor=pointer]
+            - button "访问模式，当前：Workspace Write" [ref=f33e147] [cursor=pointer]:
+              - generic [ref=f33e155]: Workspace Write
+          - generic [ref=f33e159]:
+            - button "选择模型" [ref=f33e162] [cursor=pointer]
+            - button "发送消息" [disabled] [ref=f33e166]
+    - generic [ref=f33e170]:
+      - generic [ref=f33e171]:
+        - generic: 详情
+        - button "关闭详情" [ref=f33e172] [cursor=pointer]
+      - generic [ref=f33e175]: 点击消息流中的工具行查看详情
+  - button "打开任务队列" [ref=f33e178] [cursor=pointer]

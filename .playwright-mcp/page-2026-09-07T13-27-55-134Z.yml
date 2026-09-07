@@ -1,0 +1,48 @@
+- generic [ref=f36e1]:
+  - generic [ref=f36e4]:
+    - generic [ref=f36e7]:
+      - generic [ref=f36e8]:
+        - button "新建会话" [ref=f36e9] [cursor=pointer]
+        - button "收起侧边栏" [ref=f36e38] [cursor=pointer]
+      - button "新建会话" [ref=f36e41] [cursor=pointer]:
+        - generic [ref=f36e44]: 新会话
+      - generic [ref=f36e47]:
+        - generic [ref=f36e48]:
+          - generic [ref=f36e49]: 工作区
+          - generic [ref=f36e51]:
+            - button "搜索会话" [ref=f36e52] [cursor=pointer]
+            - textbox "搜索会话…"
+          - generic [ref=f36e56]:
+            - button "视图选项" [ref=f36e58] [cursor=pointer]
+            - button "添加工作区" [ref=f36e61] [cursor=pointer]
+        - tree "会话" [ref=f36e67]:
+          - treeitem "dsh-plugin-autoqueue" [ref=f36e70] [cursor=pointer]
+          - treeitem "github" [ref=f36e78] [cursor=pointer]
+          - treeitem "dsh-plugin-autoqueue" [ref=f36e86] [cursor=pointer]
+          - treeitem "未分组" [ref=f36e145] [cursor=pointer]
+      - button "设置" [ref=f36e95] [cursor=pointer]
+    - generic [ref=f36e109]:
+      - generic [ref=f36e112]:
+        - generic [ref=f36e117]: 探索未至之境
+        - generic [ref=f36e118]: 预览版
+      - generic [ref=f36e119]:
+        - button "选择工作区" [ref=f36e120] [cursor=pointer]:
+          - generic [ref=f36e123]: dsh-plugin-autoqueue
+        - button "标准模式" [ref=f36e156] [cursor=pointer]
+      - generic [ref=f36e128]:
+        - textbox "描述你想要构建的内容" [active] [ref=f36e164]
+        - generic [ref=f36e132]:
+          - generic [ref=f36e133]:
+            - button "命令" [ref=f36e165] [cursor=pointer]
+            - button "访问模式，当前：Workspace Write" [ref=f36e170] [cursor=pointer]:
+              - generic [ref=f36e178]: Workspace Write
+          - generic [ref=f36e134]:
+            - button "选择模型，当前 deepseek-v4-pro" [ref=f36e184] [cursor=pointer]:
+              - generic [ref=f36e185]: deepseek-v4-pro
+            - button "发送消息" [disabled] [ref=f36e188]
+    - generic [ref=f36e192]:
+      - generic [ref=f36e193]:
+        - generic: 详情
+        - button "关闭详情" [ref=f36e194] [cursor=pointer]
+      - generic [ref=f36e197]: 点击消息流中的工具行查看详情
+  - button "打开任务队列" [ref=f36e137] [cursor=pointer]

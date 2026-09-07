@@ -1,0 +1,61 @@
+- generic [ref=f27e1]:
+  - generic [ref=f27e4]:
+    - generic [ref=f27e7]:
+      - generic [ref=f27e8]:
+        - button "新建会话" [ref=f27e9] [cursor=pointer]
+        - button "收起侧边栏" [ref=f27e38] [cursor=pointer]
+      - button "新建会话" [ref=f27e41] [cursor=pointer]:
+        - generic [ref=f27e44]: 新会话
+      - generic [ref=f27e47]:
+        - generic [ref=f27e48]:
+          - generic [ref=f27e49]: 工作区
+          - generic [ref=f27e51]:
+            - button "搜索会话" [ref=f27e52] [cursor=pointer]
+            - textbox "搜索会话…"
+          - generic [ref=f27e56]:
+            - button "视图选项" [ref=f27e58] [cursor=pointer]
+            - button "添加工作区" [ref=f27e61] [cursor=pointer]
+        - tree "会话" [ref=f27e67]:
+          - generic [ref=f27e68]:
+            - treeitem "dsh-plugin-autoqueue" [expanded] [ref=f27e70] [cursor=pointer]
+            - treeitem "新会话" [selected] [ref=f27e78] [cursor=pointer]
+            - treeitem "1. 产品定位 autoqueue 在 DSH 5小时" [ref=f27e82] [cursor=pointer]:
+              - generic [ref=f27e84]: 1. 产品定位 autoqueue 在 DSH
+              - generic [ref=f27e85]: 5小时
+            - treeitem "我们的代码核心层，http，ai层 6小时" [ref=f27e87] [cursor=pointer]:
+              - generic [ref=f27e89]: 我们的代码核心层，http，ai层
+              - generic [ref=f27e90]: 6小时
+            - treeitem "我们刚才加了一个重启，这个 9小时" [ref=f27e92] [cursor=pointer]:
+              - generic [ref=f27e94]: 我们刚才加了一个重启，这个
+              - generic [ref=f27e95]: 9小时
+            - treeitem "本地这个D:\\myqueue\\dsh-plugin-autoqu 9小时" [ref=f27e97] [cursor=pointer]:
+              - generic [ref=f27e99]: 本地这个D:\myqueue\dsh-plugin-autoqu
+              - generic [ref=f27e100]: 9小时
+            - button "展开其余 21 个会话" [ref=f27e101] [cursor=pointer]
+          - treeitem "github" [ref=f27e104] [cursor=pointer]
+          - treeitem "dsh-plugin-autoqueue" [ref=f27e112] [cursor=pointer]
+          - treeitem "未分组" [ref=f27e119] [cursor=pointer]
+      - button "设置" [ref=f27e128] [cursor=pointer]
+    - generic [ref=f27e142]:
+      - generic [ref=f27e145]:
+        - generic [ref=f27e150]: 探索未至之境
+        - generic [ref=f27e151]: 预览版
+      - button "选择工作区" [ref=f27e153] [cursor=pointer]:
+        - generic [ref=f27e157]: dsh-plugin-autoqueue
+      - generic [ref=f27e162]:
+        - textbox "描述你想要构建的内容" [active] [ref=f27e165]
+        - generic [ref=f27e166]:
+          - generic [ref=f27e167]:
+            - button "命令" [ref=f27e168] [cursor=pointer]
+            - button "访问模式，当前：Workspace Write" [ref=f27e173] [cursor=pointer]:
+              - generic [ref=f27e181]: Workspace Write
+          - generic [ref=f27e185]:
+            - button "选择模型" [ref=f27e188] [cursor=pointer]
+            - button "发送消息" [disabled] [ref=f27e192]
+    - generic [ref=f27e196]:
+      - generic [ref=f27e197]:
+        - generic: 详情
+        - button "关闭详情" [ref=f27e198] [cursor=pointer]
+      - generic [ref=f27e201]: 点击消息流中的工具行查看详情
+  - button "打开任务队列" [ref=f27e204] [cursor=pointer]:
+    - generic [ref=f27e209]: 任务队列

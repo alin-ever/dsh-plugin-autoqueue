@@ -1,0 +1,58 @@
+[    7417ms] [ERROR] Error: Passing props on "Fragment"!
+
+The current component <Transition.Child /> is rendering a "Fragment".
+However we need to passthrough the following props:
+  - ref
+  - className
+  - data-closed
+  - data-enter
+  - data-transition
+
+You can apply a few solutions:
+  - Add an `as="..."` prop, to ensure that we render an actual element instead of a "Fragment".
+  - Render a single element as the child so that we can forward the props onto that element.
+    at F (http://127.0.0.1:3080/plugins/@alintever/dsh-plugin-autoqueue/client.js?rev=13bb4ec1c458:5130:49)
+    at U (http://127.0.0.1:3080/plugins/@alintever/dsh-plugin-autoqueue/client.js?rev=13bb4ec1c458:5101:20)
+    at http://127.0.0.1:3080/plugins/@alintever/dsh-plugin-autoqueue/client.js?rev=13bb4ec1c458:5096:33
+    at Fe (http://127.0.0.1:3080/plugins/@alintever/dsh-plugin-autoqueue/client.js?rev=13bb4ec1c458:6481:125)
+    at Xo (http://127.0.0.1:3080/assets/index-ClqxG24t.js:54:17240)
+    at v0 (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:44357)
+    at p0 (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:40016)
+    at q4 (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:39944)
+    at mi (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:39797)
+    at Sl (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:36121) @ http://127.0.0.1:3080/assets/index-ClqxG24t.js:55
+[    7420ms] Error: Passing props on "Fragment"!
+
+The current component <Transition.Child /> is rendering a "Fragment".
+However we need to passthrough the following props:
+  - ref
+  - className
+  - data-closed
+  - data-enter
+  - data-transition
+
+You can apply a few solutions:
+  - Add an `as="..."` prop, to ensure that we render an actual element instead of a "Fragment".
+  - Render a single element as the child so that we can forward the props onto that element.
+    at F (http://127.0.0.1:3080/plugins/@alintever/dsh-plugin-autoqueue/client.js?rev=13bb4ec1c458:5130:49)
+    at U (http://127.0.0.1:3080/plugins/@alintever/dsh-plugin-autoqueue/client.js?rev=13bb4ec1c458:5101:20)
+    at http://127.0.0.1:3080/plugins/@alintever/dsh-plugin-autoqueue/client.js?rev=13bb4ec1c458:5096:33
+    at Fe (http://127.0.0.1:3080/plugins/@alintever/dsh-plugin-autoqueue/client.js?rev=13bb4ec1c458:6481:125)
+    at Xo (http://127.0.0.1:3080/assets/index-ClqxG24t.js:54:17240)
+    at v0 (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:44357)
+    at p0 (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:40016)
+    at q4 (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:39944)
+    at mi (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:39797)
+    at Sl (http://127.0.0.1:3080/assets/index-ClqxG24t.js:56:36121)
+[   85802ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_RESET @ http://127.0.0.1:3080/api/queue/events?archived=1:0
+[   85804ms] [WARNING] [web-runtime] connection lost, retry #1 @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:115
+[   85808ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_RESET @ http://127.0.0.1:3080/plugins/events:0
+[   88326ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:3080/api/events.mux' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:10132
+[   88327ms] [WARNING] WebSocket connection to 'ws://127.0.0.1:3080/api/events.host' failed: WebSocket is closed before the connection is established. @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:10167
+[   88327ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:3080/api/host.describe:0
+[   88328ms] [WARNING] [web-runtime] connection lost, retry #2 @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:115
+[   91070ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://127.0.0.1:3080/api/queue/events?archived=1:0
+[   91085ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:3080/api/events.mux' failed: Connection closed before receiving a handshake response @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:10132
+[   91085ms] [WARNING] WebSocket connection to 'ws://127.0.0.1:3080/api/events.host' failed: WebSocket is closed before the connection is established. @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:10167
+[   91086ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://127.0.0.1:3080/api/host.describe:0
+[   91087ms] [WARNING] [web-runtime] connection lost, retry #3 @ http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=70b02b2d3fc2:115

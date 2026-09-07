@@ -1,0 +1,454 @@
+- generic [ref=f1e1]:
+  - generic [ref=f1e4]:
+    - generic [ref=f1e7]:
+      - generic [ref=f1e8]:
+        - button "新建会话" [ref=f1e9] [cursor=pointer]
+        - button "收起侧边栏" [ref=f1e38] [cursor=pointer]
+      - button "新建会话" [ref=f1e41] [cursor=pointer]:
+        - generic [ref=f1e44]: 新会话
+      - button "AutoQueue 任务队列" [ref=f1e45] [cursor=pointer]:
+        - generic [ref=f1e52]: 任务队列
+      - generic [ref=f1e55]:
+        - generic [ref=f1e56]:
+          - generic [ref=f1e57]: 工作区
+          - generic [ref=f1e59]:
+            - button "搜索会话" [ref=f1e60] [cursor=pointer]
+            - textbox "搜索会话…"
+          - generic [ref=f1e64]:
+            - button "视图选项" [ref=f1e66] [cursor=pointer]
+            - button "添加工作区" [ref=f1e69] [cursor=pointer]
+        - tree "会话" [ref=f1e75]:
+          - generic [ref=f1e76]:
+            - treeitem "dsh-plugin-autoqueue" [expanded] [ref=f1e78] [cursor=pointer]
+            - treeitem "新会话" [selected] [ref=f1e151] [cursor=pointer]
+            - treeitem "1. 产品定位 autoqueue 在 DSH 1小时" [ref=f1e155] [cursor=pointer]:
+              - generic [ref=f1e157]: 1. 产品定位 autoqueue 在 DSH
+              - generic [ref=f1e158]: 1小时
+            - treeitem "我们的代码核心层，http，ai层 2小时" [ref=f1e160] [cursor=pointer]:
+              - generic [ref=f1e162]: 我们的代码核心层，http，ai层
+              - generic [ref=f1e163]: 2小时
+            - treeitem "我们刚才加了一个重启，这个 4小时" [ref=f1e165] [cursor=pointer]:
+              - generic [ref=f1e167]: 我们刚才加了一个重启，这个
+              - generic [ref=f1e168]: 4小时
+            - treeitem "本地这个D:\\myqueue\\dsh-plugin-autoqu 5小时" [ref=f1e170] [cursor=pointer]:
+              - generic [ref=f1e172]: 本地这个D:\myqueue\dsh-plugin-autoqu
+              - generic [ref=f1e173]: 5小时
+            - button "展开其余 21 个会话" [ref=f1e174] [cursor=pointer]
+          - treeitem "github" [ref=f1e87] [cursor=pointer]
+          - treeitem "dsh-plugin-autoqueue" [ref=f1e95] [cursor=pointer]
+          - treeitem "未分组" [ref=f1e176] [cursor=pointer]
+      - button "设置" [ref=f1e104] [cursor=pointer]
+    - generic [ref=f1e118]:
+      - generic [ref=f1e121]:
+        - generic [ref=f1e126]: 探索未至之境
+        - generic [ref=f1e127]: 预览版
+      - generic [ref=f1e128]:
+        - button "选择工作区" [ref=f1e129] [cursor=pointer]:
+          - generic [ref=f1e132]: dsh-plugin-autoqueue
+        - button "标准模式" [ref=f1e187] [cursor=pointer]
+      - generic [ref=f1e137]:
+        - generic [ref=f1e139]:
+          - generic [aria-hidden]: mo
+          - textbox "描述你想要构建的内容" [ref=f1e195]: mo
+        - generic [ref=f1e141]:
+          - generic [ref=f1e142]:
+            - button "命令" [ref=f1e196] [cursor=pointer]
+            - button "访问模式，当前：Workspace Write" [ref=f1e201] [cursor=pointer]:
+              - generic [ref=f1e209]: Workspace Write
+          - generic [ref=f1e143]:
+            - button "选择模型，当前 deepseek-v4-pro" [ref=f1e215] [cursor=pointer]:
+              - generic [ref=f1e216]: deepseek-v4-pro
+            - button "发送消息" [ref=f1e219] [cursor=pointer]
+    - generic [ref=f1e223]:
+      - generic [ref=f1e224]:
+        - generic: 详情
+        - button "关闭详情" [ref=f1e225] [cursor=pointer]
+      - generic [ref=f1e228]: 点击消息流中的工具行查看详情
+  - generic [ref=f1e145]:
+    - generic [ref=f1e230]:
+      - banner [aria-hidden] [ref=f1e231]:
+        - generic [ref=f1e232]:
+          - generic [ref=f1e233]: 任务队列
+          - generic [ref=f1e234]: 24 个任务
+        - button [ref=f1e235] [cursor=pointer]: 扫描
+        - button [ref=f1e239] [cursor=pointer]
+        - button [ref=f1e243] [cursor=pointer]: 关闭
+      - generic [aria-hidden] [ref=f1e247]:
+        - generic [ref=f1e248]:
+          - generic [ref=f1e249]: "0"
+          - generic [ref=f1e250]: 运行中
+        - generic [ref=f1e251]:
+          - generic [ref=f1e252]: "0"
+          - generic [ref=f1e253]: 等待中
+        - generic [ref=f1e254]:
+          - generic [ref=f1e255]: "23"
+          - generic [ref=f1e256]: 24h 完成
+        - generic [ref=f1e257]:
+          - generic [ref=f1e258]: 待确认
+          - generic [ref=f1e259]: 隔离
+      - generic [aria-hidden] [ref=f1e260]:
+        - searchbox [ref=f1e264]
+        - generic [ref=f1e265]:
+          - button [ref=f1e266]: 全部24
+          - button [ref=f1e267]: 运行中
+          - button [ref=f1e268]: 待执行
+          - button [ref=f1e269]: 失败
+          - button [ref=f1e270]: 已完成24
+        - button [ref=f1e271] [cursor=pointer]: 新建
+      - generic [aria-hidden] [ref=f1e273]:
+        - article [ref=f1e274] [cursor=pointer]:
+          - checkbox [ref=f1e276]
+          - generic [ref=f1e280]:
+            - generic [ref=f1e281]:
+              - generic [ref=f1e282]: v22
+              - generic [ref=f1e283]: 手动
+            - paragraph [ref=f1e286]: 验证
+            - generic [ref=f1e287]:
+              - generic [ref=f1e288]: 即时
+              - generic [ref=f1e289]: 5 小时前
+          - generic [ref=f1e290]:
+            - button [ref=f1e291]: 重跑
+            - button [ref=f1e292]: 归档
+            - button [ref=f1e293]: 会话
+        - article [ref=f1e294] [cursor=pointer]:
+          - checkbox [ref=f1e296]
+          - generic [ref=f1e300]:
+            - generic [ref=f1e301]:
+              - generic [ref=f1e302]: v21
+              - generic [ref=f1e303]: 手动
+            - paragraph [ref=f1e306]: 验证
+            - generic [ref=f1e307]:
+              - generic [ref=f1e308]: 即时
+              - generic [ref=f1e309]: 5 小时前
+          - generic [ref=f1e310]:
+            - button [ref=f1e311]: 重跑
+            - button [ref=f1e312]: 归档
+            - button [ref=f1e313]: 会话
+        - article [ref=f1e314] [cursor=pointer]:
+          - checkbox [ref=f1e316]
+          - generic [ref=f1e320]:
+            - generic [ref=f1e321]:
+              - generic [ref=f1e322]: v20
+              - generic [ref=f1e323]: 手动
+            - paragraph [ref=f1e326]: 验证
+            - generic [ref=f1e327]:
+              - generic [ref=f1e328]: 即时
+              - generic [ref=f1e329]: 5 小时前
+          - generic [ref=f1e330]:
+            - button [ref=f1e331]: 重跑
+            - button [ref=f1e332]: 归档
+            - button [ref=f1e333]: 会话
+        - article [ref=f1e334] [cursor=pointer]:
+          - checkbox [ref=f1e336]
+          - generic [ref=f1e340]:
+            - generic [ref=f1e341]:
+              - generic [ref=f1e342]: v19
+              - generic [ref=f1e343]: 手动
+            - paragraph [ref=f1e346]: 验证
+            - generic [ref=f1e347]:
+              - generic [ref=f1e348]: 即时
+              - generic [ref=f1e349]: 5 小时前
+          - generic [ref=f1e350]:
+            - button [ref=f1e351]: 重跑
+            - button [ref=f1e352]: 归档
+            - button [ref=f1e353]: 会话
+        - article [ref=f1e354] [cursor=pointer]:
+          - checkbox [ref=f1e356]
+          - generic [ref=f1e360]:
+            - generic [ref=f1e361]:
+              - generic [ref=f1e362]: v18
+              - generic [ref=f1e363]: 手动
+            - paragraph [ref=f1e366]: 验证
+            - generic [ref=f1e367]:
+              - generic [ref=f1e368]: 即时
+              - generic [ref=f1e369]: 5 小时前
+          - generic [ref=f1e370]:
+            - button [ref=f1e371]: 重跑
+            - button [ref=f1e372]: 归档
+            - button [ref=f1e373]: 会话
+        - article [ref=f1e374] [cursor=pointer]:
+          - checkbox [ref=f1e376]
+          - generic [ref=f1e380]:
+            - generic [ref=f1e381]:
+              - generic [ref=f1e382]: v17
+              - generic [ref=f1e383]: 手动
+            - paragraph [ref=f1e386]: 验证
+            - generic [ref=f1e387]:
+              - generic [ref=f1e388]: 即时
+              - generic [ref=f1e389]: 5 小时前
+          - generic [ref=f1e390]:
+            - button [ref=f1e391]: 重跑
+            - button [ref=f1e392]: 归档
+            - button [ref=f1e393]: 会话
+        - article [ref=f1e394] [cursor=pointer]:
+          - checkbox [ref=f1e396]
+          - generic [ref=f1e400]:
+            - generic [ref=f1e401]:
+              - generic [ref=f1e402]: v16
+              - generic [ref=f1e403]: 手动
+            - paragraph [ref=f1e406]: 验证
+            - generic [ref=f1e407]:
+              - generic [ref=f1e408]: 即时
+              - generic [ref=f1e409]: 5 小时前
+          - generic [ref=f1e410]:
+            - button [ref=f1e411]: 重跑
+            - button [ref=f1e412]: 归档
+            - button [ref=f1e413]: 会话
+        - article [ref=f1e414] [cursor=pointer]:
+          - checkbox [ref=f1e416]
+          - generic [ref=f1e420]:
+            - generic [ref=f1e421]:
+              - generic [ref=f1e422]: v15
+              - generic [ref=f1e423]: 手动
+            - paragraph [ref=f1e426]: 验证
+            - generic [ref=f1e427]:
+              - generic [ref=f1e428]: 即时
+              - generic [ref=f1e429]: 6 小时前
+          - generic [ref=f1e430]:
+            - button [ref=f1e431]: 重跑
+            - button [ref=f1e432]: 归档
+            - button [ref=f1e433]: 会话
+        - article [ref=f1e434] [cursor=pointer]:
+          - checkbox [ref=f1e436]
+          - generic [ref=f1e440]:
+            - generic [ref=f1e441]:
+              - generic [ref=f1e442]: v14
+              - generic [ref=f1e443]: 手动
+            - paragraph [ref=f1e446]: 验证
+            - generic [ref=f1e447]:
+              - generic [ref=f1e448]: 即时
+              - generic [ref=f1e449]: 6 小时前
+          - generic [ref=f1e450]:
+            - button [ref=f1e451]: 重跑
+            - button [ref=f1e452]: 归档
+            - button [ref=f1e453]: 会话
+        - article [ref=f1e454] [cursor=pointer]:
+          - checkbox [ref=f1e456]
+          - generic [ref=f1e460]:
+            - generic [ref=f1e461]:
+              - generic [ref=f1e462]: v13
+              - generic [ref=f1e463]: 手动
+            - paragraph [ref=f1e466]: 验证
+            - generic [ref=f1e467]:
+              - generic [ref=f1e468]: 即时
+              - generic [ref=f1e469]: 6 小时前
+          - generic [ref=f1e470]:
+            - button [ref=f1e471]: 重跑
+            - button [ref=f1e472]: 归档
+            - button [ref=f1e473]: 会话
+        - article [ref=f1e474] [cursor=pointer]:
+          - checkbox [ref=f1e476]
+          - generic [ref=f1e480]:
+            - generic [ref=f1e481]:
+              - generic [ref=f1e482]: v12
+              - generic [ref=f1e483]: 手动
+            - paragraph [ref=f1e486]: 验证权限
+            - generic [ref=f1e487]:
+              - generic [ref=f1e488]: 即时
+              - generic [ref=f1e489]: 6 小时前
+          - generic [ref=f1e490]:
+            - button [ref=f1e491]: 重跑
+            - button [ref=f1e492]: 归档
+            - button [ref=f1e493]: 会话
+        - article [ref=f1e494] [cursor=pointer]:
+          - checkbox [ref=f1e496]
+          - generic [ref=f1e500]:
+            - generic [ref=f1e501]:
+              - generic [ref=f1e502]: v11
+              - generic [ref=f1e503]: 手动
+            - paragraph [ref=f1e506]: 验证权限
+            - generic [ref=f1e507]:
+              - generic [ref=f1e508]: 即时
+              - generic [ref=f1e509]: 6 小时前
+          - generic [ref=f1e510]:
+            - button [ref=f1e511]: 重跑
+            - button [ref=f1e512]: 归档
+            - button [ref=f1e513]: 会话
+        - article [ref=f1e514] [cursor=pointer]:
+          - checkbox [ref=f1e516]
+          - generic [ref=f1e520]:
+            - generic [ref=f1e521]:
+              - generic [ref=f1e522]: v10
+              - generic [ref=f1e523]: 手动
+            - paragraph [ref=f1e526]: 验证
+            - generic [ref=f1e527]:
+              - generic [ref=f1e528]: 即时
+              - generic [ref=f1e529]: 6 小时前
+          - generic [ref=f1e530]:
+            - button [ref=f1e531]: 重跑
+            - button [ref=f1e532]: 归档
+            - button [ref=f1e533]: 会话
+        - article [ref=f1e534] [cursor=pointer]:
+          - checkbox [ref=f1e536]
+          - generic [ref=f1e540]:
+            - generic [ref=f1e541]:
+              - generic [ref=f1e542]: v9
+              - generic [ref=f1e543]: 手动
+            - paragraph [ref=f1e546]: 验证
+            - generic [ref=f1e547]:
+              - generic [ref=f1e548]: 即时
+              - generic [ref=f1e549]: 6 小时前
+          - generic [ref=f1e550]:
+            - button [ref=f1e551]: 重跑
+            - button [ref=f1e552]: 归档
+            - button [ref=f1e553]: 会话
+        - article [ref=f1e554] [cursor=pointer]:
+          - checkbox [ref=f1e556]
+          - generic [ref=f1e560]:
+            - generic [ref=f1e561]:
+              - generic [ref=f1e562]: v8
+              - generic [ref=f1e563]: 手动
+            - paragraph [ref=f1e566]: 验证
+            - generic [ref=f1e567]:
+              - generic [ref=f1e568]: 即时
+              - generic [ref=f1e569]: 6 小时前
+          - generic [ref=f1e570]:
+            - button [ref=f1e571]: 重跑
+            - button [ref=f1e572]: 归档
+            - button [ref=f1e573]: 会话
+        - article [ref=f1e574] [cursor=pointer]:
+          - checkbox [ref=f1e576]
+          - generic [ref=f1e580]:
+            - generic [ref=f1e581]:
+              - generic [ref=f1e582]: v7
+              - generic [ref=f1e583]: 手动
+            - paragraph [ref=f1e586]: 验证
+            - generic [ref=f1e587]:
+              - generic [ref=f1e588]: 即时
+              - generic [ref=f1e589]: 6 小时前
+          - generic [ref=f1e590]:
+            - button [ref=f1e591]: 重跑
+            - button [ref=f1e592]: 归档
+            - button [ref=f1e593]: 会话
+        - article [ref=f1e594] [cursor=pointer]:
+          - checkbox [ref=f1e596]
+          - generic [ref=f1e600]:
+            - generic [ref=f1e601]:
+              - generic [ref=f1e602]: v6
+              - generic [ref=f1e603]: 手动
+            - paragraph [ref=f1e606]: 验证
+            - generic [ref=f1e607]:
+              - generic [ref=f1e608]: 即时
+              - generic [ref=f1e609]: 6 小时前
+          - generic [ref=f1e610]:
+            - button [ref=f1e611]: 重跑
+            - button [ref=f1e612]: 归档
+            - button [ref=f1e613]: 会话
+        - article [ref=f1e614] [cursor=pointer]:
+          - checkbox [ref=f1e616]
+          - generic [ref=f1e620]:
+            - generic [ref=f1e621]:
+              - generic [ref=f1e622]: v5
+              - generic [ref=f1e623]: 手动
+            - paragraph [ref=f1e626]: 验证权限
+            - generic [ref=f1e627]:
+              - generic [ref=f1e628]: 即时
+              - generic [ref=f1e629]: 6 小时前
+          - generic [ref=f1e630]:
+            - button [ref=f1e631]: 重跑
+            - button [ref=f1e632]: 归档
+            - button [ref=f1e633]: 会话
+        - article [ref=f1e634] [cursor=pointer]:
+          - checkbox [ref=f1e636]
+          - generic [ref=f1e640]:
+            - generic [ref=f1e641]:
+              - generic [ref=f1e642]: verify-cwd
+              - generic [ref=f1e643]: 手动
+            - paragraph [ref=f1e646]: 验证工作区
+            - generic [ref=f1e647]:
+              - generic [ref=f1e648]: 即时
+              - generic [ref=f1e649]: 7 小时前
+          - generic [ref=f1e650]:
+            - button [ref=f1e651]: 重跑
+            - button [ref=f1e652]: 归档
+            - button [ref=f1e653]: 会话
+        - article [ref=f1e654] [cursor=pointer]:
+          - checkbox [ref=f1e656]
+          - generic [ref=f1e660]:
+            - generic [ref=f1e661]:
+              - generic [ref=f1e662]: 从一数到十-20260907-091412
+              - generic [ref=f1e663]: 手动
+            - paragraph [ref=f1e666]: 从一数到十
+            - generic [ref=f1e667]:
+              - generic [ref=f1e668]: 即时
+              - generic [ref=f1e669]: 7 小时前
+          - generic [ref=f1e670]:
+            - button [ref=f1e671]: 重跑
+            - button [ref=f1e672]: 归档
+            - button [ref=f1e673]: 会话
+        - article [ref=f1e674] [cursor=pointer]:
+          - checkbox [ref=f1e676]
+          - generic [ref=f1e680]:
+            - generic [ref=f1e681]:
+              - generic [ref=f1e682]: ai-test
+              - generic [ref=f1e683]: 手动
+            - paragraph [ref=f1e686]: AI工具测试
+            - generic [ref=f1e687]:
+              - generic [ref=f1e688]: 即时
+              - generic [ref=f1e689]: 7 小时前
+          - generic [ref=f1e690]:
+            - button [ref=f1e691]: 重跑
+            - button [ref=f1e692]: 归档
+            - button [ref=f1e693]: 会话
+        - article [ref=f1e694] [cursor=pointer]:
+          - checkbox [ref=f1e696]
+          - generic [ref=f1e700]:
+            - generic [ref=f1e701]:
+              - generic [ref=f1e702]: http-default
+              - generic [ref=f1e703]: 手动
+            - paragraph [ref=f1e706]: HTTP默认测试
+            - generic [ref=f1e707]:
+              - generic [ref=f1e708]: 即时
+              - generic [ref=f1e709]: 7 小时前
+          - generic [ref=f1e710]:
+            - button [ref=f1e711]: 重跑
+            - button [ref=f1e712]: 归档
+            - button [ref=f1e713]: 会话
+        - article [ref=f1e714] [cursor=pointer]:
+          - checkbox [ref=f1e716]
+          - generic [ref=f1e720]:
+            - generic [ref=f1e721]:
+              - generic [ref=f1e722]: noarchive2
+              - generic [ref=f1e723]: 手动
+            - paragraph [ref=f1e726]: 不归档测试2
+            - generic [ref=f1e727]:
+              - generic [ref=f1e728]: 即时
+              - generic [ref=f1e729]: 17 小时前
+          - generic [ref=f1e730]:
+            - button [ref=f1e731]: 重跑
+            - button [ref=f1e732]: 归档
+            - button [ref=f1e733]: 会话
+        - article [ref=f1e734] [cursor=pointer]:
+          - checkbox [ref=f1e736]
+          - generic [ref=f1e740]:
+            - generic [ref=f1e741]:
+              - generic [ref=f1e742]: 复杂任务
+              - generic [ref=f1e743]: 手动
+            - paragraph [ref=f1e746]: 扫描插件，看看是否有必要升级dsh版本，多用互联网
+            - generic [ref=f1e747]:
+              - generic [ref=f1e748]: 即时
+              - generic [ref=f1e749]: 6 天前
+          - generic [ref=f1e750]:
+            - button [ref=f1e751]: 重跑
+            - button [ref=f1e752]: 归档
+            - button [ref=f1e753]: 会话
+      - generic:
+        - generic:
+          - dialog "新建无人值守任务" [active]:
+            - generic [ref=f1e756]:
+              - generic [ref=f1e757]:
+                - heading "新建无人值守任务" [level=2] [ref=f1e758]
+                - button "关闭" [ref=f1e759]
+              - generic [ref=f1e763]:
+                - generic [ref=f1e764]:
+                  - generic [ref=f1e765]:
+                    - heading "预览：代码审查" [level=3] [ref=f1e766]
+                    - paragraph [ref=f1e767]: 确认任务内容后创建
+                  - button "修改参数" [ref=f1e768]
+                - generic [ref=f1e769]: "# 代码审查 请对以下代码进行系统性审查。 ## 审查范围 - **目标路径**: `` - **审查重点**: - **主要语言**: ## 审查要求 1. **先通读整体结构**：理解模块划分、依赖关系和调用链路，不要上来就改代码。 2. **逐文件检查**：对 `` 下的每个源文件,从以下维度审查： - 逻辑正确性：边界条件、空值处理、异常路径 - 安全性：注入风险、敏感信息泄露、权限校验 - 性能：不必要的循环、重复计算、内存泄漏风险 - 可维护性：命名规范、函数长度、注释质量、重复代码 3. **输出问题清单**：按严重程度（致命/严重/建议）分类，每条包含： - 文件路径和行号 - 问题描述 - 修复建议 4. **给出总体评价**：代码质量评分（1-10）和一句话总结。 ## 注意事项 - 只审查 `` 范围内的代码，不要扩展到无关文件。 - 如果发现超过 20 个问题，优先列出最严重的 20 个，其余归入\"其他建议\"。 - 不要修改代码，只输出审查报告。"
+                - generic [ref=f1e771]:
+                  - button "返回修改" [ref=f1e772] [cursor=pointer]
+                  - button "确认创建" [ref=f1e773] [cursor=pointer]
+    - button [aria-hidden] [ref=f1e774] [cursor=pointer]:
+      - generic [ref=f1e149]: 关闭
+      - generic [ref=f1e775]: "24"
