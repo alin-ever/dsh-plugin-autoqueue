@@ -97,15 +97,15 @@ export function TaskDetailPanel(props) {
       ),
 
       // 底部操作栏
-      h("div", { className: "flex-shrink-0 flex gap-2 px-6 py-3 border-t border-aq-line bg-aq-paper" },
-        value.status === "pending" && h("button", { className: "aq-btn aq-btn-ghost text-xs", onClick: function () { props.onClose(); controller.openEdit(value.key); } }, "编辑"),
-        value.status === "pending" && h("button", { className: "aq-btn aq-btn-ghost text-xs text-aq-red", onClick: function () { requestAction("delete"); } }, "删除"),
-        value.status === "running" && value.stopPending !== true && h("button", { className: "aq-btn aq-btn-ghost text-xs text-aq-red", onClick: function () { requestAction("stop"); } }, "停止"),
-        ["done", "failed", "stopped", "interrupted"].indexOf(value.status) >= 0 && !value.archivedAt && h("button", { className: "aq-btn aq-btn-ghost text-xs text-aq-green", onClick: function () { requestAction("rerun"); } }, "重新执行"),
-        value.status !== "running" && !value.archivedAt && h("button", { className: "aq-btn aq-btn-ghost text-xs", onClick: function () { doAction("archive"); } }, "归档"),
-        value.archivedAt && h("button", { className: "aq-btn aq-btn-ghost text-xs", onClick: function () { doAction("restore"); } }, "恢复"),
+      h("div", { className: "flex-shrink-0 flex flex-wrap gap-2 px-6 py-3 border-t border-aq-line bg-aq-paper" },
+        value.status === "pending" && h("button", { className: "aq-btn aq-btn-ghost text-sm", onClick: function () { props.onClose(); controller.openEdit(value.key); } }, "编辑"),
+        value.status === "pending" && h("button", { className: "aq-btn aq-btn-ghost text-sm text-aq-red", onClick: function () { requestAction("delete"); } }, "删除"),
+        value.status === "running" && value.stopPending !== true && h("button", { className: "aq-btn aq-btn-ghost text-sm text-aq-red", onClick: function () { requestAction("stop"); } }, "停止"),
+        ["done", "failed", "stopped", "interrupted"].indexOf(value.status) >= 0 && !value.archivedAt && h("button", { className: "aq-btn aq-btn-ghost text-sm text-aq-green", onClick: function () { requestAction("rerun"); } }, "重新执行"),
+        value.status !== "running" && !value.archivedAt && h("button", { className: "aq-btn aq-btn-ghost text-sm", onClick: function () { doAction("archive"); } }, "归档"),
+        value.archivedAt && h("button", { className: "aq-btn aq-btn-ghost text-sm", onClick: function () { doAction("restore"); } }, "恢复"),
         h("span", { className: "flex-1" }),
-        sessionId && h("button", { className: "aq-btn aq-btn-primary text-xs", onClick: function () { props.onClose(); controller.closeBoard(); if (props.sessions && props.sessions.open) props.sessions.open(sessionId); }, dangerouslySetInnerHTML: { __html: iconHtml("external") + " 跳转会话" } })
+        sessionId && h("button", { className: "aq-btn aq-btn-primary text-sm", onClick: function () { props.onClose(); controller.closeBoard(); if (props.sessions && props.sessions.open) props.sessions.open(sessionId); }, dangerouslySetInnerHTML: { __html: iconHtml("external") + " 跳转会话" } })
       )
     )
   );
@@ -154,7 +154,7 @@ function OverviewTab(props) {
     ),
 
     task.body && h(Section, { title: "任务内容" },
-      h("div", { className: "max-h-60 overflow-auto p-3 rounded-xl border border-aq-line bg-aq-surface-alt" },
+      h("div", { className: "p-3 rounded-xl border border-aq-line bg-aq-surface-alt" },
         h("pre", { className: "text-xs font-mono text-aq-ink-2 whitespace-pre-wrap break-words m-0" }, task.body)
       )
     ),
@@ -396,9 +396,10 @@ function Section(props) {
 }
 
 function Grid(props) {
-  return h("div", { className: "grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-aq-line bg-aq-line" },
-    (props.children && props.children.length ? props.children : [props.children]).map(function (child, i) {
-      return h("div", { key: i, className: "p-3 bg-aq-paper" }, child);
+  var children = React.Children.toArray(props.children);
+  return h("div", { className: "grid grid-cols-2 gap-3" },
+    children.map(function (child, i) {
+      return h("div", { key: i, className: "p-3 rounded-xl border border-aq-line bg-aq-surface-alt" }, child);
     })
   );
 }

@@ -83,7 +83,7 @@ export function NewTaskModal(props) {
   }
 
   return h(DialogShell, { open: true, onClose: props.onClose, title: "新建无人值守任务", variant: "modal", size: "lg" },
-    h("form", { className: "flex flex-col px-6 pb-6", onSubmit: handleSubmit },
+    h("form", { className: "flex flex-col h-full px-6 pb-6", onSubmit: handleSubmit },
       showTemplates[0] && h(TemplatePickerInline, {
         templates: templates[0], loading: templatesLoading[0],
         onSelect: onTemplateSelect, onClose: function () { showTemplates[1](false); }
@@ -190,7 +190,7 @@ export function EditTaskModal(props) {
   }
 
   return h(DialogShell, { open: true, onClose: props.onClose, title: "编辑任务 · " + task.key, variant: "modal", size: "lg" },
-    h("form", { className: "flex flex-col px-6 pb-6", onSubmit: handleSubmit },
+    h("form", { className: "flex flex-col h-full px-6 pb-6", onSubmit: handleSubmit },
       h("p", { className: "text-sm text-aq-muted py-3" }, "仅待执行任务可编辑；运行中的任务请先停止。"),
       error[0] && h("div", { className: "p-3 mb-4 rounded-lg bg-aq-red-soft text-sm text-aq-red" }, error[0]),
 

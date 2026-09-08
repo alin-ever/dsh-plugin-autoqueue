@@ -2,23 +2,28 @@
 # 用法: pwsh -File restart-dsh.ps1
 $ErrorActionPreference = "Stop"
 
-$dshPid = 2532
-$dshHome = "C:\Users\19878\.dsh"
+$dshHome = "C:\Users\admin\.dsh"
 $profile = "web"
 $port = 3080
 
 Write-Host "=== DSH 重启脚本 ==="
-Write-Host "目标 PID: $dshPid"
 Write-Host "DSH_HOME: $dshHome"
 Write-Host "Profile: $profile"
 Write-Host "Port: $port"
 
-# 1. 停止旧进程
-Write-Host "`n[1/3] 停止旧 DSH 进程 (PID $dshPid)..."
+# 1. 停止旧进程（通过端口查找 PID）
+Write-Host "`n[1/3] 停止旧 DSH 进程..."
+$dshPid = $null
 try {
-    $proc = Get-Process -Id $dshPid -ErrorAction Stop
-    $proc.Kill()
-    Write-Host "  已发送终止信号"
+    $netstat = netstat -ano 2>$null | Select-String ":$port .*LISTENING"
+    if ($netstat) {
+        $dshPid = [int]($netstat -split '\s+')[-1]
+        $proc = Get-Process -Id $dshPid -ErrorAction Stop
+        $proc.Kill()
+        Write-Host "  已终止 PID $dshPid"
+    } else {
+        Write-Host "  没有找到监听 $port 的进程"
+    }
 } catch {
     Write-Host "  进程已不存在或无法终止: $_"
 }

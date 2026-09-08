@@ -168,19 +168,11 @@ export function Workstation(props) {
 // ─── Compact Header ──────────────────────────────────────
 
 function CompactHeader(props) {
-  var snap = props.snap;
-  var running = snap.metrics.running || 0;
-  var pending = snap.metrics.pending || 0;
-  var total = snap.tasks.filter(function (t) { return !t.archivedAt; }).length;
-
   return h("header", { className: "flex-shrink-0 flex items-center gap-3 px-4 py-2.5 border-b border-aq-line bg-aq-paper" },
     h("div", { className: "flex items-center gap-2.5 mr-auto" },
       h("span", { className: "flex items-center gap-1.5 text-sm font-bold text-aq-ink" },
         h("span", { className: "w-4 h-4 flex-shrink-0", dangerouslySetInnerHTML: { __html: iconHtml("list") } }),
         "任务队列"
-      ),
-      total > 0 && h("span", { className: "text-xs text-aq-muted" },
-        running > 0 ? running + " 运行中" : (pending > 0 ? pending + " 等待中" : total + " 个任务")
       )
     ),
     props.message && h("div", { className: "absolute top-0 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-b-lg bg-aq-navy text-white text-xs shadow-lg z-50" }, props.message),
@@ -197,16 +189,29 @@ function QuickStats(props) {
   var running = snap.metrics.running || 0;
   var pending = snap.metrics.pending || 0;
   var done24h = snap.metrics.done24h || 0;
+  var total = snap.tasks.filter(function (t) { return !t.archivedAt; }).length;
+  var failed24h = snap.metrics.failed24h || 0;
+
+  // 当所有活跃指标为 0 时，显示精简状态条
+  if (running === 0 && pending === 0 && done24h === 0) {
+    return h("div", { className: "flex-shrink-0 flex items-center gap-4 px-4 py-2 border-b border-aq-line bg-aq-surface-alt" },
+      h("span", { className: "text-xs text-aq-muted" },
+        total > 0 ? "共 " + total + " 个任务 · 当前无活跃任务" : "暂无任务"
+      ),
+      h("span", { className: "flex-1" }),
+      failed24h > 0 && h("span", { className: "text-xs font-semibold text-aq-red" }, failed24h + " 个失败")
+    );
+  }
 
   return h("div", { className: "flex-shrink-0 grid grid-cols-3 border-b border-aq-line" },
-    h(StatCell, { label: "运行中", value: String(running), color: running > 0 ? "text-aq-blue" : "text-aq-faint" }),
-    h(StatCell, { label: "等待中", value: String(pending), color: pending > 0 ? "text-aq-muted" : "text-aq-faint" }),
-    h(StatCell, { label: "24h 完成", value: String(done24h), color: done24h > 0 ? "text-aq-green" : "text-aq-faint" })
+    h(StatCell, { label: "运行中", value: String(running), color: running > 0 ? "text-aq-blue" : "text-aq-faint", active: running > 0 }),
+    h(StatCell, { label: "等待中", value: String(pending), color: pending > 0 ? "text-aq-muted" : "text-aq-faint", active: pending > 0 }),
+    h(StatCell, { label: "24h 完成", value: String(done24h), color: done24h > 0 ? "text-aq-green" : "text-aq-faint", active: done24h > 0 })
   );
 }
 
 function StatCell(props) {
-  return h("div", { className: "flex flex-col items-center py-2 px-2 border-r border-aq-line last:border-r-0" },
+  return h("div", { className: "flex flex-col items-center py-2 px-2 border-r border-aq-line last:border-r-0 " + (props.active ? "bg-aq-blue-soft" : "") },
     h("span", { className: "text-base font-bold leading-none " + props.color }, props.value),
     h("span", { className: "text-xs text-aq-faint mt-0.5" }, props.label)
   );
@@ -254,8 +259,8 @@ function CompactFilters(props) {
     ["done", "已完成", sc.done || 0]
   ];
 
-  return h("div", { className: "flex-shrink-0 flex items-center gap-2 px-4 py-2 border-b border-aq-line" },
-    h("div", { className: "flex-1" },
+  return h("div", { className: "flex-shrink-0 flex flex-wrap items-center gap-2 px-4 py-2 border-b border-aq-line" },
+    h("div", { className: "flex-1 min-w-[140px]" },
       h(Field, null,
         h(Input, {
           type: "search", value: props.query, onChange: function (e) { props.onQuery(e.target.value); },
@@ -264,18 +269,19 @@ function CompactFilters(props) {
         })
       )
     ),
-    h("div", { className: "flex gap-0.5 p-0.5 rounded-lg bg-aq-surface-alt border border-aq-line" },
+    h("div", { className: "flex gap-0.5 p-0.5 rounded-lg bg-aq-surface-alt border border-aq-line flex-shrink-0" },
       tabs.map(function (t) {
         return h("button", {
           key: t[0],
-          className: "px-2.5 py-1 rounded-md text-xs font-semibold transition " +
+          className: "px-2 py-1 rounded-md text-xs font-semibold transition " +
             (snap.filter === t[0] ? "bg-aq-paper text-aq-ink shadow-sm" : "text-aq-muted hover:text-aq-ink"),
           onClick: function () { props.onFilter(t[0]); }
         }, t[1], t[2] > 0 ? h("span", { className: "ml-1 opacity-60" }, t[2]) : null);
       })
     ),
     h("button", {
-      className: "aq-btn aq-btn-primary h-7 text-xs flex-shrink-0",
+      className: "aq-btn aq-btn-primary flex-shrink-0",
+      style: { height: "28px", fontSize: "12px", padding: "0 10px" },
       onClick: props.onNewTask,
       dangerouslySetInnerHTML: { __html: iconHtml("plus") + " 新建" }
     })
@@ -298,14 +304,14 @@ function CompactTaskList(props) {
     );
   }
   var selectableCount = props.tasks.filter(function (t) { return t.status !== "running" && !t.archivedAt; }).length;
-  return h("div", { className: "flex-1 overflow-y-auto" },
-    h("table", { className: "w-full table-fixed" },
+  return h("div", { className: "flex-1 overflow-auto" },
+    h("table", { className: "w-full table-fixed min-w-[560px]" },
       h("colgroup", null,
         h("col", { style: { width: "40px" } }),
         h("col", null),
-        h("col", { style: { width: "90px" } }),
-        h("col", { style: { width: "80px" } }),
-        h("col", { style: { width: "120px" } })
+        h("col", { style: { width: "84px" } }),
+        h("col", { style: { width: "76px" } }),
+        h("col", { style: { width: "168px" } })
       ),
       h("thead", null,
         h("tr", { className: "border-b border-aq-line bg-aq-surface-alt" },
@@ -351,8 +357,8 @@ function CompactTaskList(props) {
 
 var actionBtnStyle = {
   display: "inline-flex", alignItems: "center", justifyContent: "center",
-  height: "20px", padding: "0 4px", fontSize: "11px", fontWeight: "500",
-  border: "none", borderRadius: "4px", background: "transparent",
+  height: "24px", padding: "0 8px", fontSize: "12px", fontWeight: "500",
+  border: "none", borderRadius: "6px", background: "transparent",
   color: "var(--aq-faint, #667085)", cursor: "pointer", whiteSpace: "nowrap"
 };
 
@@ -362,6 +368,7 @@ function TaskRow(props) {
   var summary = task.title || task.summary || taskSummary(task.body);
   var attention = taskNeedsAttention(task);
   var selectable = task.status !== "running" && !task.archivedAt;
+  var unread = isUnread(task);
   var sessionId = task.sessionId || task.lastSessionId || (task.executions && task.executions.length ? task.executions[task.executions.length - 1].sessionId : null);
 
   var plan = task.cron ? cronToHuman(task.cron) : "即时";
@@ -373,10 +380,11 @@ function TaskRow(props) {
 
   return h("tr", {
     className: "hover:bg-aq-surface-alt cursor-pointer transition group align-top " +
-      (props.selected ? "bg-aq-blue-soft" : ""),
+      (props.selected ? "bg-aq-blue-soft" : "") +
+      (unread ? " border-l-2 border-l-aq-blue" : ""),
     onClick: openRow
   },
-    h("td", { className: "pl-4 pr-2 py-2 align-middle", onClick: function (e) { e.stopPropagation(); } },
+    h("td", { className: "pl-4 pr-2 py-2.5 align-middle", onClick: function (e) { e.stopPropagation(); } },
       h(Checkbox, { checked: props.selected, disabled: !selectable, onChange: function () { props.onSelect(task.key); },
         className: "group/box flex items-center" },
         h("span", { className: "flex h-4 w-4 items-center justify-center rounded border transition " +
@@ -388,23 +396,27 @@ function TaskRow(props) {
         )
       )
     ),
-    h("td", { className: "py-2 align-middle break-words", style: { fontSize: "12px" } },
-      h("div", { className: "flex items-center gap-1.5" },
-        h("span", { className: "font-semibold text-aq-ink leading-snug" }, attention ? "! " + task.key : task.key),
-        summary && h("span", { className: "text-aq-muted leading-snug truncate" }, "· " + summary)
+    h("td", { className: "py-2.5 align-middle overflow-hidden", style: { fontSize: "13px", minWidth: "120px" } },
+      h("div", { className: "flex items-center gap-1.5 min-w-0" },
+        h("span", { className: "flex-shrink-0 w-1.5 h-1.5 rounded-full " + (unread ? "bg-aq-blue" : "bg-transparent"), title: unread ? "未读" : undefined }),
+        h("span", { className: "font-semibold text-aq-ink leading-snug", style: { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, attention ? "! " + task.key : task.key),
+        summary && h("span", { className: "text-aq-muted leading-snug flex-shrink min-w-0", style: { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, "· " + summary)
       )
     ),
-    h("td", { className: "py-2 text-aq-faint text-center align-middle", style: { fontSize: "12px" } },
-      plan
+    h("td", { className: "py-2.5 text-center align-middle", style: { fontSize: "12px" } },
+      h("span", { className: "inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-aq-surface-alt text-aq-faint border border-aq-line" }, plan)
     ),
-    h("td", { className: "py-2 pr-4 text-right align-middle", style: { fontSize: "12px" } },
-      h("div", { className: "flex items-center justify-end gap-1.5" },
-        h("span", { className: "inline-block w-1.5 h-1.5 rounded-full flex-shrink-0", style: { backgroundColor: statusColor } }),
-        h("span", { className: attention ? "text-aq-amber font-medium" : "text-aq-faint" }, statusLabel)
+    h("td", { className: "py-2.5 pr-4 text-right align-middle", style: { fontSize: "12px" } },
+      h("span", {
+        className: "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium flex-shrink-0",
+        style: { backgroundColor: statusColor + "15", color: statusColor }
+      },
+        h("span", { className: "w-1 h-1 rounded-full", style: { backgroundColor: statusColor } }),
+        statusLabel
       )
     ),
-    h("td", { className: "py-2 pr-4 align-middle", style: { fontSize: "12px" } },
-      h("div", { className: "flex items-center gap-0.5" },
+    h("td", { className: "py-2.5 pr-4 align-middle", style: { fontSize: "12px" } },
+      h("div", { className: "flex items-center gap-1" },
         task.status === "running" && task.stopPending !== true && !task.archivedAt && h("button", { style: actionBtnStyle, className: "hover:bg-aq-red-soft", onClick: function (e) { e.stopPropagation(); props.onAction("stop", task.key); } }, "停止"),
         task.status === "pending" && !task.archivedAt && h("button", { style: actionBtnStyle, className: "hover:bg-aq-surface-alt", onClick: function (e) { e.stopPropagation(); props.onEdit(task.key); } }, "编辑"),
         ["done", "failed", "stopped", "interrupted"].indexOf(task.status) >= 0 && !task.archivedAt && h("button", { style: Object.assign({}, actionBtnStyle, { color: "var(--aq-green, #067647)" }), className: "hover:bg-aq-green-soft", onClick: function (e) { e.stopPropagation(); props.onAction("rerun", task.key); } }, "重跑"),

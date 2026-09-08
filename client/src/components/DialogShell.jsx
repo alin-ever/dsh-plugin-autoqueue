@@ -33,7 +33,7 @@ export function DialogShell(props) {
       },
         h("div", { className: "flex flex-col h-full" },
           isDrawer ? h(DrawerHeader, { title: props.title, onClose: props.onClose }) : h(ModalHeader, { title: props.title, onClose: props.onClose }),
-          h("div", { className: "flex-1 min-h-0" }, props.children)
+          h("div", { className: "flex-1 min-h-0 overflow-hidden flex flex-col" }, props.children)
         )
       )
     )
@@ -59,7 +59,7 @@ function DrawerHeader(props) {
 function CloseButton(props) {
   return h("button", {
     onClick: props.onClose,
-    className: "grid w-9 h-9 flex-shrink-0 place-items-center rounded-lg border border-aq-line bg-aq-paper text-aq-muted hover:border-aq-line-2 hover:text-aq-ink transition",
+    className: "grid w-7 h-7 flex-shrink-0 place-items-center rounded-lg border border-aq-line bg-aq-paper text-aq-muted hover:border-aq-line-2 hover:text-aq-ink transition",
     "aria-label": "关闭",
     dangerouslySetInnerHTML: { __html: iconHtml("close") }
   });
