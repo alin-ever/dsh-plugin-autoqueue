@@ -1,45 +1,45 @@
 export var STATUS_CONFIG = {
-  pending: { label: "\u5F85\u6267\u884C", color: "#596579" },
-  running: { label: "\u6267\u884C\u4E2D", color: "#175cd3" },
-  done: { label: "\u5DF2\u5B8C\u6210", color: "#067647" },
-  failed: { label: "\u5DF2\u5931\u8D25", color: "#b42318" },
-  stopped: { label: "\u5DF2\u505C\u6B62", color: "#9a6700" },
-  interrupted: { label: "\u5DF2\u4E2D\u65AD", color: "#7a5af8" }
+  pending: { label: "待执行", color: "#596579" },
+  running: { label: "执行中", color: "#175cd3" },
+  done: { label: "已完成", color: "#067647" },
+  failed: { label: "已失败", color: "#b42318" },
+  stopped: { label: "已停止", color: "#9a6700" },
+  interrupted: { label: "已中断", color: "#7a5af8" }
 };
 
 export var CRON_PRESETS = [
-  { label: "\u4E0D\u914D\u7F6E", value: "" },
-  { label: "\u81EA\u5B9A\u4E49", value: "__custom__" },
-  { label: "\u6BCF\u5929 08:00", value: "0 8 * * *" },
-  { label: "\u6BCF\u5929 20:00", value: "0 20 * * *" },
-  { label: "\u5DE5\u4F5C\u65E5 08:00", value: "0 8 * * 1-5" },
-  { label: "\u5DE5\u4F5C\u65E5 20:00", value: "0 20 * * 1-5" },
-  { label: "\u6BCF 30 \u5206\u949F", value: "*/30 * * * *" },
-  { label: "\u6BCF\u5C0F\u65F6", value: "0 * * * *" },
-  { label: "\u6BCF\u5468\u4E00 08:00", value: "0 8 * * 1" },
-  { label: "\u6BCF\u6708 1 \u65E5 08:00", value: "0 8 1 * *" }
+  { label: "不配置", value: "" },
+  { label: "自定义", value: "__custom__" },
+  { label: "每天 08:00", value: "0 8 * * *" },
+  { label: "每天 20:00", value: "0 20 * * *" },
+  { label: "工作日 08:00", value: "0 8 * * 1-5" },
+  { label: "工作日 20:00", value: "0 20 * * 1-5" },
+  { label: "每 30 分钟", value: "*/30 * * * *" },
+  { label: "每小时", value: "0 * * * *" },
+  { label: "每周一 08:00", value: "0 8 * * 1" },
+  { label: "每月 1 日 08:00", value: "0 8 1 * *" }
 ];
 
 export var DEADLINE_PRESETS = [
-  { label: "\u4E0D\u914D\u7F6E", value: "" },
-  { label: "\u81EA\u5B9A\u4E49", value: "__custom__" },
-  { label: "\u6BCF\u5929 09:00", value: "0 9 * * *" },
-  { label: "\u6BCF\u5929 21:00", value: "0 21 * * *" },
-  { label: "\u6BCF\u5929 23:00", value: "0 23 * * *" },
-  { label: "\u5DE5\u4F5C\u65E5 09:00", value: "0 9 * * 1-5" },
-  { label: "\u5DE5\u4F5C\u65E5 21:00", value: "0 21 * * 1-5" },
-  { label: "\u5DE5\u4F5C\u65E5 23:00", value: "0 23 * * 1-5" }
+  { label: "不配置", value: "" },
+  { label: "自定义", value: "__custom__" },
+  { label: "每天 09:00", value: "0 9 * * *" },
+  { label: "每天 21:00", value: "0 21 * * *" },
+  { label: "每天 23:00", value: "0 23 * * *" },
+  { label: "工作日 09:00", value: "0 9 * * 1-5" },
+  { label: "工作日 21:00", value: "0 21 * * 1-5" },
+  { label: "工作日 23:00", value: "0 23 * * 1-5" }
 ];
 
 export function timeAgo(iso) {
   if (!iso) return "";
   var d = Date.now() - new Date(iso).getTime();
   var m = Math.floor(d / 6e4);
-  if (m < 1) return "\u521A\u521A";
-  if (m < 60) return m + " \u5206\u949F\u524D";
+  if (m < 1) return "刚刚";
+  if (m < 60) return m + " 分钟前";
   var h = Math.floor(m / 60);
-  if (h < 24) return h + " \u5C0F\u65F6\u524D";
-  return Math.floor(h / 24) + " \u5929\u524D";
+  if (h < 24) return h + " 小时前";
+  return Math.floor(h / 24) + " 天前";
 }
 
 export function formatIso(iso) {
@@ -47,17 +47,14 @@ export function formatIso(iso) {
   return new Date(iso).toLocaleString("zh-CN", { hour12: false });
 }
 
-export function localDatetimeString(iso) {
-  if (!iso) return "";
-  var d = new Date(iso);
-  if (isNaN(d.getTime())) return "";
-  var p = function (n) { return String(n).padStart(2, "0"); };
-  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + "T" + p(d.getHours()) + ":" + p(d.getMinutes());
-}
-
 export function taskSummary(body) {
   if (!body) return "";
-  return body.split("\n")[0] ? body.split("\n")[0].replace(/^#+\s*/, "").trim() : "";
+  var text = body;
+  if (/^---\r?\n/.test(text)) {
+    var end = text.indexOf("\n---\n", 3);
+    if (end >= 0) text = text.substring(end + 4);
+  }
+  return text.split("\n")[0] ? text.split("\n")[0].replace(/^#+\s*/, "").trim() : "";
 }
 
 export function cronToHuman(cron) {
@@ -66,22 +63,29 @@ export function cronToHuman(cron) {
   if (parts.length !== 5) return cron;
   var min = parts[0], hour = parts[1], dom = parts[2], month = parts[3], dow = parts[4];
 
+  var hasComma = min.indexOf(",") >= 0 || hour.indexOf(",") >= 0 || dom.indexOf(",") >= 0 || dow.indexOf(",") >= 0;
+  var hasRange = min.indexOf("-") >= 0 || hour.indexOf("-") >= 0 || dom.indexOf("-") >= 0 || dow.indexOf("-") >= 0;
+  if (hasComma || hasRange) return cron;
+
   // Every minute: * * * * *
-  if (min === "*" && hour === "*" && dom === "*" && month === "*" && dow === "*") return "\u6BCF\u5206\u949F";
+  if (min === "*" && hour === "*" && dom === "*" && month === "*" && dow === "*") return "每分钟";
 
   // Every N minutes: */N * * * *
-  if (min.indexOf("*/") === 0 && hour === "*" && dom === "*" && month === "*" && dow === "*") return "\u6BCF" + min.slice(2) + "\u5206\u949F";
+  if (min.indexOf("*/") === 0 && hour === "*" && dom === "*" && month === "*" && dow === "*") return "每" + min.slice(2) + "分钟";
+
+  // Every N hours: 0 */N * * *
+  if (min === "0" && hour.indexOf("*/") === 0 && dom === "*" && month === "*" && dow === "*") return "每" + hour.slice(2) + "小时";
 
   var time = (hour !== "*" ? hour.padStart(2, "0") : "*") + ":" + (min !== "*" ? min.padStart(2, "0") : "*");
   if (dom === "*" && month === "*" && dow === "*") {
-    if (hour === "*") return "\u6BCF\u5C0F\u65F6" + min.padStart(2, "0") + "\u5206";
-    if (min === "*") return "\u6BCF\u5929" + hour.padStart(2, "0") + ":00";
-    return "\u6BCF\u5929 " + time;
+    if (hour === "*") return "每小时" + min.padStart(2, "0") + "分";
+    if (min === "*") return "每天" + hour.padStart(2, "0") + ":00";
+    return "每天 " + time;
   }
-  if (dom === "*" && month === "*" && dow === "1-5") return "\u5DE5\u4F5C\u65E5 " + time;
-  var DOW_MAP = { 0: "\u65E5", 1: "\u4E00", 2: "\u4E8C", 3: "\u4E09", 4: "\u56DB", 5: "\u4E94", 6: "\u516D" };
-  if (dom === "*" && month === "*" && /^\d$/.test(dow) && DOW_MAP[dow]) return "\u6BCF\u5468" + DOW_MAP[dow] + " " + time;
-  if (/^\d+$/.test(dom) && month === "*" && dow === "*") return "\u6BCF\u6708" + parseInt(dom, 10) + "\u65E5 " + time;
+  if (dom === "*" && month === "*" && dow === "1-5") return "工作日 " + time;
+  var DOW_MAP = { 0: "日", 1: "一", 2: "二", 3: "三", 4: "四", 5: "五", 6: "六" };
+  if (dom === "*" && month === "*" && /^\d$/.test(dow) && DOW_MAP[dow]) return "每周" + DOW_MAP[dow] + " " + time;
+  if (/^\d+$/.test(dom) && month === "*" && dow === "*") return "每月" + parseInt(dom, 10) + "日 " + time;
   return cron;
 }
 
@@ -124,7 +128,6 @@ var ICONS = {
 export function iconHtml(name) { return ICONS[name] || ""; }
 
 export var TASK_TYPE_LABELS = {
-  cron: { label: "\u5FAA\u73AF", icon: "repeat" },
-  schedule: { label: "\u5B9A\u65F6", icon: "clock" },
-  manual: { label: "\u624B\u52A8", icon: "play" }
+  cron: { label: "循环", icon: "repeat" },
+  manual: { label: "手动", icon: "play" }
 };

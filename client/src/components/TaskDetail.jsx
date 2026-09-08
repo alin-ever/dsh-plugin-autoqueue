@@ -364,8 +364,7 @@ function PolicyTab(props) {
   return h("div", { className: "space-y-4" },
     h(Section, { title: "调度" },
       h(Grid, null,
-        h(Fact, { label: "循环调度", value: task.cron ? cronToHuman(task.cron) : "未设置" }),
-        h(Fact, { label: "一次性定时", value: task.schedule ? formatIso(task.schedule) : "未设置" }),
+        h(Fact, { label: "定时调度", value: task.cron ? cronToHuman(task.cron) : "未设置" }),
         h(Fact, { label: "截止窗口", value: task.deadline ? cronToHuman(task.deadline) : "未设置" }),
         h(Fact, { label: "自动归档", value: task.autoArchive === false ? "关闭" : "开启" })
       )

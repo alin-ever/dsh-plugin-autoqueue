@@ -19,7 +19,7 @@ autoqueue 不是普通会话的全局自动化开关。每次执行都遵守以�
 5. 任务正文只通过一次完整的 `goals.create.objective` 入场。不会调用 `workspace.create`、不会调用 `session.selectModel`，也不会再发送一条重复的初始 queue prompt。
 6. DSH 原生 `agent/status`、owned `goal/changed` 与 `session/disposed` 事件只负责唤醒权威对账；每轮仍读取 `sessions.list` / history。存在活跃普通会话或列表不可信时拒绝新派发，运行中的 owned goal 先持久 pause、再暂停并协作取消 turn；连续两次可信空闲后才无 prompt 恢复。
 7. 手动停止、deadline、超时和清理先持久化取消意图。`sessions.cancel` 成功只代表 DSH 受理请求；ownership 会一直保留到受理之后连续两次权威 idle/缺席观察，再结算或重试。
-8. 默认最大并发为 `1`、终态自动归档开启、浏览器通知关闭。插件加载后会向普通 Host 会话自动注册 16 个 `autoqueue_*` 工具；它们不会自行执行或改变普通会话状态，且在 `autoqueue-session-*` 自有任务 Agent 中被隐藏并由执行 guard 拒绝。
+8. 默认最大并发为 `1`、终态自动归档开启、浏览器通知关闭。插件加载后会向普通 Host 会话自动注册 19 个 `autoqueue_*` 工具；它们不会自行执行或改变普通会话状态，且在 `autoqueue-session-*` 自有任务 Agent 中被隐藏并由执行 guard 拒绝。
 
 DSH rc.2 的公开选择接口会持久化 Host 默认路由，因此任务和运行时配置都不能覆盖模型、工作区或任意 Agent preset。`GET /api/queue/options` 会明确返回三类空数组和隔离锁，而不是枚举 Host 状态。
 
@@ -88,7 +88,7 @@ React 看板已暴露安全业务能力的完整操作面：
 - 任务动作：新建、编辑 pending 任务、停止、重跑、归档、恢复、删除 pending 任务、标记未读、跳转插件自有 DSH 会话、立即检查任务。
 - 任务详情：概览、执行记录、结果和最终报告、调度与恢复设置；打开终态详情会标记已读。
 - 运行设置：并发、任务超时、Goal 轮数、反阻塞次数、派发尝试、不可达阈值、退避、默认优先级、默认截止、Webhook、自动归档和浏览器通知；队列目录只读。
-- 外部接入：独立的「AI / API 接入」抽屉实时读取 Capabilities，展示正式名称/别称、16 个工具、中文资源与限制、隔离状态、OpenAPI 3.1 和 compact 查询示例；本机可直连，远程必须携带 token，页面从不回显 token。
+- 外部接入：独立的「AI / API 接入」抽屉实时读取 Capabilities，展示正式名称/别称、19 个工具、中文资源与限制、隔离状态、OpenAPI 3.1 和 compact 查询示例；本机可直连，远程必须携带 token，页面从不回显 token。
 - 交互与可访问性：统一字号和颜色层级，支持响应式导航、抽屉/弹窗、危险操作确认、键盘焦点锁定与恢复、ESC 关闭和实时错误提示。
 
 隔离字段不会出现在新建、编辑或运行设置表单中；UI 只展示“已锁定”的安全说明。
@@ -184,7 +184,7 @@ config:
 
 - `maxConcurrent` 持久化到账本，范围 `1-8`；插件启动时仅在账本当前值为 `1` 时应用非空启动值。
 - `queueDir`、`allowedHosts`、`apiToken`、`baseUrl`、`enableHostAiTools` 属于启动边界；`queueDir` 不能运行时热切换。
-- `enableHostAiTools` 默认是 `true`：插件加载后自动把 16 个 `autoqueue_*` 工具和一段精简发现提示注入普通 Host 会话。设为 `false` 可关闭注入；外部 AI 的 HTTP/OpenAPI 接入不受影响。
+- `enableHostAiTools` 默认是 `true`：插件加载后自动把 19 个 `autoqueue_*` 工具和一段精简发现提示注入普通 Host 会话。设为 `false` 可关闭注入；外部 AI 的 HTTP/OpenAPI 接入不受影响。
 - 工具默认请求 `http://127.0.0.1:3080`；若 DSH Web 使用其他地址或端口，必须在启动配置中把 `baseUrl` 设为该实例可访问的 HTTP 基地址。
 - 自动注入本身不会给队列任务增加递归控制入口：`autoqueue-session-*` Agent 看不到这些 Host 工具，执行层 guard 也会拒绝绕过可见性的工具调用。直接 HTTP 访问仍遵循前述本机/远程鉴权边界。
 
@@ -197,7 +197,7 @@ lib/
 ├── runner.js    所有 apiProxy 会话/goal 调用和 session ownership 守卫
 ├── ledger.js    原子账本、CAS generation、requestId 去重、并发和恢复
 ├── files.js     收件箱、调度解析、运行目录和安全报告读取
-├── ai-tool.js   默认自动注册的 16 个 Host AI 工具 HTTP 薄客户端
+├── ai-tool.js   默认自动注册的 19 个 Host AI 工具 HTTP 薄客户端
 └── client.js    由 client/src/ 构建的浏览器 bundle
 ```
 
@@ -225,7 +225,7 @@ npm publish
 
 仓库提供两套不会走 mock 的验收 driver：
 
-- `npm run test:live:ai`：从 DSH 普通对话框驱动 AI，逐项核对 16 个 `autoqueue_*` Host 工具；简单任务验证计算与报告，复杂任务验证隔离目录内 CSV/JSON/nonce 读写、重跑和报告。
+- `npm run test:live:ai`：从 DSH 普通对话框驱动 AI，逐项核对 19 个 `autoqueue_*` Host 工具；简单任务验证计算与报告，复杂任务验证隔离目录内 CSV/JSON/nonce 读写、重跑和报告。
 - `npm run test:live:ui`：从真实 DSH 任务台创建一次性定时任务和 Cron 任务，验证详情、编辑、原生 runtime 观测、真实并发、停止双 idle、重跑、归档/恢复和删除。
 
 每套 driver 都必须使用一份全新的空 `queueDir`（包括不能有归档记录）、独立 DSH profile 和专用端口。下面以 AI driver 为例；跑 UI driver 时应停止 Host，重新创建 profile/queue，再把 `LIVE_CASE` 改为 `ui`：

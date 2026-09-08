@@ -588,7 +588,7 @@
 [data-sidebar-collapsed] .aq-sidebar-entry { width: 36px; height: 36px; justify-content: center; margin: 0 auto 12px; padding: 0; border-radius: 50%; }
 [data-sidebar-collapsed] .aq-sidebar-label { display: none; }
 
-/* Dark host compatibility */
+/* Dark host compatibility + prefers-color-scheme fallback */
 [data-theme="dark"] [data-dsh-autoqueue-view],
 [data-color-mode="dark"] [data-dsh-autoqueue-view],
 .dark [data-dsh-autoqueue-view] {
@@ -610,6 +610,28 @@
   --aq-amber-soft: #3a3018;
   --aq-red: #fda29b;
   --aq-red-soft: #3d2423;
+}
+@media (prefers-color-scheme: dark) {
+  :root [data-dsh-autoqueue-view] {
+    --aq-canvas: #111820;
+    --aq-paper: #18212b;
+    --aq-surface-alt: #1d2834;
+    --aq-ink: #f2f4f7;
+    --aq-ink-2: #e4e7ec;
+    --aq-muted: #c0c8d2;
+    --aq-faint: #aeb8c5;
+    --aq-line: #344054;
+    --aq-line-2: #475467;
+    --aq-navy: #0d141c;
+    --aq-blue: #84adff;
+    --aq-blue-soft: #1d2d4c;
+    --aq-green: #75e0a7;
+    --aq-green-soft: #16352a;
+    --aq-amber: #fec84b;
+    --aq-amber-soft: #3a3018;
+    --aq-red: #fda29b;
+    --aq-red-soft: #3d2423;
+  }
 }
 [data-theme="dark"] .aq-btn.primary,
 [data-color-mode="dark"] .aq-btn.primary,

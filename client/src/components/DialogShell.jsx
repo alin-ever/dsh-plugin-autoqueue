@@ -3,20 +3,15 @@ import { iconHtml } from "../utils.js";
 
 function h() { return React.createElement.apply(React, arguments); }
 
-/**
- * 统一的弹窗/抽屉外壳，基于 Headless UI Dialog。
- *
- * Props:
- *  - variant:  "modal" (居中弹窗) | "drawer" (右侧滑出)
- *  - open:     是否打开
- *  - onClose:  关闭回调
- *  - title:    标题文字
- *  - className: 附加到面板的 class
- *  - children: 内容
- */
+var SIZE_MAP = { sm: 480, md: 640, lg: 960 };
+var HEIGHT_MAP = { sm: "220px", md: "480px", lg: "80vh" };
+
 export function DialogShell(props) {
   var variant = props.variant === "drawer" ? "drawer" : "modal";
   var isDrawer = variant === "drawer";
+  var size = props.size || "lg";
+  var width = SIZE_MAP[size] || 930;
+  var height = HEIGHT_MAP[size] || "640px";
 
   return h(Dialog, {
     open: props.open,
@@ -27,16 +22,19 @@ export function DialogShell(props) {
       transition: true,
       className: "fixed inset-0 bg-black/40 transition duration-200 ease-out data-[closed]:opacity-0"
     }),
-    h("div", { className: isDrawer ? "fixed inset-0 flex justify-end" : "fixed inset-0 flex items-center justify-center p-4" },
+    h("div", { className: isDrawer ? "fixed inset-0 flex justify-end" : "fixed inset-0 flex items-center justify-center p-4 overflow-y-auto" },
       h(DialogPanel, {
         transition: true,
         className: (isDrawer
           ? "h-full w-[min(880px,94vw)] bg-aq-paper shadow-2xl transition duration-200 ease-out data-[closed]:translate-x-4 data-[closed]:opacity-0"
-          : "w-[min(930px,94vw)] max-h-[min(88vh,900px)] overflow-y-auto rounded-2xl bg-aq-paper shadow-2xl border border-aq-line transition duration-200 ease-out data-[closed]:scale-95 data-[closed]:opacity-0"
-        ) + (props.className ? " " + props.className : "")
+          : "w-[800px] rounded-2xl bg-aq-paper shadow-2xl border border-aq-line transition duration-200 ease-out data-[closed]:scale-95 data-[closed]:opacity-0 flex flex-col"
+        ) + (props.className ? " " + props.className : ""),
+        style: isDrawer ? {} : Object.assign({ maxHeight: height }, (props.style || {}))
       },
-        isDrawer ? h(DrawerHeader, { title: props.title, onClose: props.onClose }) : h(ModalHeader, { title: props.title, onClose: props.onClose }),
-        props.children
+        h("div", { className: "flex flex-col h-full" },
+          isDrawer ? h(DrawerHeader, { title: props.title, onClose: props.onClose }) : h(ModalHeader, { title: props.title, onClose: props.onClose }),
+          h("div", { className: "flex-1 min-h-0" }, props.children)
+        )
       )
     )
   );

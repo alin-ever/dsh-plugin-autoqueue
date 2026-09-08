@@ -1,5 +1,5 @@
 ﻿import { Checkbox, Field, Input } from "@headlessui/react";
-import { iconHtml, isUnread, taskSummary, cronToHuman, elapseStr, formatIso, timeAgo, STATUS_CONFIG, TASK_TYPE_LABELS } from "../utils.js";
+import { iconHtml, isUnread, taskSummary, cronToHuman, STATUS_CONFIG } from "../utils.js";
 import { TaskDetailPanel } from "./TaskDetail.jsx";
 import { NewTaskModal, EditTaskModal, ConfigPanel, ConfirmModal } from "./Modals.jsx";
 import { DialogShell } from "./DialogShell.jsx";
@@ -72,6 +72,12 @@ export function Workstation(props) {
     });
   }
 
+  function toggleAll() {
+    var selectable = visibleTasks.filter(function (t) { return t.status !== "running" && !t.archivedAt; });
+    var allSelected = selectable.every(function (t) { return selected[0].indexOf(t.key) >= 0; });
+    selected[1](allSelected ? [] : selectable.map(function (t) { return t.key; }));
+  }
+
   function archiveSelected() {
     var keys = selected[0].slice();
     if (!keys.length) return;
@@ -101,6 +107,7 @@ export function Workstation(props) {
       onScan: function () { runAction("force-scan"); }
     }),
     h(QuickStats, { snap: snap }),
+    h(NavCategories, { snap: snap, onNav: function (v) { controller.setNavGroup(v); } }),
     h(CompactFilters, {
       snap: snap, query: query[0], onQuery: query[1],
       onFilter: function (v) { controller.setFilter(v); },
@@ -112,8 +119,8 @@ export function Workstation(props) {
       h("button", { className: "aq-btn aq-btn-primary text-xs h-7 px-3", onClick: archiveSelected }, "批量归档")
     ),
     h(CompactTaskList, {
-      snap: snap, tasks: visibleTasks, controller: controller,
-      selected: selected[0], onSelect: toggleSelected, onAction: handleAction
+      snap: snap, tasks: visibleTasks, controller: controller, sessions: sessions,
+      selected: selected[0], onSelect: toggleSelected, onSelectAll: toggleAll, onAction: handleAction
     }),
     snap.showDetail && snap.detailTask && h(TaskDetailPanel, {
       key: snap.detailTask.key, task: snap.detailTask, transport: transport, controller: controller, sessions: sessions,
@@ -190,13 +197,11 @@ function QuickStats(props) {
   var running = snap.metrics.running || 0;
   var pending = snap.metrics.pending || 0;
   var done24h = snap.metrics.done24h || 0;
-  var isolation = snap.isolationHealth || {};
 
-  return h("div", { className: "flex-shrink-0 grid grid-cols-4 border-b border-aq-line" },
+  return h("div", { className: "flex-shrink-0 grid grid-cols-3 border-b border-aq-line" },
     h(StatCell, { label: "运行中", value: String(running), color: running > 0 ? "text-aq-blue" : "text-aq-faint" }),
     h(StatCell, { label: "等待中", value: String(pending), color: pending > 0 ? "text-aq-muted" : "text-aq-faint" }),
-    h(StatCell, { label: "24h 完成", value: String(done24h), color: done24h > 0 ? "text-aq-green" : "text-aq-faint" }),
-    h(StatCell, { label: "隔离", value: isolation.verified ? "已启用" : "待确认", color: isolation.verified ? "text-aq-green" : "text-aq-amber" })
+    h(StatCell, { label: "24h 完成", value: String(done24h), color: done24h > 0 ? "text-aq-green" : "text-aq-faint" })
   );
 }
 
@@ -204,6 +209,35 @@ function StatCell(props) {
   return h("div", { className: "flex flex-col items-center py-2 px-2 border-r border-aq-line last:border-r-0" },
     h("span", { className: "text-base font-bold leading-none " + props.color }, props.value),
     h("span", { className: "text-xs text-aq-faint mt-0.5" }, props.label)
+  );
+}
+
+// ─── Category Navigation ─────────────────────────────────
+
+function NavCategories(props) {
+  var snap = props.snap;
+  var all = snap.tasks || [];
+  var active = all.filter(function (t) { return !t.archivedAt; });
+  var archived = all.filter(function (t) { return !!t.archivedAt; });
+  var cronTasks = active.filter(function (t) { return t.cron; });
+  var manualTasks = active.filter(function (t) { return !t.cron; });
+  var cats = [
+    ["all", "全部", active.length],
+    ["cron", "定时任务", cronTasks.length],
+    ["manual", "即时任务", manualTasks.length],
+    ["archived", "归档", archived.length],
+  ];
+
+  return h("div", { className: "flex-shrink-0 flex gap-0 px-4 py-1.5 border-b border-aq-line overflow-x-auto" },
+    cats.map(function (c) {
+      var active = snap.navGroup === c[0] || (snap.navGroup === "all" && c[0] === "all");
+      return h("button", {
+        key: c[0],
+        className: "px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap transition " +
+          (active ? "bg-aq-blue text-white" : "text-aq-muted hover:text-aq-ink hover:bg-aq-surface-alt"),
+        onClick: function () { props.onNav(c[0]); }
+      }, c[1], c[2] > 0 ? h("span", { className: "ml-1 opacity-70" }, c[2]) : null);
+    })
   );
 }
 
@@ -263,24 +297,38 @@ function CompactTaskList(props) {
       h("button", { className: "aq-btn aq-btn-primary text-xs", onClick: function () { props.controller.openNewTask(); } }, "创建第一个任务")
     );
   }
+  var selectableCount = props.tasks.filter(function (t) { return t.status !== "running" && !t.archivedAt; }).length;
   return h("div", { className: "flex-1 overflow-y-auto" },
     h("table", { className: "w-full table-fixed" },
       h("colgroup", null,
-        h("col", { style: { width: "32px" } }),
+        h("col", { style: { width: "40px" } }),
         h("col", null),
-        h("col", { style: { width: "48px" } }),
-        h("col", { style: { width: "56px" } }),
-        h("col", { style: { width: "130px" } }),
-        h("col", { style: { width: "100px" } })
+        h("col", { style: { width: "90px" } }),
+        h("col", { style: { width: "80px" } }),
+        h("col", { style: { width: "120px" } })
       ),
       h("thead", null,
         h("tr", { className: "border-b border-aq-line bg-aq-surface-alt" },
-          h("th", { className: "pl-4 py-1.5 text-xs" }),
+          h("th", { className: "pl-4 py-1.5" },
+            h(Checkbox, {
+              checked: selectableCount > 0 && props.selected.length === selectableCount,
+              indeterminate: props.selected.length > 0 && props.selected.length < selectableCount,
+              onChange: props.onSelectAll,
+              className: "group/box flex items-center" },
+              h("span", { className: "flex h-4 w-4 items-center justify-center rounded border transition border-aq-line-2 bg-white cursor-pointer group-hover/box:border-aq-blue" },
+                (props.selected.length === selectableCount && selectableCount > 0) && h("svg", { className: "h-3 w-3 text-aq-blue", viewBox: "0 0 12 12", fill: "none" },
+                  h("path", { d: "M2.5 6l2.5 2.5 4.5-4.5", stroke: "currentColor", strokeWidth: "1.5", strokeLinecap: "round", strokeLinejoin: "round" })
+                ),
+                (props.selected.length > 0 && props.selected.length < selectableCount) && h("svg", { className: "h-3 w-3 text-aq-blue", viewBox: "0 0 12 12", fill: "none" },
+                  h("line", { x1: "3", y1: "6", x2: "9", y2: "6", stroke: "currentColor", strokeWidth: "1.5", strokeLinecap: "round" })
+                )
+              )
+            )
+          ),
           h("th", { className: "text-left py-1.5 text-xs font-semibold text-aq-faint uppercase tracking-wide" }, "任务"),
-          h("th", { className: "py-1.5 text-xs font-semibold text-aq-faint uppercase tracking-wide text-center" }, "类型"),
           h("th", { className: "py-1.5 text-xs font-semibold text-aq-faint uppercase tracking-wide text-center" }, "调度"),
           h("th", { className: "pr-4 py-1.5 text-xs font-semibold text-aq-faint uppercase tracking-wide text-right" }, "状态"),
-          h("th", { className: "pr-4 py-1.5 text-xs font-semibold text-aq-faint uppercase tracking-wide text-right" }, "操作")
+          h("th", { className: "pr-4 py-1.5 text-xs font-semibold text-aq-faint uppercase tracking-wide" }, "操作")
         )
       ),
       h("tbody", { className: "divide-y divide-aq-line" },
@@ -291,7 +339,6 @@ function CompactTaskList(props) {
             onSelect: props.onSelect, onAction: props.onAction,
             onDetail: function (k) { props.controller.openDetail(k); },
             onEdit: function (k) { props.controller.openEdit(k); },
-            onUnread: function (k) { props.controller.markRead(k, false); },
             onSession: function (sid) { props.controller.closeBoard(); props.sessions.open(sid); }
           });
         })
@@ -302,27 +349,25 @@ function CompactTaskList(props) {
 
 // ─── Task Row ────────────────────────────────────────────
 
+var actionBtnStyle = {
+  display: "inline-flex", alignItems: "center", justifyContent: "center",
+  height: "20px", padding: "0 4px", fontSize: "11px", fontWeight: "500",
+  border: "none", borderRadius: "4px", background: "transparent",
+  color: "var(--aq-faint, #667085)", cursor: "pointer", whiteSpace: "nowrap"
+};
+
 function TaskRow(props) {
   var task = props.task;
   var cfg = STATUS_CONFIG[task.status] || { label: task.status, color: "#596579" };
   var summary = task.title || task.summary || taskSummary(task.body);
-  var typeInfo = TASK_TYPE_LABELS[task.taskType] || TASK_TYPE_LABELS.manual;
   var attention = taskNeedsAttention(task);
   var selectable = task.status !== "running" && !task.archivedAt;
   var sessionId = task.sessionId || task.lastSessionId || (task.executions && task.executions.length ? task.executions[task.executions.length - 1].sessionId : null);
 
-  var plan = task.cron ? cronToHuman(task.cron) : (task.schedule ? formatIso(task.schedule) : "即时");
-  var nextRun = task.nextRunAt ? formatIso(task.nextRunAt) : null;
-
-  var recentLine = task.status === "pending" ? pendingReasonCompact(task, props.snap)
-    : (task.status === "running" ? (task.foregroundPaused ? "已暂停" : "第 " + (task.currentRound || 0) + " 轮 · " + elapseStr(task.startedAt))
-    : (task.status === "done" ? (task.currentRound ? "第 " + task.currentRound + " 轮完成" : "已完成") + " · " + (task.updatedAt ? timeAgo(task.updatedAt) : "")
-    : (task.status === "failed" ? (task.lastError ? String(task.lastError).slice(0, 40) : "已失败")
-    : (task.status === "stopped" ? "已停止"
-    : (task.lastError ? String(task.lastError).slice(0, 40) : (task.updatedAt ? timeAgo(task.updatedAt) : "-"))))));
-
-  var actions = taskActions(task);
+  var plan = task.cron ? cronToHuman(task.cron) : "即时";
+  if (task.cron && task.attempts > 1) plan = plan + " · 第" + task.attempts + "次";
   var statusColor = task.stopPending ? "#9a6700" : (task.foregroundPaused ? "#27776e" : cfg.color);
+  var statusLabel = task.stopPending ? "停止中" : (task.foregroundPaused ? "已暂停" : cfg.label);
 
   function openRow() { props.onDetail(task.key); }
 
@@ -331,7 +376,7 @@ function TaskRow(props) {
       (props.selected ? "bg-aq-blue-soft" : ""),
     onClick: openRow
   },
-h("td", { className: "pl-4 py-1.5 align-top", onClick: function (e) { e.stopPropagation(); }, style: { fontSize: "12px" } },
+    h("td", { className: "pl-4 pr-2 py-2 align-middle", onClick: function (e) { e.stopPropagation(); } },
       h(Checkbox, { checked: props.selected, disabled: !selectable, onChange: function () { props.onSelect(task.key); },
         className: "group/box flex items-center" },
         h("span", { className: "flex h-4 w-4 items-center justify-center rounded border transition " +
@@ -343,51 +388,41 @@ h("td", { className: "pl-4 py-1.5 align-top", onClick: function (e) { e.stopProp
         )
       )
     ),
-    h("td", { className: "py-1.5 align-top break-words", style: { fontSize: "12px" } },
+    h("td", { className: "py-2 align-middle break-words", style: { fontSize: "12px" } },
       h("div", { className: "flex items-center gap-1.5" },
         h("span", { className: "font-semibold text-aq-ink leading-snug" }, attention ? "! " + task.key : task.key),
-        summary && h("span", { className: "text-aq-muted leading-snug" }, "· " + summary)
+        summary && h("span", { className: "text-aq-muted leading-snug truncate" }, "· " + summary)
       )
     ),
-    h("td", { className: "py-1.5 text-aq-faint text-center align-top", style: { fontSize: "12px" } }, typeInfo.label),
-    h("td", { className: "py-1.5 text-aq-faint text-center align-top", style: { fontSize: "12px" } },
-      plan,
-      nextRun && h("div", { className: "text-aq-faint" }, nextRun)
+    h("td", { className: "py-2 text-aq-faint text-center align-middle", style: { fontSize: "12px" } },
+      plan
     ),
-    h("td", { className: "py-1.5 pr-4 text-right align-top " + (attention ? "text-aq-amber font-medium" : "text-aq-faint"), style: { fontSize: "12px" } },
-      recentLine
+    h("td", { className: "py-2 pr-4 text-right align-middle", style: { fontSize: "12px" } },
+      h("div", { className: "flex items-center justify-end gap-1.5" },
+        h("span", { className: "inline-block w-1.5 h-1.5 rounded-full flex-shrink-0", style: { backgroundColor: statusColor } }),
+        h("span", { className: attention ? "text-aq-amber font-medium" : "text-aq-faint" }, statusLabel)
+      )
     ),
-h("td", { className: "py-1.5 pr-4 text-right align-top", style: { fontSize: "12px" } },
-      h("div", { className: "flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition" },
-        task.status === "running" && task.stopPending !== true && !task.archivedAt && h("button", { className: "aq-btn aq-btn-ghost h-6 px-2 text-xs text-aq-red", onClick: function (e) { e.stopPropagation(); props.onAction("stop", task.key); } }, "停止"),
-        task.status === "pending" && !task.archivedAt && h("button", { className: "aq-btn aq-btn-ghost h-6 px-2 text-xs", onClick: function (e) { e.stopPropagation(); props.onEdit(task.key); } }, "编辑"),
-        actions.indexOf("rerun") >= 0 && h("button", { className: "aq-btn aq-btn-ghost h-6 px-2 text-xs text-aq-green", onClick: function (e) { e.stopPropagation(); props.onAction("rerun", task.key); } }, "重跑"),
-        actions.indexOf("archive") >= 0 && h("button", { className: "aq-btn aq-btn-ghost h-6 px-2 text-xs", onClick: function (e) { e.stopPropagation(); props.onAction("archive", task.key); } }, "归档"),
-        task.archivedAt && h("button", { className: "aq-btn aq-btn-ghost h-6 px-2 text-xs", onClick: function (e) { e.stopPropagation(); props.onAction("restore", task.key); } }, "还原"),
-        task.status === "pending" && !task.archivedAt && h("button", { className: "aq-btn aq-btn-ghost h-6 px-2 text-xs text-aq-red", onClick: function (e) { e.stopPropagation(); props.onAction("delete", task.key); } }, "删除"),
-        sessionId && !task.archivedAt && h("button", { className: "aq-btn aq-btn-ghost h-6 px-2 text-xs", onClick: function (e) { e.stopPropagation(); props.controller.closeBoard(); props.sessions.open(sessionId); } }, "会话")
+    h("td", { className: "py-2 pr-4 align-middle", style: { fontSize: "12px" } },
+      h("div", { className: "flex items-center gap-0.5" },
+        task.status === "running" && task.stopPending !== true && !task.archivedAt && h("button", { style: actionBtnStyle, className: "hover:bg-aq-red-soft", onClick: function (e) { e.stopPropagation(); props.onAction("stop", task.key); } }, "停止"),
+        task.status === "pending" && !task.archivedAt && h("button", { style: actionBtnStyle, className: "hover:bg-aq-surface-alt", onClick: function (e) { e.stopPropagation(); props.onEdit(task.key); } }, "编辑"),
+        ["done", "failed", "stopped", "interrupted"].indexOf(task.status) >= 0 && !task.archivedAt && h("button", { style: Object.assign({}, actionBtnStyle, { color: "var(--aq-green, #067647)" }), className: "hover:bg-aq-green-soft", onClick: function (e) { e.stopPropagation(); props.onAction("rerun", task.key); } }, "重跑"),
+        task.status !== "running" && !task.archivedAt && h("button", { style: actionBtnStyle, className: "hover:bg-aq-surface-alt", onClick: function (e) { e.stopPropagation(); props.onAction("archive", task.key); } }, "归档"),
+        task.archivedAt && h("button", { style: actionBtnStyle, className: "hover:bg-aq-surface-alt", onClick: function (e) { e.stopPropagation(); props.onAction("restore", task.key); } }, "还原"),
+        task.status === "pending" && !task.archivedAt && h("button", { style: Object.assign({}, actionBtnStyle, { color: "var(--aq-red, #b42318)" }), className: "hover:bg-aq-red-soft", onClick: function (e) { e.stopPropagation(); props.onAction("delete", task.key); } }, "删除"),
+        sessionId && !task.archivedAt && h("button", { style: actionBtnStyle, className: "hover:bg-aq-surface-alt", onClick: function (e) { e.stopPropagation(); if (props.onSession) props.onSession(sessionId); } }, "会话")
       )
     )
   );
 }
 
-function pendingReasonCompact(task, snap) {
-  var now = Date.now();
-  var retryAt = task.nextRetryAt ? new Date(task.nextRetryAt).getTime() : NaN;
-  if (Number.isFinite(retryAt) && retryAt > now) return "等待重试";
-  if (task.schedule && new Date(task.schedule).getTime() > now) return "等待定时";
-  if (task.cron) return "等待调度";
-  var running = snap && snap.metrics ? Number(snap.metrics.running || 0) : 0;
-  var max = snap && snap.config ? Number(snap.config.maxConcurrent || 1) : 1;
-  if (running >= max) return "排队中";
-  return "等待执行";
-}
-
-function taskActions(task) {
-  var a = [];
-  if (["done", "failed", "stopped", "interrupted"].indexOf(task.status) >= 0 && !task.archivedAt) a.push("rerun");
-  if (task.status !== "running" && !task.archivedAt) a.push("archive");
-  return a;
+function taskPrimaryAction(task) {
+  if (task.archivedAt) return { label: "还原", handler: function () { /* handled by detail */ }, tone: "" };
+  if (task.status === "running" && task.stopPending !== true) return null; // no hover action for running, stop is in detail
+  if (task.status === "pending") return null; // edit/delete in detail
+  if (["done", "failed", "stopped", "interrupted"].indexOf(task.status) >= 0) return null; // rerun in detail
+  return null;
 }
 
 function taskNeedsAttention(task) {

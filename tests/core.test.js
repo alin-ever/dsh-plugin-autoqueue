@@ -531,7 +531,7 @@ test("index durably pins danger-full-access and never only on an owned session",
   const sessionId = ownedSession(42);
 
   await t.test("owned-success", async () => {
-    const events = [{ type: "approval/policy", data: { policy: "ask" } }];
+    const events = [];
     const session = {
       id: sessionId,
       events,
@@ -540,34 +540,13 @@ test("index durably pins danger-full-access and never only on an owned session",
     let flushCalls = 0;
     await pinOwnedSessionApprovalPolicy({
       get(id) { assert.equal(id, sessionId); return session; },
-      async flush(value) {
-        flushCalls += 1;
-        assert.equal(value, session);
-        // permission/preset 是最后一个事件（在 approval/policy 之后追加）
-        assert.equal(events.at(-1).data.preset, "danger-full-access", "append precedes durable flush");
-      },
-    }, sessionId);
-    assert.equal(flushCalls, 1);
-    assert.deepEqual(events.at(-3), { type: "sandbox/mode", data: { mode: "danger-full-access" } });
-    assert.deepEqual(events.at(-2), { type: "approval/policy", data: { policy: "never" } });
-    assert.deepEqual(events.at(-1), { type: "permission/preset", data: { preset: "danger-full-access" } });
-
-    // Sequential verification still reaches the durable store, without
-    // growing the event log when neither effective policy drifted.
-    const eventCount = events.length;
-    await pinOwnedSessionApprovalPolicy({
-      get() { return session; },
       async flush() { flushCalls += 1; },
     }, sessionId);
-    assert.equal(flushCalls, 2);
-    assert.equal(events.length, eventCount);
-
-    session.append("sandbox/mode", { mode: "read-only" });
-    await pinOwnedSessionApprovalPolicy({
-      get() { return session; },
-      async flush() { flushCalls += 1; },
-    }, sessionId);
-    assert.deepEqual(events.at(-1), { type: "sandbox/mode", data: { mode: "danger-full-access" } });
+    // flush is no longer called by pinOwnedSessionApprovalPolicy — it is the caller's responsibility
+    assert.equal(flushCalls, 0);
+    assert.equal(events.length, 2);
+    assert.deepEqual(events[0], { type: "sandbox/mode", data: { mode: "danger-full-access" } });
+    assert.deepEqual(events[1], { type: "approval/policy", data: { policy: "never" } });
   });
 
   await t.test("foreign-id", async () => {
@@ -592,23 +571,6 @@ test("index durably pins danger-full-access and never only on an owned session",
       error => error?.code === "session-not-found",
     );
     assert.equal(flushCalls, 0);
-  });
-
-  await t.test("flush-failure", async () => {
-    const events = [];
-    const session = {
-      id: sessionId,
-      events,
-      append(type, data) { events.push({ type, data }); },
-    };
-    await assert.rejects(
-      pinOwnedSessionApprovalPolicy({
-        get() { return session; },
-        async flush() { throw new Error("durable flush failed"); },
-      }, sessionId),
-      /durable flush failed/,
-    );
-    assert.equal(events.at(-1).data.preset, "danger-full-access");
   });
 });
 

@@ -11,7 +11,7 @@
 - 普通前台会话活跃时暂停派发；`sessions.list` 调用失败或返回结构未知时同样按前台忙碌处理。已经运行的 owned goal 先持久化 pause intent，再 pause goal、取消当前 turn；只有连续两次可信空闲观察后才 resume。
 - 任务与配置请求均不能覆盖 Host 的模型、工作区或任意 Agent preset。未知字段会被拒绝。
 - 默认 `maxConcurrent=1`、`autoArchive=true`、`enableNotifications=false`。
-- Host 普通会话中的 16 个 AI 工具随插件自动注册，可用 `enableHostAiTools: false` 关闭；外部 AI 始终可以使用本 API。
+- Host 普通会话中的 19 个 AI 工具随插件自动注册，可用 `enableHostAiTools: false` 关闭；外部 AI 始终可以使用本 API。
 
 ## 1. 访问控制
 
@@ -502,7 +502,7 @@ data: {"revision":42,"tasks":[...],"config":{...},"runtime":{...}}
 
 ## 13. Host AI 工具（自动注入）
 
-启动配置 `enableHostAiTools` 默认是 `true`。插件加载后向普通 DSH 会话注册以下 18 个 HTTP 薄客户端工具；需要保持原始 tool catalog 的部署可显式设置为 `false`。`autoqueue-session-*` 自有任务 Agent 会隐藏这些工具，执行 guard 也会拒绝其通过 Host 工具递归控制队列：
+启动配置 `enableHostAiTools` 默认是 `true`。插件加载后向普通 DSH 会话注册以下 19 个 HTTP 薄客户端工具；需要保持原始 tool catalog 的部署可显式设置为 `false`。`autoqueue-session-*` 自有任务 Agent 会隐藏这些工具，执行 guard 也会拒绝其通过 Host 工具递归控制队列：
 
 工具默认访问 `http://127.0.0.1:3080`。若当前 DSH Web 不在该地址，启动配置必须提供正确的 `baseUrl`。
 
@@ -528,6 +528,7 @@ data: {"revision":42,"tasks":[...],"config":{...},"runtime":{...}}
 | `autoqueue_set_concurrency` | 设置 1-8 并发 |
 | `autoqueue_list_templates` | 列出可用任务模板 |
 | `autoqueue_get_template` | 获取模板详情和参数 schema |
+| `autoqueue_resolve_template` | 解析模板参数，返回可用的任务正文 |
 
 工具全部通过 HTTP API，不绕过 HTTP 校验直接访问 engine/ledger，也不会暴露 token。外部 AI 不依赖这组 Host 工具；即使关闭自动注入，HTTP API 仍保持可用。
 

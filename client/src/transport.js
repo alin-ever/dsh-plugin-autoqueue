@@ -1,5 +1,19 @@
 var API_PREFIX = "/api/queue";
 var REQUEST_TIMEOUT_MS = 15e3;
+var SSE_MAX_RETRIES = 5;
+var SSE_RETRY_BASE_MS = 2000;
+var SSE_RETRY_MAX_MS = 30000;
+
+function randomUUID() {
+  try {
+    return crypto.randomUUID();
+  } catch (e) {
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
+      var r = Math.random() * 16 | 0;
+      return (c === "x" ? r : (r & 0x3 | 0x8)).toString(16);
+    });
+  }
+}
 
 function readJson(response) {
   return response.text().then(function (text) {
@@ -49,13 +63,22 @@ export function createTransport() {
       return request("/action", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ requestId: crypto.randomUUID(), action: action })
+        body: JSON.stringify({ requestId: randomUUID(), action: action })
       });
     },
     listTemplates: function () { return request("/templates"); },
     getTemplate: function (name) { return request("/templates?name=" + encodeURIComponent(name)); },
     resolveTemplate: function (name, params) {
       return request("/templates/resolve", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: name, params: params || {} }) });
+    },
+    createTemplate: function (data) {
+      return request("/templates", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(data) });
+    },
+    updateTemplate: function (name, data) {
+      return request("/templates?name=" + encodeURIComponent(name), { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(data) });
+    },
+    deleteTemplate: function (name) {
+      return request("/templates?name=" + encodeURIComponent(name), { method: "DELETE" });
     },
     markRead: function (key, read) {
       return request("/mark-read", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key: key, read: read !== false }) });
@@ -66,12 +89,17 @@ export function createTransport() {
         status: "connecting", connected: false, reconnecting: false,
         lastEventAt: null, revision: null
       };
+      var retryCount = 0;
+      var retryDelay = SSE_RETRY_BASE_MS;
+      var closed = false;
       var reportHealth = function (patch) {
         health = Object.assign({}, health, patch || {});
         if (typeof healthListener === "function") healthListener(health);
       };
       reportHealth();
       events.onopen = function () {
+        retryCount = 0;
+        retryDelay = SSE_RETRY_BASE_MS;
         reportHealth({ status: "connected", connected: true, reconnecting: false });
       };
       events.onmessage = function (message) {
@@ -84,14 +112,35 @@ export function createTransport() {
             });
             listener(parsed);
           }
-        } catch (e) {}
+        } catch (e) {
+          if (typeof console !== "undefined" && console.warn) console.warn("autoqueue SSE parse error:", e);
+        }
       };
       events.onerror = function () {
+        events.close();
+        if (closed) return;
+        if (retryCount >= SSE_MAX_RETRIES) {
+          reportHealth({ status: "permanent-failure", connected: false, reconnecting: false });
+          return;
+        }
+        retryCount++;
         reportHealth({ status: "reconnecting", connected: false, reconnecting: true });
+        setTimeout(function () {
+          if (closed) return;
+          events = new EventSource(API_PREFIX + "/events?archived=1");
+          events.onopen = onopen;
+          events.onmessage = onmessage;
+          events.onerror = onerror;
+        }, retryDelay);
+        retryDelay = Math.min(retryDelay * 2, SSE_RETRY_MAX_MS);
       };
+      var onopen = events.onopen;
+      var onmessage = events.onmessage;
+      var onerror = events.onerror;
       var onVisible = function () { if (document.visibilityState === "visible") listener(null); };
       document.addEventListener("visibilitychange", onVisible);
       return function () {
+        closed = true;
         document.removeEventListener("visibilitychange", onVisible);
         events.close();
         reportHealth({ status: "disconnected", connected: false, reconnecting: false });

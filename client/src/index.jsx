@@ -22,8 +22,10 @@ function mountFloatingPanel(controller, transport, React, reactDomClient, sessio
 
 // ─── 入口 ─────────────────────────────────────────────────
 
+var MODULE_ID = "@alintever/dsh-plugin-autoqueue";
+
 window.__ModuleLoader__.load({
-  id: "@alintever/dsh-plugin-autoqueue",
+  id: MODULE_ID,
   factory: function (require) {
     var previousReact = window.__React;
     var previousReactDOM = window.__ReactDOM;

@@ -89,7 +89,7 @@ DSH rc.2 的选择接口会持久化 Host 默认状态。核心层通过 `assert
 
 ### 2.7 Host 工具注入与 owned Agent 隔离
 
-`index.apply()` 在 `enableHostAiTools !== false` 时调用 `registerAiTool()`，因此缺省配置会注册 16 个全局工具和精简发现提示。`protectOwnedAgentsFromQueueTools()` 同时安装两层限制：在 `agent/created` 上给 `autoqueue-session-*` 的 Agent 作用域设置工具 deny 与空同名提示；在 ToolRuntime 上安装 monotonic guard，按调用 Agent ID 拒绝任何绕过可见性的队列工具执行。显式 `enableHostAiTools=false` 时，工具、提示和这组限制均不注册。
+`index.apply()` 在 `enableHostAiTools !== false` 时调用 `registerAiTool()`，因此缺省配置会注册 19 个全局工具和精简发现提示。`protectOwnedAgentsFromQueueTools()` 同时安装两层限制：在 `agent/created` 上给 `autoqueue-session-*` 的 Agent 作用域设置工具 deny；在 ToolRuntime 上安装 monotonic guard，按调用 Agent ID 拒绝任何绕过可见性的队列工具执行。显式 `enableHostAiTools=false` 时，工具、提示和这组限制均不注册。
 
 ## 3. `createEngine(apiProxy, options)`
 
@@ -411,6 +411,6 @@ cron 是 5 字段本地时间表达式，支持 `*`、数字、`*/step`、范围
 
 - HTTP：完整接口说明见 `docs/api.md`。
 - 外部 AI：Capabilities → OpenAPI → compact state → detail。
-- Host AI：16 个工具默认自动注册，`enableHostAiTools=false` 可关闭；列表/详情结构化结果含 runtime 和派生运行事实。自有任务 Agent 通过作用域 deny、提示遮蔽与执行 guard 不能调用这组 Host 队列控制工具；直接 HTTP 访问仍遵循 API 的本机/远程鉴权边界。
+- Host AI：19 个工具默认自动注册，`enableHostAiTools=false` 可关闭；列表/详情结构化结果含 runtime 和派生运行事实。自有任务 Agent 通过作用域 deny、提示遮蔽与执行 guard 不能调用这组 Host 队列控制工具；直接 HTTP 访问仍遵循 API 的本机/远程鉴权边界。
 - UI：五个范围工作区、原生 runtime 观测、SSE 健康、完整安全任务表单/动作、批量归档、详情四页签、配置与动态 AI/API 接入抽屉、已读状态均已暴露。
 - `/api/queue/options` 返回 `workspaces: []`、`presets: []`、`models: []` 和 `isolation.overridesLocked`；它是锁声明，不是 Host 枚举接口。`overridesLocked` 仅包含 `workspace` 和 `agentPreset`，`model` 允许覆盖。
