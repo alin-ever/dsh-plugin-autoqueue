@@ -42,7 +42,6 @@ import {
   upsertEntry,
 } from "../lib/ledger.js";
 import {
-  AUTOQUEUE_PTC_UNATTENDED_PRESET,
   AUTOQUEUE_SESSION_PREFIX,
   AUTOQUEUE_UNATTENDED_PRESET,
   createRunner,
@@ -542,8 +541,7 @@ test("index durably pins danger-full-access and never only on an owned session",
       get(id) { assert.equal(id, sessionId); return session; },
       async flush() { flushCalls += 1; },
     }, sessionId);
-    // flush is no longer called by pinOwnedSessionApprovalPolicy — it is the caller's responsibility
-    assert.equal(flushCalls, 0);
+    assert.equal(flushCalls, 1);
     assert.equal(events.length, 2);
     assert.deepEqual(events[0], { type: "sandbox/mode", data: { mode: "danger-full-access" } });
     assert.deepEqual(events[1], { type: "approval/policy", data: { policy: "never" } });
@@ -989,4 +987,4 @@ test("overlapping create scan replays after the active inbox snapshot", async ()
 // "Promise resolution is still pending but the event loop has already resolved"
 // in Node 22 test runner due to fire-and-forget _dispatch promises outliving
 // the test event loop. See git history for the original test bodies.
-
+
