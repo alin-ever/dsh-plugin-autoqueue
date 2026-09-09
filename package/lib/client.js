@@ -1988,6 +1988,8 @@ window.__ModuleLoader__.load({
 			const [workspaceId, setWorkspaceId] = (0, react.useState)("");
 			const [mode, setMode] = (0, react.useState)("");
 			const [permission, setPermission] = (0, react.useState)("");
+			const [provider, setProvider] = (0, react.useState)("");
+			const [model, setModel] = (0, react.useState)("");
 			const [scheduleEnabled, setScheduleEnabled] = (0, react.useState)(false);
 			const [scheduleCron, setScheduleCron] = (0, react.useState)("");
 			const [scheduleError, setScheduleError] = (0, react.useState)(void 0);
@@ -2035,6 +2037,8 @@ window.__ModuleLoader__.load({
 					workspaceId: workspaceId === "" ? void 0 : workspaceId,
 					mode: mode === "" ? void 0 : mode,
 					permission: permission === "" ? void 0 : permission,
+					provider: provider === "" ? void 0 : provider,
+					model: model === "" ? void 0 : model,
 					schedule: scheduleEnabled ? {
 						enabled: true,
 						cron: scheduleCron.trim()
@@ -2170,6 +2174,30 @@ window.__ModuleLoader__.load({
 								value: id,
 								children: t(`exec.permission.${id}`)
 							}, id))]
+						})]
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
+						className: board_module_css_default.field,
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+							className: board_module_css_default.fieldLabel,
+							children: "Provider"
+						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
+							className: board_module_css_default.input,
+							value: provider,
+							placeholder: "\u7559\u7A7A\u7EE7\u627F Host \u9ED8\u8BA4",
+							onChange: (event) => { setProvider(event.target.value); }
+						})]
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
+						className: board_module_css_default.field,
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+							className: board_module_css_default.fieldLabel,
+							children: "Model"
+						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
+							className: board_module_css_default.input,
+							value: model,
+							placeholder: "\u7559\u7A7A\u7EE7\u627F Host \u9ED8\u8BA4",
+							onChange: (event) => { setModel(event.target.value); }
 						})]
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
@@ -2521,6 +2549,8 @@ window.__ModuleLoader__.load({
 			const workspaceId = task.workspaceId ?? "";
 			const mode = task.mode ?? "";
 			const permission = task.permission ?? "";
+			const provider = task.provider ?? "";
+			const model = task.model ?? "";
 			const workspaceKnown = workspaceId === "" || options.workspaces.some((item) => item.workspaceId === workspaceId);
 			const modeKnown = mode === "" || options.presets.some((item) => item.id === mode);
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
@@ -2611,6 +2641,32 @@ window.__ModuleLoader__.load({
 								value: id,
 								children: t(`exec.permission.${id}`)
 							}, id))]
+						})]
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
+						className: board_module_css_default.field,
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+							className: board_module_css_default.fieldLabel,
+							children: "Provider"
+						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
+							className: board_module_css_default.input,
+							value: provider,
+							placeholder: "\u7559\u7A7A\u7EE7\u627F Host \u9ED8\u8BA4",
+							disabled: pending,
+							onChange: (event) => { controller.updateTask(task.id, { provider: event.target.value === "" ? void 0 : event.target.value }); }
+						})]
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
+						className: board_module_css_default.field,
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+							className: board_module_css_default.fieldLabel,
+							children: "Model"
+						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
+							className: board_module_css_default.input,
+							value: model,
+							placeholder: "\u7559\u7A7A\u7EE7\u627F Host \u9ED8\u8BA4",
+							disabled: pending,
+							onChange: (event) => { controller.updateTask(task.id, { model: event.target.value === "" ? void 0 : event.target.value }); }
 						})]
 					})
 				]

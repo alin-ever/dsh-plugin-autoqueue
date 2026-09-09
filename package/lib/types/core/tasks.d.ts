@@ -119,6 +119,10 @@ export interface TaskRecord {
      * `/permission <id>` slash command; absent leaves the session default.
      */
     permission?: TaskPermission;
+    /** LLM provider override for the execution session; absent = Host default. */
+    provider?: string;
+    /** LLM model override for the execution session; absent = Host default. */
+    model?: string;
     /**
      * Frozen context snapshot for a continuation card; absent on plain tasks.
      * Sanitized before it enters the ledger (redaction, slash-command taint,
@@ -164,6 +168,10 @@ export interface NewTaskInput {
     mode?: string;
     /** Permission preset applied to the execution session; absent = session default. */
     permission?: TaskPermission;
+    /** LLM provider override for the execution session; absent = Host default. */
+    provider?: string;
+    /** LLM model override for the execution session; absent = Host default. */
+    model?: string;
     /**
      * Optional scheduled-run rule requested at creation time (the new-task
      * dialog): an enable flag plus a 5-field cron expression. The create use

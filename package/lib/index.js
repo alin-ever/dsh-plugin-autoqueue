@@ -2136,13 +2136,22 @@ var HostExecutionRunner = class {
 		}
 		const sessionId = (await this.invoke("session", "create", {
 			...workspaceId === void 0 ? {} : { workspaceId },
-			...mode === void 0 ? {} : { agentPreset: mode }
+			...mode === void 0 ? {} : { agentPreset: mode },
+			...task.provider === void 0 ? {} : { provider: task.provider },
+			...task.model === void 0 ? {} : { model: task.model }
 		})).sessionId;
 		try {
 			await this.invoke("session", "rename", {
 				sessionId,
 				title: task.title
 			});
+			if (task.provider !== void 0 && task.model !== void 0) {
+				try {
+					await this.invoke("session", "selectModel", { sessionId, provider: task.provider, model: task.model });
+				} catch (selectErr) {
+					console.warn("[dsh-task-board] session/selectModel failed for", sessionId, selectErr);
+				}
+			}
 			if (permission !== void 0) {
 				if (this.commands === void 0) throw new Error("permission command dispatcher is unavailable");
 				const command = await this.commands.execute(sessionId, "/permission " + permission, AbortSignal.timeout(3e4));

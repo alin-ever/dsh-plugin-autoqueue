@@ -20,6 +20,8 @@ export function NewTaskModal({ controller, onClose }: { controller: BoardControl
   const [workspaceId, setWorkspaceId] = useState('')
   const [mode, setMode] = useState('')
   const [permission, setPermission] = useState('')
+  const [provider, setProvider] = useState('')
+  const [model, setModel] = useState('')
   const [scheduleEnabled, setScheduleEnabled] = useState(false)
   const [scheduleCron, setScheduleCron] = useState('')
   const [scheduleError, setScheduleError] = useState<string | undefined>(undefined)
@@ -76,6 +78,8 @@ export function NewTaskModal({ controller, onClose }: { controller: BoardControl
       workspaceId: workspaceId === '' ? undefined : workspaceId,
       mode: mode === '' ? undefined : mode,
       permission: permission === '' ? undefined : permission as TaskPermission,
+      provider: provider === '' ? undefined : provider,
+      model: model === '' ? undefined : model,
       schedule: scheduleEnabled ? { enabled: true, cron: scheduleCron.trim() } : undefined,
     })
     if (task === undefined) {
@@ -180,6 +184,27 @@ export function NewTaskModal({ controller, onClose }: { controller: BoardControl
             ))}
           </select>
         </label>
+
+        <div className={css.fieldRow}>
+          <label className={css.field}>
+            <span className={css.fieldLabel}>Provider</span>
+            <input
+              className={css.input}
+              value={provider}
+              placeholder="留空继承 Host 默认"
+              onChange={event => { setProvider(event.target.value) }}
+            />
+          </label>
+          <label className={css.field}>
+            <span className={css.fieldLabel}>Model</span>
+            <input
+              className={css.input}
+              value={model}
+              placeholder="留空继承 Host 默认"
+              onChange={event => { setModel(event.target.value) }}
+            />
+          </label>
+        </div>
 
         <section className={css.detailSection}>
           <h4>{t('detail.schedule')}</h4>

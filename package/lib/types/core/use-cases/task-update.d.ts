@@ -15,7 +15,7 @@ import type { TaskHandoverInput } from '../handover.ts';
  * Editable fields on a task (the update patch surface). `freeze` replaces the
  * continuation-card snapshot (restamping frozenAt); an explicit null clears it.
  */
-export type TaskUpdatePatch = Partial<Pick<TaskRecord, 'title' | 'description' | 'prompt' | 'workspaceId' | 'mode' | 'permission'>> & {
+export type TaskUpdatePatch = Partial<Pick<TaskRecord, 'title' | 'description' | 'prompt' | 'workspaceId' | 'mode' | 'permission' | 'provider' | 'model'>> & {
     freeze?: FreezeSnapshot & {
         redacted?: boolean;
     } | null;

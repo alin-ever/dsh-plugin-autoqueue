@@ -196,6 +196,13 @@ export class HostExecutionRunner {
     const sessionId = created.sessionId
     try {
       await this.invoke('session', 'rename', { sessionId, title: task.title })
+      if (task.provider !== undefined && task.model !== undefined) {
+        try {
+          await this.invoke('session', 'selectModel', { sessionId, provider: task.provider, model: task.model })
+        } catch (selectErr) {
+          console.warn('[dsh-task-board] session/selectModel failed for', sessionId, selectErr)
+        }
+      }
       if (permission !== undefined) {
         if (this.commands === undefined) throw new Error('permission command dispatcher is unavailable')
         const command = await this.commands.execute(sessionId, '/permission ' + permission, AbortSignal.timeout(30_000))

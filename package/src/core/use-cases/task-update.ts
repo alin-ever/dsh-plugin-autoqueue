@@ -16,7 +16,7 @@ import type { TaskHandoverInput } from '../handover.ts'
  * Editable fields on a task (the update patch surface). `freeze` replaces the
  * continuation-card snapshot (restamping frozenAt); an explicit null clears it.
  */
-export type TaskUpdatePatch = Partial<Pick<TaskRecord, 'title' | 'description' | 'prompt' | 'workspaceId' | 'mode' | 'permission'>> & {
+export type TaskUpdatePatch = Partial<Pick<TaskRecord, 'title' | 'description' | 'prompt' | 'workspaceId' | 'mode' | 'permission' | 'provider' | 'model'>> & {
   freeze?: FreezeSnapshot & { redacted?: boolean } | null
   /** Replaces the handover bundle (restamping bundledAt); an explicit null clears it. */
   handover?: TaskHandoverInput | null
@@ -72,6 +72,8 @@ export function applyUpdateTask(
     const workspaceId = 'workspaceId' in patch ? normalizeTargetId(patch.workspaceId) : undefined
     const mode = 'mode' in patch ? normalizeTargetId(patch.mode) : undefined
     const permission = 'permission' in patch ? normalizePermission(task.permission, patch.permission) : undefined
+    const provider = 'provider' in patch ? normalizeTargetId(patch.provider) : undefined
+    const model = 'model' in patch ? normalizeTargetId(patch.model) : undefined
     const next: TaskRecord = { ...task, ...rest, updatedAt: now }
     // Content fields normalize like creation does (trimmed); an explicit
     // undefined keeps the current value — content cannot be cleared.
@@ -95,6 +97,8 @@ export function applyUpdateTask(
     if (workspaceId !== undefined || 'workspaceId' in patch) next.workspaceId = workspaceId
     if (mode !== undefined || 'mode' in patch) next.mode = mode
     if (permission !== undefined || 'permission' in patch) next.permission = permission
+    if (provider !== undefined || 'provider' in patch) next.provider = provider
+    if (model !== undefined || 'model' in patch) next.model = model
     return next
   })
 }

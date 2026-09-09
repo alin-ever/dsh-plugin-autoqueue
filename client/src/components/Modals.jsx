@@ -32,6 +32,8 @@ export function NewTaskModal(props) {
   var timeoutMinutes = React.useState(String(Math.round(v(config.taskTimeoutMs, 10800000) / 60000)));
   var maxAttempts = React.useState(String(v(config.maxAttempts, 3)));
   var webhook = React.useState(config.webhook || "");
+  var provider = React.useState("");
+  var model = React.useState("");
   var autoArchive = React.useState(config.autoArchive !== false);
   var enableNotifications = React.useState(config.enableNotifications === true);
   var advancedOpen = React.useState(false);
@@ -75,6 +77,8 @@ export function NewTaskModal(props) {
     if (timeoutMinutes[0]) data.timeoutMs = parseInt(timeoutMinutes[0], 10) * 60000;
     if (maxAttempts[0]) data.maxAttempts = parseInt(maxAttempts[0], 10);
     if (webhook[0].trim()) data.webhook = webhook[0].trim();
+    if (provider[0].trim()) data.provider = provider[0].trim();
+    if (model[0].trim()) data.model = model[0].trim();
 
     submitting[1](true); error[1]("");
     props.onCreate(data).catch(function (e) {
@@ -130,6 +134,10 @@ export function NewTaskModal(props) {
           advancedOpen[0] && h("div", { className: "mt-3" },
             h(Field, { label: "最多启动尝试（1-10）" }, h("input", { type: "number", min: "1", max: "10", value: maxAttempts[0], onChange: function (e) { maxAttempts[1](e.target.value); }, className: "aq-input" }))
           ),
+          advancedOpen[0] && h("div", { className: "mt-3 grid grid-cols-2 gap-3" },
+            h(Field, { label: "Provider", help: "留空继承 Host 默认" }, h("input", { value: provider[0], onChange: function (e) { provider[1](e.target.value); }, placeholder: "例如 openai", className: "aq-input" })),
+            h(Field, { label: "Model", help: "留空继承 Host 默认" }, h("input", { value: model[0], onChange: function (e) { model[1](e.target.value); }, placeholder: "例如 gpt-4o", className: "aq-input" }))
+          ),
           advancedOpen[0] && h("div", { className: "mt-3 space-y-3" },
             h(Field, { label: "Webhook URL" }, h("input", { type: "url", value: webhook[0], onChange: function (e) { webhook[1](e.target.value); }, placeholder: "https://example.com/hook", className: "aq-input" })),
             h(ToggleField, { checked: autoArchive[0], onChange: autoArchive[1], label: "完成后自动归档" }),
@@ -161,6 +169,8 @@ export function EditTaskModal(props) {
   var timeoutMinutes = React.useState(task.timeoutMs ? String(Math.round(task.timeoutMs / 60000)) : "");
   var maxAttempts = React.useState(task.maxAttempts == null ? "" : String(task.maxAttempts));
   var webhook = React.useState(task.webhook || "");
+  var provider = React.useState(task.provider || "");
+  var model = React.useState(task.model || "");
   var advancedOpen = React.useState(false);
   var notifyOpen = React.useState(false);
   var error = React.useState("");
@@ -182,6 +192,8 @@ export function EditTaskModal(props) {
     add("timeoutMs", timeoutMinutes[0] ? parseInt(timeoutMinutes[0], 10) * 60000 : null, task.timeoutMs ?? null);
     add("maxAttempts", numberOrUndefined(maxAttempts[0]) ?? null, task.maxAttempts ?? null);
     add("webhook", webhook[0].trim() || null, task.webhook || null);
+    add("provider", provider[0].trim() || null, task.provider || null);
+    add("model", model[0].trim() || null, task.model || null);
     if (!Object.keys(patch).length) { props.onClose(); return; }
     submitting[1](true); error[1]("");
     props.onUpdate(task.key, patch).catch(function (e) { error[1](e.message || "保存失败"); }).finally(function () { submitting[1](false); });
@@ -214,7 +226,11 @@ export function EditTaskModal(props) {
         ),
         advancedOpen[0] && h("div", { className: "mt-3" },
           h(Field, { label: "最多启动尝试（1-10）" }, h("input", { type: "number", min: "1", max: "10", value: maxAttempts[0], onChange: function (e) { maxAttempts[1](e.target.value); }, placeholder: "默认 3", className: "aq-input" }))
-        )
+        ),
+        advancedOpen[0] && h("div", { className: "mt-3 grid grid-cols-2 gap-3" },
+          h(Field, { label: "Provider", help: "留空继承 Host 默认" }, h("input", { value: provider[0], onChange: function (e) { provider[1](e.target.value); }, placeholder: "例如 openai", className: "aq-input" })),
+          h(Field, { label: "Model", help: "留空继承 Host 默认" }, h("input", { value: model[0], onChange: function (e) { model[1](e.target.value); }, placeholder: "例如 gpt-4o", className: "aq-input" }))
+        ),
       ),
 
       h("div", { className: "mt-4 pt-3 border-t border-aq-line" },

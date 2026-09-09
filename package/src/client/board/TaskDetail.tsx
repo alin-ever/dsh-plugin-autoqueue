@@ -69,6 +69,8 @@ function ExecutionSettingsSection({ controller, task, pending }: { controller: B
   const workspaceId = task.workspaceId ?? ''
   const mode = task.mode ?? ''
   const permission = task.permission ?? ''
+  const provider = task.provider ?? ''
+  const model = task.model ?? ''
   // A pinned target may disappear from the runtime (workspace deleted,
   // preset removed); keep it selectable as a stale row instead of silently
   // dropping it, so the user sees exactly what the task will ask for.
@@ -126,6 +128,28 @@ function ExecutionSettingsSection({ controller, task, pending }: { controller: B
           ))}
         </select>
       </label>
+      <div className={css.fieldRow}>
+        <label className={css.field}>
+          <span className={css.fieldLabel}>Provider</span>
+          <input
+            className={css.input}
+            value={provider}
+            placeholder="留空继承 Host 默认"
+            disabled={pending}
+            onChange={event => { controller.updateTask(task.id, { provider: event.target.value === '' ? undefined : event.target.value }) }}
+          />
+        </label>
+        <label className={css.field}>
+          <span className={css.fieldLabel}>Model</span>
+          <input
+            className={css.input}
+            value={model}
+            placeholder="留空继承 Host 默认"
+            disabled={pending}
+            onChange={event => { controller.updateTask(task.id, { model: event.target.value === '' ? undefined : event.target.value }) }}
+          />
+        </label>
+      </div>
     </section>
   )
 }
