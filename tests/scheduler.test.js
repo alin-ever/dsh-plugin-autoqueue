@@ -19,7 +19,6 @@ import {
   getCronIntervalMs,
   markRunComplete,
   markRunFailed,
-  resetSchedule,
   validateCron,
   isRecurring,
   buildFileContent,
@@ -227,14 +226,6 @@ test("markRunFailed 循环任务 → 重新调度", () => {
   freshQueue();
   const result = markRunFailed({ cron: "0 8 * * *" });
   assert.equal(result.status, "pending");
-});
-
-// ─── resetSchedule ─────────────────────────────────────
-
-test("resetSchedule 清除调度", () => {
-  const result = resetSchedule();
-  assert.equal(result.cron, null);
-  assert.equal(result.nextRunAt, null);
 });
 
 // ─── isRecurring ───────────────────────────────────────

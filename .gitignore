@@ -2,3 +2,10 @@ node_modules/
 tests/.generated/
 test-results/
 playwright-report/
+
+# Playwright MCP 临时文件
+.playwright-mcp/
+
+# 测试与验证截图
+*.png
+preview/

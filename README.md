@@ -171,7 +171,7 @@ goal 报告 `blocked` 时，引擎先注入 steering 指令，再 `goals.resume`
 config:
   maxGoalRounds: 40
   maxBlockedResumes: 3
-  autoArchive: true
+  autoArchive: false
   unknownThreshold: 3
   maxAttempts: 3
   taskTimeoutMs: 10800000
@@ -193,7 +193,7 @@ config:
 ```text
 lib/
 ├── index.js     插件入口、鉴权、HTTP、SSE、preset 和 approvalPolicy 固化
-├── engine.js    派发、前台让行、轮询、反阻塞、重试、admission containment
+├── engine-v2.js 派发、前台让行、轮询、反阻塞、重试、admission containment
 ├── runner.js    所有 apiProxy 会话/goal 调用和 session ownership 守卫
 ├── ledger.js    原子账本、CAS generation、requestId 去重、并发和恢复
 ├── files.js     收件箱、调度解析、运行目录和安全报告读取

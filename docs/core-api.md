@@ -232,7 +232,7 @@ const engine = {
 | `unknownThreshold` | 1-10 |
 | `maxAttempts` | 1-10 |
 | `taskTimeoutMs` | 600000-86400000 |
-| `autoArchive` | boolean，默认 true |
+| `autoArchive` | boolean，默认 false |
 | `webhook` | string/null |
 | `enableNotifications` | boolean，默认 false |
 | `priority` | 1-10 |

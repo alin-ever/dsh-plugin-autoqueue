@@ -399,8 +399,8 @@ function TaskRow(props) {
     h("td", { className: "py-2.5 align-middle overflow-hidden", style: { fontSize: "13px", minWidth: "120px" } },
       h("div", { className: "flex items-center gap-1.5 min-w-0" },
         h("span", { className: "flex-shrink-0 w-1.5 h-1.5 rounded-full " + (unread ? "bg-aq-blue" : "bg-transparent"), title: unread ? "未读" : undefined }),
-        h("span", { className: "font-semibold text-aq-ink leading-snug", style: { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, attention ? "! " + task.key : task.key),
-        summary && h("span", { className: "text-aq-muted leading-snug flex-shrink min-w-0", style: { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, "· " + summary)
+        h("span", { className: "font-semibold text-aq-ink leading-snug flex-shrink-0", style: { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "160px" } }, attention ? "! " + task.key : task.key),
+        summary && h("span", { className: "text-aq-muted leading-snug flex-1 min-w-0", style: { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, "· " + summary)
       )
     ),
     h("td", { className: "py-2.5 text-center align-middle", style: { fontSize: "12px" } },
