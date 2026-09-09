@@ -54,7 +54,12 @@ export function taskSummary(body) {
     var end = text.indexOf("\n---\n", 3);
     if (end >= 0) text = text.substring(end + 4);
   }
-  return text.split("\n")[0] ? text.split("\n")[0].replace(/^#+\s*/, "").trim() : "";
+  var lines = text.split("\n");
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i].trim();
+    if (line && !/^<!--/.test(line)) return line.replace(/^#+\s*/, "").trim();
+  }
+  return "";
 }
 
 export function cronToHuman(cron) {

@@ -147,7 +147,7 @@ export function FloatingDock(props) {
           backgroundColor: "var(--aq-paper, #fff)",
           border: "1px solid var(--aq-line, #e4e7ec)",
           boxShadow: "0 4px 16px rgba(0,0,0,0.10), 0 1px 3px rgba(0,0,0,0.06)",
-          cursor: "grab",
+          cursor: "pointer",
           transition: "box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.15s",
           position: "relative",
           fontFamily: "inherit",

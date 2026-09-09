@@ -72,7 +72,7 @@ export function TaskDetailPanel(props) {
             }, name);
           })
         ),
-        h(TabPanels, { className: "flex-1 overflow-y-auto px-6 py-4" },
+        h(TabPanels, { className: "flex-1 overflow-y-auto px-6 py-4", style: { overscrollBehaviorY: "contain" } },
           h(TabPanel, null,
             loading[0] ? h(LoadingView) :
             detailError[0] ? h(ErrorView, { error: detailError[0], onRetry: function () { retry[1](retry[0] + 1); } }) :
@@ -91,7 +91,7 @@ export function TaskDetailPanel(props) {
           h(TabPanel, null,
             loading[0] ? h(LoadingView) :
             detailError[0] ? h(ErrorView, { error: detailError[0], onRetry: function () { retry[1](retry[0] + 1); } }) :
-            h(PolicyTab, { task: value })
+            h(PolicyTab, { task: value, onUpdate: props.onUpdate })
           )
         )
       ),
@@ -361,12 +361,34 @@ function parseReportJSON(text) {
 
 function PolicyTab(props) {
   var task = props.task;
+  var updating = React.useState(false);
+  function toggleArchive() {
+    if (!props.onUpdate || updating[0]) return;
+    updating[1](true);
+    props.onUpdate(task.key, { autoArchive: task.autoArchive === false }).then(function () {
+      updating[1](false);
+    }).catch(function () {
+      updating[1](false);
+    });
+  }
   return h("div", { className: "space-y-4" },
     h(Section, { title: "调度" },
       h(Grid, null,
         h(Fact, { label: "定时调度", value: task.cron ? cronToHuman(task.cron) : "未设置" }),
         h(Fact, { label: "截止窗口", value: task.deadline ? cronToHuman(task.deadline) : "未设置" }),
-        h(Fact, { label: "自动归档", value: task.autoArchive === false ? "关闭" : "开启" })
+        h("div", null,
+          h("span", { className: "block text-xs text-aq-faint mb-0.5" }, "自动归档"),
+          h("button", {
+            onClick: toggleArchive,
+            disabled: updating[0],
+            className: "inline-flex items-center gap-2 text-sm font-semibold " + (task.autoArchive === false ? "text-aq-muted" : "text-aq-green") + " cursor-pointer disabled:opacity-40"
+          },
+            h("span", { className: "w-8 h-4 rounded-full relative transition-colors " + (task.autoArchive === false ? "bg-aq-line" : "bg-aq-green") },
+              h("span", { className: "absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-transform " + (task.autoArchive === false ? "" : "translate-x-4") })
+            ),
+            task.autoArchive === false ? "关闭" : "开启"
+          )
+        )
       )
     ),
     h(Section, { title: "失败处理" },

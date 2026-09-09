@@ -124,7 +124,8 @@ export function Workstation(props) {
     snap.showDetail && snap.detailTask && h(TaskDetailPanel, {
       key: snap.detailTask.key, task: snap.detailTask, transport: transport, controller: controller, sessions: sessions,
       onClose: function () { controller.closeDetail(); },
-      onActionRequest: function (kind, key) { controller.closeDetail(); handleAction(kind, key); }
+      onActionRequest: function (kind, key) { controller.closeDetail(); handleAction(kind, key); },
+      onUpdate: controller.updateTask
     }),
     snap.showNewTask && h(NewTaskModal, {
       transport: transport, options: snap.options, config: snap.config,
@@ -285,7 +286,7 @@ function CompactTaskList(props) {
       ),
       h("thead", null,
         h("tr", { className: "border-b border-aq-line bg-aq-surface-alt" },
-          h("th", { className: "pl-4 py-1" },
+          h("th", { className: "pl-4 pr-2 py-1" },
             h(Checkbox, {
               checked: selectableCount > 0 && props.selected.length === selectableCount,
               indeterminate: props.selected.length > 0 && props.selected.length < selectableCount,
@@ -301,7 +302,7 @@ function CompactTaskList(props) {
               )
             )
           ),
-          h("th", { className: "text-left py-1 text-xs font-semibold text-aq-faint uppercase tracking-wide" }, "任务"),
+          h("th", { className: "text-left py-1 pl-0 text-xs font-semibold text-aq-faint uppercase tracking-wide" }, "任务"),
           h("th", { className: "py-1 text-xs font-semibold text-aq-faint uppercase tracking-wide text-center" }, "调度"),
           h("th", { className: "pr-4 py-1 text-xs font-semibold text-aq-faint uppercase tracking-wide text-right" }, "状态"),
           h("th", { className: "pr-4 py-1 text-xs font-semibold text-aq-faint uppercase tracking-wide" }, "操作")

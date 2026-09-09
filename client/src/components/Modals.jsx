@@ -83,25 +83,24 @@ export function NewTaskModal(props) {
   }
 
   return h(DialogShell, { open: true, onClose: props.onClose, title: "新建无人值守任务", variant: "modal", size: "lg" },
-    h("form", { className: "flex flex-col h-full px-6 pb-6", onSubmit: handleSubmit },
+    h("form", { className: "flex flex-col flex-1 min-h-0 px-6 pb-6", onSubmit: handleSubmit },
       showTemplates[0] && h(TemplatePickerInline, {
         templates: templates[0], loading: templatesLoading[0],
         onSelect: onTemplateSelect, onClose: function () { showTemplates[1](false); }
       }),
-      !showTemplates[0] && h("div", { className: "flex-1 min-h-0 overflow-y-auto py-4" },
-        // 模板来源提示
-        fromTemplate[0] ? h("div", { className: "flex items-center gap-2 py-3 mb-1" },
+      !showTemplates[0] && h("div", { className: "flex-1 min-h-0 overflow-y-auto py-4", style: { overscrollBehaviorY: "contain" } },
+        error[0] && h("div", { className: "p-3 mb-4 rounded-lg bg-aq-red-soft text-sm text-aq-red" }, error[0]),
+
+        fromTemplate[0] && h("div", { className: "flex items-center gap-2 py-2 mb-1" },
           h("span", { className: "aq-badge aq-badge-blue" }, fromTemplate[0].name),
           h("span", { className: "text-sm text-aq-muted" }, "已从模板填充"),
           h("button", { type: "button", className: "ml-auto text-sm text-aq-blue hover:underline", onClick: loadTemplates }, "换模板")
-        ) : h("div", { className: "flex items-center justify-between py-3 mb-1" },
-          h("span", { className: "text-sm text-aq-muted" }, "直接填写任务内容"),
-          h("button", { type: "button", className: "text-sm text-aq-blue hover:underline", onClick: loadTemplates }, "从模板开始")
         ),
 
-        error[0] && h("div", { className: "p-3 mb-4 rounded-lg bg-aq-red-soft text-sm text-aq-red" }, error[0]),
-
-        h("label", { className: "block text-sm font-semibold text-aq-ink-2 mb-1.5" }, "任务内容（Markdown）"),
+        h("div", { className: "flex items-center justify-between mb-1.5" },
+          h("label", { className: "text-sm font-semibold text-aq-ink-2" }, "任务内容（Markdown）"),
+          !fromTemplate[0] && h("button", { type: "button", className: "text-sm text-aq-blue hover:underline", onClick: loadTemplates }, "从模板开始")
+        ),
         h("textarea", { value: content[0], onChange: function (e) { content[1](e.target.value); }, placeholder: "例如：整理本周客户访谈，归纳三条产品机会并输出报告…", required: true,
           className: "w-full h-36 p-3 rounded-xl border border-aq-line-2 bg-aq-paper text-sm text-aq-ink resize-y focus:border-aq-blue focus:ring-2 focus:ring-aq-blue/10 outline-none" }),
         h("div", { className: "grid grid-cols-2 gap-3 mt-4" },
@@ -112,10 +111,10 @@ export function NewTaskModal(props) {
         ),
 
         // 调度
-        h("div", { className: "mt-4" },
-          h(CronField, { label: "定时调度", value: cron[0], onChange: cron[1], presets: CRON_PRESETS, placeholder: "0 8 * * *" })
+        h("div", { className: "mt-4 space-y-4" },
+          h(CronField, { label: "定时调度", value: cron[0], onChange: cron[1], presets: CRON_PRESETS, placeholder: "0 8 * * *" }),
+          h(CronField, { label: "执行截止时间", value: deadline[0], onChange: deadline[1], presets: DEADLINE_PRESETS, placeholder: "0 21 * * *" })
         ),
-        h(CronField, { label: "执行截止时间", value: deadline[0], onChange: deadline[1], presets: DEADLINE_PRESETS, placeholder: "0 21 * * *" }),
 
         // 高级设置
         h("div", { className: "mt-4 pt-3 border-t border-aq-line" },
@@ -140,7 +139,6 @@ export function NewTaskModal(props) {
       ),
 
       h("div", { className: "flex justify-end gap-3 pt-4 border-t border-aq-line flex-shrink-0" },
-        h("button", { type: "button", className: "aq-btn aq-btn-ghost", onClick: loadTemplates, disabled: submitting[0] }, "从模板开始"),
         h("button", { type: "button", className: "aq-btn aq-btn-ghost", onClick: props.onClose, disabled: submitting[0] }, "取消"),
         h("button", { type: "submit", className: "aq-btn aq-btn-primary", disabled: submitting[0] }, submitting[0] ? "创建中…" : "创建任务")
       )
@@ -190,7 +188,7 @@ export function EditTaskModal(props) {
   }
 
   return h(DialogShell, { open: true, onClose: props.onClose, title: "编辑任务 · " + task.key, variant: "modal", size: "lg" },
-    h("form", { className: "flex flex-col h-full px-6 pb-6", onSubmit: handleSubmit },
+    h("form", { className: "flex flex-col flex-1 min-h-0 px-6 pb-6", onSubmit: handleSubmit },
       h("p", { className: "text-sm text-aq-muted py-3" }, "仅待执行任务可编辑；运行中的任务请先停止。"),
       error[0] && h("div", { className: "p-3 mb-4 rounded-lg bg-aq-red-soft text-sm text-aq-red" }, error[0]),
 
@@ -285,7 +283,7 @@ export function ConfigPanel(props) {
   }
 
   return h(DialogShell, { open: true, onClose: props.onClose, title: "运行设置", variant: "drawer" },
-    h("form", { className: "flex-1 min-h-0 px-6 pt-4 pb-0 overflow-y-auto", onSubmit: handleSave },
+    h("form", { className: "flex-1 min-h-0 px-6 pt-4 pb-0 overflow-y-auto", style: { overscrollBehaviorY: "contain" }, onSubmit: handleSave },
       saveError[0] && h("div", { className: "p-3 mb-4 rounded-lg bg-aq-red-soft text-sm text-aq-red" }, saveError[0]),
 
       h(Section, { title: "执行限制" },
@@ -513,7 +511,7 @@ export function TemplateManager(props) {
   return h(DialogShell, { open: true, onClose: props.onClose, title: "模板管理", variant: "drawer" },
     h("div", { className: "flex flex-col h-full" },
       editing[0] !== null
-        ? h("form", { className: "flex-1 overflow-y-auto px-6 py-4", onSubmit: handleSave },
+        ? h("form", { className: "flex-1 overflow-y-auto px-6 py-4", style: { overscrollBehaviorY: "contain" }, onSubmit: handleSave },
             saveError[0] && h("div", { className: "p-3 mb-4 rounded-lg bg-aq-red-soft text-sm text-aq-red" }, saveError[0]),
             h(Field, { label: "模板名称" }, h("input", { value: form[0].name, onChange: function (e) { form[1](Object.assign({}, form[0], { name: e.target.value })); }, className: "aq-input" })),
             h("div", { className: "grid grid-cols-2 gap-3 mt-3" },
@@ -530,7 +528,7 @@ export function TemplateManager(props) {
               h("button", { type: "submit", className: "aq-btn aq-btn-primary", disabled: saving[0] }, saving[0] ? "保存中…" : "保存")
             )
           )
-        : h("div", { className: "flex-1 overflow-y-auto px-6 py-4" },
+        : h("div", { className: "flex-1 overflow-y-auto px-6 py-4", style: { overscrollBehaviorY: "contain" } },
             h("div", { className: "flex items-center justify-between mb-4" },
               h("span", { className: "text-sm font-semibold text-aq-ink" }, "模板列表"),
               h("button", { className: "aq-btn aq-btn-primary text-xs h-7", onClick: function () { startEdit(null); } }, "新建模板")

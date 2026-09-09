@@ -22,19 +22,17 @@ export function DialogShell(props) {
       transition: true,
       className: "fixed inset-0 bg-black/40 transition duration-200 ease-out data-[closed]:opacity-0"
     }),
-    h("div", { className: isDrawer ? "fixed inset-0 flex justify-end" : "fixed inset-0 flex items-center justify-center p-4 overflow-y-auto" },
+    h("div", { className: isDrawer ? "fixed inset-0 flex justify-end" : "fixed inset-0 flex items-center justify-center p-4", style: { overscrollBehaviorY: "contain" } },
       h(DialogPanel, {
         transition: true,
         className: (isDrawer
-          ? "h-full w-[min(880px,94vw)] bg-aq-paper shadow-2xl transition duration-200 ease-out data-[closed]:translate-x-4 data-[closed]:opacity-0"
-          : "w-[800px] rounded-2xl bg-aq-paper shadow-2xl border border-aq-line transition duration-200 ease-out data-[closed]:scale-95 data-[closed]:opacity-0 flex flex-col"
+          ? "h-full w-[min(880px,94vw)] bg-aq-paper shadow-2xl transition duration-200 ease-out data-[closed]:translate-x-4 data-[closed]:opacity-0 flex flex-col"
+          : "w-[800px] rounded-2xl bg-aq-paper shadow-2xl border border-aq-line transition duration-200 ease-out data-[closed]:scale-95 data-[closed]:opacity-0 flex flex-col overflow-hidden"
         ) + (props.className ? " " + props.className : ""),
         style: isDrawer ? {} : Object.assign({ maxHeight: height }, (props.style || {}))
       },
-        h("div", { className: "flex flex-col h-full" },
-          isDrawer ? h(DrawerHeader, { title: props.title, onClose: props.onClose }) : h(ModalHeader, { title: props.title, onClose: props.onClose }),
-          h("div", { className: "flex-1 min-h-0 overflow-hidden flex flex-col" }, props.children)
-        )
+        isDrawer ? h(DrawerHeader, { title: props.title, onClose: props.onClose }) : h(ModalHeader, { title: props.title, onClose: props.onClose }),
+        h("div", { className: "flex-1 min-h-0 overflow-hidden flex flex-col" }, props.children)
       )
     )
   );
