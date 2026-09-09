@@ -279,7 +279,7 @@ function CompactTaskList(props) {
       h("colgroup", null,
         h("col", { style: { width: "40px" } }),
         h("col", null),
-        h("col", { style: { width: "84px" } }),
+        h("col", { style: { width: "120px" } }),
         h("col", { style: { width: "76px" } }),
         h("col", { style: { width: "168px" } })
       ),
@@ -374,7 +374,7 @@ function TaskRow(props) {
       )
     ),
     h("td", { className: "py-2.5 text-center align-middle", style: { fontSize: "12px" } },
-      h("span", { className: "inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-aq-surface-alt text-aq-faint border border-aq-line" }, plan)
+      h("span", { className: "inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-aq-surface-alt text-aq-faint border border-aq-line whitespace-nowrap" }, plan)
     ),
     h("td", { className: "py-2.5 pr-4 text-right align-middle", style: { fontSize: "12px" } },
       h("span", {
