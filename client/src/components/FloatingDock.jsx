@@ -32,7 +32,7 @@ export function FloatingDock(props) {
       (t.goalPhase && (t.goalPhase.indexOf("uncertain") >= 0 || t.goalPhase.indexOf("containment") >= 0));
   });
 
-  var statusClass = hasAttention ? "bg-aq-amber" : (runningCount > 0 ? "bg-aq-blue" : "bg-aq-green");
+  var statusColor = hasAttention ? "#f79009" : (runningCount > 0 ? "#155eef" : "#067647");
 
   function toggle() { controller.toggleBoard(); }
 
@@ -133,15 +133,17 @@ export function FloatingDock(props) {
       )
     ),
     // ─── 可拖拽 Dock 入口按钮 ─────────────────────────────
-    h("div", { ref: containerRef, style: containerStyle },
+    !boardOpen && h("div", { ref: containerRef, style: containerStyle },
       h("button", {
         onMouseDown: onPointerDown,
+        title: runningCount > 0 ? "任务队列 · " + runningCount + " 个运行中" : "任务队列",
         style: {
           display: "flex",
           alignItems: "center",
-          gap: "8px",
-          padding: "10px 16px",
-          borderRadius: "16px",
+          justifyContent: "center",
+          width: "40px",
+          height: "40px",
+          borderRadius: "12px",
           backgroundColor: "var(--aq-paper, #fff)",
           border: "1px solid var(--aq-line, #e4e7ec)",
           boxShadow: "0 4px 16px rgba(0,0,0,0.10), 0 1px 3px rgba(0,0,0,0.06)",
@@ -160,14 +162,38 @@ export function FloatingDock(props) {
           e.currentTarget.style.transform = "translateY(0)";
         }
       },
+        // 列表图标
+        h("svg", {
+          width: "18", height: "18", viewBox: "0 0 24 24",
+          fill: "none", stroke: "currentColor", strokeWidth: "2",
+          strokeLinecap: "round", strokeLinejoin: "round",
+          style: { color: "var(--aq-ink, #344054)" }
+        },
+          h("line", { x1: "4", y1: "6", x2: "20", y2: "6" }),
+          h("line", { x1: "4", y1: "12", x2: "20", y2: "12" }),
+          h("line", { x1: "4", y1: "18", x2: "14", y2: "18" })
+        ),
+        // 状态角标
         h("span", {
-          className: "flex-shrink-0 w-2.5 h-2.5 rounded-full " + statusClass,
-          style: { boxShadow: "0 0 0 2px " + (hasAttention ? "rgba(147,55,13,0.15)" : (runningCount > 0 ? "rgba(21,94,239,0.15)" : "rgba(6,118,71,0.15)")) }
+          style: {
+            position: "absolute", top: "-3px", right: "-3px",
+            width: "10px", height: "10px", borderRadius: "50%",
+            backgroundColor: statusColor,
+            border: "2px solid var(--aq-paper, #fff)",
+            boxShadow: "0 0 0 1px rgba(0,0,0,0.06)"
+          }
         }),
-        h("span", { style: { fontSize: "14px", fontWeight: "600", color: "var(--aq-ink, #344054)", lineHeight: 1, userSelect: "none" } }, "任务队列"),
+        // 运行中数量角标
         runningCount > 0 && h("span", {
-          className: "flex-shrink-0 flex items-center justify-center min-w-[20px] h-5 px-1 rounded-full text-xs font-bold text-white",
-          style: { backgroundColor: "var(--aq-blue, #155eef)", fontSize: "11px" }
+          style: {
+            position: "absolute", bottom: "-3px", right: "-3px",
+            minWidth: "16px", height: "16px", padding: "0 4px",
+            borderRadius: "8px", backgroundColor: "var(--aq-blue, #155eef)",
+            color: "#fff", fontSize: "10px", fontWeight: "700",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            border: "2px solid var(--aq-paper, #fff)",
+            boxShadow: "0 0 0 1px rgba(0,0,0,0.06)"
+          }
         }, String(runningCount))
       )
     )

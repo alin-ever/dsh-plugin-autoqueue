@@ -106,7 +106,6 @@ export function Workstation(props) {
       onClose: function () { controller.closeBoard(); },
       onScan: function () { runAction("force-scan"); }
     }),
-    h(QuickStats, { snap: snap }),
     h(NavCategories, { snap: snap, onNav: function (v) { controller.setNavGroup(v); } }),
     h(CompactFilters, {
       snap: snap, query: query[0], onQuery: query[1],
@@ -168,7 +167,7 @@ export function Workstation(props) {
 // ─── Compact Header ──────────────────────────────────────
 
 function CompactHeader(props) {
-  return h("header", { className: "flex-shrink-0 flex items-center gap-3 px-4 py-2.5 border-b border-aq-line bg-aq-paper" },
+  return h("header", { className: "flex-shrink-0 flex items-center gap-3 px-4 py-2 border-b border-aq-line bg-aq-paper" },
     h("div", { className: "flex items-center gap-2.5 mr-auto" },
       h("span", { className: "flex items-center gap-1.5 text-sm font-bold text-aq-ink" },
         h("span", { className: "w-4 h-4 flex-shrink-0", dangerouslySetInnerHTML: { __html: iconHtml("list") } }),
@@ -182,41 +181,6 @@ function CompactHeader(props) {
   );
 }
 
-// ─── Quick Stats Bar ─────────────────────────────────────
-
-function QuickStats(props) {
-  var snap = props.snap;
-  var running = snap.metrics.running || 0;
-  var pending = snap.metrics.pending || 0;
-  var done24h = snap.metrics.done24h || 0;
-  var total = snap.tasks.filter(function (t) { return !t.archivedAt; }).length;
-  var failed24h = snap.metrics.failed24h || 0;
-
-  // 当所有活跃指标为 0 时，显示精简状态条
-  if (running === 0 && pending === 0 && done24h === 0) {
-    return h("div", { className: "flex-shrink-0 flex items-center gap-4 px-4 py-2 border-b border-aq-line bg-aq-surface-alt" },
-      h("span", { className: "text-xs text-aq-muted" },
-        total > 0 ? "共 " + total + " 个任务 · 当前无活跃任务" : "暂无任务"
-      ),
-      h("span", { className: "flex-1" }),
-      failed24h > 0 && h("span", { className: "text-xs font-semibold text-aq-red" }, failed24h + " 个失败")
-    );
-  }
-
-  return h("div", { className: "flex-shrink-0 grid grid-cols-3 border-b border-aq-line" },
-    h(StatCell, { label: "运行中", value: String(running), color: running > 0 ? "text-aq-blue" : "text-aq-faint", active: running > 0 }),
-    h(StatCell, { label: "等待中", value: String(pending), color: pending > 0 ? "text-aq-muted" : "text-aq-faint", active: pending > 0 }),
-    h(StatCell, { label: "24h 完成", value: String(done24h), color: done24h > 0 ? "text-aq-green" : "text-aq-faint", active: done24h > 0 })
-  );
-}
-
-function StatCell(props) {
-  return h("div", { className: "flex flex-col items-center py-2 px-2 border-r border-aq-line last:border-r-0 " + (props.active ? "bg-aq-blue-soft" : "") },
-    h("span", { className: "text-base font-bold leading-none " + props.color }, props.value),
-    h("span", { className: "text-xs text-aq-faint mt-0.5" }, props.label)
-  );
-}
-
 // ─── Category Navigation ─────────────────────────────────
 
 function NavCategories(props) {
@@ -226,6 +190,7 @@ function NavCategories(props) {
   var archived = all.filter(function (t) { return !!t.archivedAt; });
   var cronTasks = active.filter(function (t) { return t.cron; });
   var manualTasks = active.filter(function (t) { return !t.cron; });
+  var done24h = snap.metrics.done24h || 0;
   var cats = [
     ["all", "全部", active.length],
     ["cron", "定时任务", cronTasks.length],
@@ -233,16 +198,21 @@ function NavCategories(props) {
     ["archived", "归档", archived.length],
   ];
 
-  return h("div", { className: "flex-shrink-0 flex gap-0 px-4 py-1.5 border-b border-aq-line overflow-x-auto" },
+  return h("div", { className: "flex-shrink-0 flex items-center gap-0 px-4 py-1.5 border-b border-aq-line overflow-x-auto" },
     cats.map(function (c) {
-      var active = snap.navGroup === c[0] || (snap.navGroup === "all" && c[0] === "all");
+      var isActive = snap.navGroup === c[0] || (snap.navGroup === "all" && c[0] === "all");
       return h("button", {
         key: c[0],
-        className: "px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap transition " +
-          (active ? "bg-aq-blue text-white" : "text-aq-muted hover:text-aq-ink hover:bg-aq-surface-alt"),
+        className: "px-2.5 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap transition " +
+          (isActive ? "bg-aq-blue text-white" : "text-aq-muted hover:text-aq-ink hover:bg-aq-surface-alt"),
         onClick: function () { props.onNav(c[0]); }
       }, c[1], c[2] > 0 ? h("span", { className: "ml-1 opacity-70" }, c[2]) : null);
-    })
+    }),
+    done24h > 0 && h("span", { className: "ml-auto flex items-center gap-1.5 text-xs whitespace-nowrap" },
+      h("span", { className: "w-1.5 h-1.5 rounded-full bg-aq-green" }),
+      h("span", { className: "text-aq-faint" }, "24h完成"),
+      h("span", { className: "font-bold text-aq-green" }, done24h)
+    )
   );
 }
 
@@ -259,7 +229,7 @@ function CompactFilters(props) {
     ["done", "已完成", sc.done || 0]
   ];
 
-  return h("div", { className: "flex-shrink-0 flex flex-wrap items-center gap-2 px-4 py-2 border-b border-aq-line" },
+  return h("div", { className: "flex-shrink-0 flex flex-wrap items-center gap-2 px-4 py-1.5 border-b border-aq-line" },
     h("div", { className: "flex-1 min-w-[140px]" },
       h(Field, null,
         h(Input, {
@@ -315,7 +285,7 @@ function CompactTaskList(props) {
       ),
       h("thead", null,
         h("tr", { className: "border-b border-aq-line bg-aq-surface-alt" },
-          h("th", { className: "pl-4 py-1.5" },
+          h("th", { className: "pl-4 py-1" },
             h(Checkbox, {
               checked: selectableCount > 0 && props.selected.length === selectableCount,
               indeterminate: props.selected.length > 0 && props.selected.length < selectableCount,
@@ -331,10 +301,10 @@ function CompactTaskList(props) {
               )
             )
           ),
-          h("th", { className: "text-left py-1.5 text-xs font-semibold text-aq-faint uppercase tracking-wide" }, "任务"),
-          h("th", { className: "py-1.5 text-xs font-semibold text-aq-faint uppercase tracking-wide text-center" }, "调度"),
-          h("th", { className: "pr-4 py-1.5 text-xs font-semibold text-aq-faint uppercase tracking-wide text-right" }, "状态"),
-          h("th", { className: "pr-4 py-1.5 text-xs font-semibold text-aq-faint uppercase tracking-wide" }, "操作")
+          h("th", { className: "text-left py-1 text-xs font-semibold text-aq-faint uppercase tracking-wide" }, "任务"),
+          h("th", { className: "py-1 text-xs font-semibold text-aq-faint uppercase tracking-wide text-center" }, "调度"),
+          h("th", { className: "pr-4 py-1 text-xs font-semibold text-aq-faint uppercase tracking-wide text-right" }, "状态"),
+          h("th", { className: "pr-4 py-1 text-xs font-semibold text-aq-faint uppercase tracking-wide" }, "操作")
         )
       ),
       h("tbody", { className: "divide-y divide-aq-line" },
