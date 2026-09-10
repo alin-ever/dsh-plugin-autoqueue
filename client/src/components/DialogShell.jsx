@@ -3,14 +3,14 @@ import { iconHtml } from "../utils.js";
 
 function h() { return React.createElement.apply(React, arguments); }
 
-var SIZE_MAP = { sm: 480, md: 640, lg: 960 };
+var SIZE_MAP = { sm: 576, md: 768, lg: 1152 };
 var HEIGHT_MAP = { sm: "220px", md: "480px", lg: "80vh" };
 
 export function DialogShell(props) {
   var variant = props.variant === "drawer" ? "drawer" : "modal";
   var isDrawer = variant === "drawer";
   var size = props.size || "lg";
-  var width = SIZE_MAP[size] || 930;
+  var width = SIZE_MAP[size] || 1116;
   var height = HEIGHT_MAP[size] || "640px";
 
   return h(Dialog, {
@@ -26,8 +26,8 @@ export function DialogShell(props) {
       h(DialogPanel, {
         transition: true,
         className: (isDrawer
-          ? "h-full w-[min(880px,94vw)] bg-aq-paper shadow-2xl transition duration-200 ease-out data-[closed]:translate-x-4 data-[closed]:opacity-0 flex flex-col"
-          : "w-[800px] rounded-2xl bg-aq-paper shadow-2xl border border-aq-line transition duration-200 ease-out data-[closed]:scale-95 data-[closed]:opacity-0 flex flex-col overflow-hidden"
+          ? "h-full w-[min(1056px,94vw)] bg-aq-paper shadow-2xl transition duration-200 ease-out data-[closed]:translate-x-4 data-[closed]:opacity-0 flex flex-col"
+          : "w-[960px] rounded-2xl bg-aq-paper shadow-2xl border border-aq-line transition duration-200 ease-out data-[closed]:scale-95 data-[closed]:opacity-0 flex flex-col overflow-hidden"
         ) + (props.className ? " " + props.className : ""),
         style: isDrawer ? {} : Object.assign({ maxHeight: height }, (props.style || {}))
       },

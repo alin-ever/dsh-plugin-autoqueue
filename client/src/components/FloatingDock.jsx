@@ -117,7 +117,7 @@ export function FloatingDock(props) {
           position: "fixed",
           top: "50%", left: "50%",
           transform: "translate(-50%, -50%)",
-          width: "min(760px, calc(100vw - 48px))",
+          width: "min(912px, calc(100vw - 48px))",
           height: "min(80vh, 640px)",
           maxWidth: "calc(100vw - 48px)",
           borderRadius: "20px",

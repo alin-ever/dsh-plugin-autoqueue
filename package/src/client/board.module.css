@@ -502,7 +502,7 @@ html[data-dsh-taskboard-active]:not([data-dsh-ssh-active]) [class*='centerCol'] 
   display: flex;
   flex-direction: column;
   gap: 12px;
-  width: min(520px, calc(100vw - 48px));
+  width: min(624px, calc(100vw - 48px));
   max-height: calc(100vh - 96px);
   overflow-y: auto;
   padding: 18px;
@@ -590,7 +590,7 @@ html[data-dsh-taskboard-active]:not([data-dsh-ssh-active]) [class*='centerCol'] 
 .detail {
   display: flex;
   flex-direction: column;
-  width: min(640px, calc(100vw - 48px));
+  width: min(768px, calc(100vw - 48px));
   max-height: calc(100vh - 80px);
   background: var(--dsw-alias-bg-base);
   border: 1px solid var(--dsw-alias-border-l2);
