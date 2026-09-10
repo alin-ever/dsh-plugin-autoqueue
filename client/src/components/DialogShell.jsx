@@ -16,7 +16,7 @@ export function DialogShell(props) {
   return h(Dialog, {
     open: props.open,
     onClose: props.onClose,
-    className: "relative z-[100]"
+    className: "relative z-[100] data-[closed]:hidden"
   },
     h(DialogBackdrop, {
       transition: true,

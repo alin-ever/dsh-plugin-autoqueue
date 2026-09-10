@@ -275,8 +275,8 @@ function CompactTaskList(props) {
     );
   }
   var selectableCount = props.tasks.filter(function (t) { return t.status !== "running" && !t.archivedAt; }).length;
-  return h("div", { className: "flex-1 overflow-auto" },
-    h("table", { className: "w-full table-fixed min-w-[560px]" },
+  return h("div", { className: "flex-1 overflow-y-auto overflow-x-hidden" },
+    h("table", { className: "w-full table-fixed", style: { borderSpacing: "0" } },
       h("colgroup", null,
         h("col", { style: { width: "40px" } }),
         h("col", null),
@@ -387,7 +387,7 @@ function TaskRow(props) {
       )
     ),
     h("td", { className: "py-2.5 pr-4 align-middle", style: { fontSize: "12px" } },
-      h("div", { className: "flex items-center gap-1" },
+      h("div", { className: "flex items-center gap-1 flex-wrap" },
         task.status === "running" && task.stopPending !== true && !task.archivedAt && h("button", { style: actionBtnStyle, className: "hover:bg-aq-red-soft", onClick: function (e) { e.stopPropagation(); props.onAction("stop", task.key); } }, "停止"),
         task.status === "pending" && !task.archivedAt && h("button", { style: actionBtnStyle, className: "hover:bg-aq-surface-alt", onClick: function (e) { e.stopPropagation(); props.onEdit(task.key); } }, "编辑"),
         ["done", "failed", "stopped", "interrupted"].indexOf(task.status) >= 0 && !task.archivedAt && h("button", { style: Object.assign({}, actionBtnStyle, { color: "var(--aq-green, #067647)" }), className: "hover:bg-aq-green-soft", onClick: function (e) { e.stopPropagation(); props.onAction("rerun", task.key); } }, "重跑"),
