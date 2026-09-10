@@ -362,10 +362,11 @@ function parseReportJSON(text) {
 function PolicyTab(props) {
   var task = props.task;
   var updating = React.useState(false);
+  var effectiveAutoArchive = task.autoArchive === true || (task.autoArchive === undefined && config.autoArchive === true);
   function toggleArchive() {
     if (!props.onUpdate || updating[0]) return;
     updating[1](true);
-    props.onUpdate(task.key, { autoArchive: task.autoArchive === false }).then(function () {
+    props.onUpdate(task.key, { autoArchive: !effectiveAutoArchive }).then(function () {
       updating[1](false);
     }).catch(function () {
       updating[1](false);
@@ -381,12 +382,12 @@ function PolicyTab(props) {
           h("button", {
             onClick: toggleArchive,
             disabled: updating[0],
-            className: "inline-flex items-center gap-2 text-sm font-semibold " + (task.autoArchive === false ? "text-aq-muted" : "text-aq-green") + " cursor-pointer disabled:opacity-40"
+            className: "inline-flex items-center gap-2 text-sm font-semibold " + (effectiveAutoArchive ? "text-aq-green" : "text-aq-muted") + " cursor-pointer disabled:opacity-40"
           },
-            h("span", { className: "w-8 h-4 rounded-full relative transition-colors " + (task.autoArchive === false ? "bg-aq-line" : "bg-aq-green") },
-              h("span", { className: "absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-transform " + (task.autoArchive === false ? "" : "translate-x-4") })
+            h("span", { className: "w-8 h-4 rounded-full relative transition-colors " + (effectiveAutoArchive ? "bg-aq-green" : "bg-aq-line") },
+              h("span", { className: "absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-transform " + (effectiveAutoArchive ? "translate-x-4" : "") })
             ),
-            task.autoArchive === false ? "关闭" : "开启"
+            effectiveAutoArchive ? "开启" : "关闭"
           )
         )
       )

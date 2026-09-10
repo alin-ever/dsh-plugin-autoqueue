@@ -107,6 +107,7 @@ export function Workstation(props) {
       onScan: function () { runAction("force-scan"); }
     }),
     h(NavCategories, { snap: snap, onNav: function (v) { controller.setNavGroup(v); } }),
+    h(ConcurrencyBanner, { snap: snap }),
     h(CompactFilters, {
       snap: snap, query: query[0], onQuery: query[1],
       onFilter: function (v) { controller.setFilter(v); },
@@ -140,7 +141,7 @@ export function Workstation(props) {
             else if (ts.status === "running") phase = "已开始执行";
             else if (ts.status === "done") phase = "已完成";
             else if (ts.status === "failed") phase = "执行失败，请查看详情";
-            else if (ts.status === "pending") phase = data.schedule ? "已安排定时执行" : (data.cron ? "已启用循环调度" : "等待执行");
+            else if (ts.status === "pending") phase = data.cron ? "已启用循环调度" : (data.schedule ? `已安排定时执行（${data.schedule}）` : "等待执行");
           }
           flash("已入队：" + key + " · " + (result.stateRefreshed === false ? "页面刷新失败" : phase));
           return result;
@@ -182,6 +183,20 @@ function CompactHeader(props) {
   );
 }
 
+// ─── Concurrency Banner ──────────────────────────────────
+
+function ConcurrencyBanner(props) {
+  var snap = props.snap;
+  var maxConcurrent = (snap.config && snap.config.maxConcurrent) || 1;
+  var running = (snap.metrics && snap.metrics.running) || 0;
+  var pending = (snap.metrics && snap.metrics.pending) || 0;
+  if (running < maxConcurrent || pending === 0) return null;
+  return h("div", { className: "flex-shrink-0 px-4 py-1.5 bg-aq-blue-soft border-b border-aq-blue/20 text-xs text-aq-blue flex items-center gap-1.5" },
+    h("span", { className: "w-3.5 h-3.5 flex-shrink-0", dangerouslySetInnerHTML: { __html: iconHtml("clock") } }),
+    "并发槽已满（", running, "/", maxConcurrent, "），", pending, " 个任务正在排队等待执行"
+  );
+}
+
 // ─── Category Navigation ─────────────────────────────────
 
 function NavCategories(props) {
@@ -190,11 +205,13 @@ function NavCategories(props) {
   var active = all.filter(function (t) { return !t.archivedAt; });
   var archived = all.filter(function (t) { return !!t.archivedAt; });
   var cronTasks = active.filter(function (t) { return t.cron; });
-  var manualTasks = active.filter(function (t) { return !t.cron; });
+  var scheduleTasks = active.filter(function (t) { return t.schedule && !t.cron; });
+  var manualTasks = active.filter(function (t) { return !t.cron && !t.schedule; });
   var done24h = snap.metrics.done24h || 0;
   var cats = [
     ["all", "全部", active.length],
-    ["cron", "定时任务", cronTasks.length],
+    ["cron", "循环任务", cronTasks.length],
+    ["schedule", "定时任务", scheduleTasks.length],
     ["manual", "即时任务", manualTasks.length],
     ["archived", "归档", archived.length],
   ];
@@ -346,6 +363,11 @@ function TaskRow(props) {
   if (task.cron && task.attempts > 1) plan = plan + " · 第" + task.attempts + "次";
   var statusColor = task.stopPending ? "#9a6700" : (task.foregroundPaused ? "#27776e" : cfg.color);
   var statusLabel = task.stopPending ? "停止中" : (task.foregroundPaused ? "已暂停" : cfg.label);
+  var maxConcurrent = (props.snap.config && props.snap.config.maxConcurrent) || 1;
+  var running = (props.snap.metrics && props.snap.metrics.running) || 0;
+  if (task.status === "pending" && running >= maxConcurrent) {
+    statusLabel = statusLabel + " · 排队中";
+  }
 
   function openRow() { props.onDetail(task.key); }
 

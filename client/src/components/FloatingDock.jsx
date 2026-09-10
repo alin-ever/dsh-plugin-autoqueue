@@ -115,21 +115,31 @@ export function FloatingDock(props) {
       h("div", {
         style: {
           position: "fixed",
-          top: "50%", left: "50%",
-          transform: "translate(-50%, -50%)",
-          width: "min(912px, calc(100vw - 48px))",
-          height: "min(80vh, 640px)",
-          maxWidth: "calc(100vw - 48px)",
-          borderRadius: "20px",
-          backgroundColor: "var(--aq-paper, #fff)",
-          boxShadow: "0 25px 80px rgba(16,24,40,0.32), 0 0 0 1px rgba(0,0,0,0.06)",
-          overflow: "hidden",
+          top: 0, left: 0, right: 0, bottom: 0,
           display: "flex",
-          flexDirection: "column",
-          zIndex: 92
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "24px",
+          zIndex: 92,
+          pointerEvents: "none"
         }
       },
-        h(Workstation, { controller: controller, transport: transport, sessions: sessions, compact: true })
+        h("div", {
+          style: {
+            width: "min(912px, calc(100vw - 48px))",
+            height: "min(80vh, 640px)",
+            maxWidth: "calc(100vw - 48px)",
+            borderRadius: "20px",
+            backgroundColor: "var(--aq-paper, #fff)",
+            boxShadow: "0 25px 80px rgba(16,24,40,0.32), 0 0 0 1px rgba(0,0,0,0.06)",
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
+            pointerEvents: "auto"
+          }
+        },
+          h(Workstation, { controller: controller, transport: transport, sessions: sessions, compact: true })
+        )
       )
     ),
     // ─── 可拖拽 Dock 入口按钮 ─────────────────────────────

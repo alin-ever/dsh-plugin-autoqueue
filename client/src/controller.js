@@ -54,7 +54,8 @@ export function createController(transport) {
     } else {
       scoped = scoped.filter(function (t) { return !t.archivedAt; });
       if (navGroup === "cron") scoped = scoped.filter(function (t) { return !!t.cron; });
-      else if (navGroup === "manual") scoped = scoped.filter(function (t) { return !t.cron; });
+      else if (navGroup === "schedule") scoped = scoped.filter(function (t) { return !!t.schedule && !t.cron; });
+      else if (navGroup === "manual") scoped = scoped.filter(function (t) { return !t.cron && !t.schedule; });
     }
     var scopeCounts = {};
     for (var s = 0; s < scoped.length; s++) scopeCounts[scoped[s].status] = (scopeCounts[scoped[s].status] || 0) + 1;
@@ -109,7 +110,7 @@ export function createController(transport) {
         var t = newTasks[i];
         var prev = prevStatuses[t.key];
         var notificationsEnabled = t.enableNotifications === true || (t.enableNotifications == null && effectiveConfig.enableNotifications === true);
-        if (prev !== undefined && prev !== t.status && TERMINAL[t.status] && notificationsEnabled) {
+        if (prev !== undefined && prev !== t.status && (TERMINAL[t.status] || prev === "running" && t.status === "todo") && notificationsEnabled) {
           var label = (STATUS_CONFIG[t.status] || {}).label || t.status;
           try { if (typeof Notification !== "undefined" && Notification.permission === "granted") new Notification("autoqueue", { body: t.key + " → " + label, tag: t.key }); } catch (e) {}
         }
@@ -241,9 +242,10 @@ export function createController(transport) {
     try {
       var result = await transport.createTask({
         requestId: crypto.randomUUID ? crypto.randomUUID() : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) { var r = Math.random() * 16 | 0; return (c === "x" ? r : (r & 0x3 | 0x8)).toString(16); }), key: data.key, content: data.content,
-        priority: data.priority, cron: data.cron, deadline: data.deadline,
+        priority: data.priority, cron: data.cron, schedule: data.schedule, deadline: data.deadline,
         maxGoalRounds: data.maxGoalRounds, maxBlockedResumes: data.maxBlockedResumes,
         timeoutMs: data.timeoutMs, maxAttempts: data.maxAttempts, webhook: data.webhook,
+        provider: data.provider, model: data.model,
         autoArchive: data.autoArchive, enableNotifications: data.enableNotifications
       });
       if (!result.ok) throw new Error(result.error || "创建失败");
