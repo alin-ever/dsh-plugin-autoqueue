@@ -192,6 +192,8 @@ export class HostExecutionRunner {
     const created = await this.invoke('session', 'create', {
       ...(workspaceId === undefined ? {} : { workspaceId }),
       ...(mode === undefined ? {} : { agentPreset: mode }),
+      ...(task.provider === undefined ? {} : { provider: task.provider }),
+      ...(task.model === undefined ? {} : { model: task.model }),
     }) as { sessionId: ExecutionSessionId }
     const sessionId = created.sessionId
     try {
