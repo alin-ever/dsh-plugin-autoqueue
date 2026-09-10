@@ -284,6 +284,8 @@ function createTask(input, now, id) {
 		workspaceId: normalizeTargetId(input.workspaceId),
 		mode: normalizeTargetId(input.mode),
 		permission: isTaskPermission(input.permission) ? input.permission : void 0,
+		provider: normalizeTargetId(input.provider),
+		model: normalizeTargetId(input.model),
 		...input.freeze === void 0 ? {} : { freeze: freezeOf(input.freeze, now) },
 		...input.handover === void 0 ? {} : { handover: {
 			...input.handover,
@@ -911,6 +913,8 @@ function applyUpdateTask(tasks, id, patch, now) {
 		const workspaceId = "workspaceId" in patch ? normalizeTargetId(patch.workspaceId) : void 0;
 		const mode = "mode" in patch ? normalizeTargetId(patch.mode) : void 0;
 		const permission = "permission" in patch ? normalizePermission(task.permission, patch.permission) : void 0;
+		const provider = "provider" in patch ? normalizeTargetId(patch.provider) : void 0;
+		const model = "model" in patch ? normalizeTargetId(patch.model) : void 0;
 		const next = {
 			...task,
 			...rest,
@@ -930,6 +934,8 @@ function applyUpdateTask(tasks, id, patch, now) {
 		if (workspaceId !== void 0 || "workspaceId" in patch) next.workspaceId = workspaceId;
 		if (mode !== void 0 || "mode" in patch) next.mode = mode;
 		if (permission !== void 0 || "permission" in patch) next.permission = permission;
+		if (provider !== void 0 || "provider" in patch) next.provider = provider;
+		if (model !== void 0 || "model" in patch) next.model = model;
 		return next;
 	});
 }
@@ -1057,6 +1063,8 @@ function createInput(value) {
 		"workspaceId",
 		"mode",
 		"permission",
+		"provider",
+		"model",
 		"schedule",
 		"freeze",
 		"handover"
@@ -1064,6 +1072,7 @@ function createInput(value) {
 	if (typeof input.title !== "string" || typeof input.description !== "string" || typeof input.prompt !== "string") return false;
 	if (!optionalString(input.workspaceId) || !optionalString(input.mode)) return false;
 	if (input.permission !== void 0 && !isTaskPermission(input.permission)) return false;
+	if (!optionalString(input.provider) || !optionalString(input.model)) return false;
 	if (input.freeze !== void 0 && freezePayload(input.freeze) === void 0) return false;
 	if (input.handover !== void 0 && handoverPayload(input.handover) === void 0) return false;
 	if (input.schedule !== void 0) {
@@ -1082,6 +1091,8 @@ function updatePatch(value) {
 		"workspaceId",
 		"mode",
 		"permission",
+		"provider",
+		"model",
 		"freeze",
 		"handover"
 	])) return false;
@@ -1093,6 +1104,7 @@ function updatePatch(value) {
 		"mode"
 	]) if (!optionalString(patch[key])) return false;
 	if (patch.permission !== void 0 && !isTaskPermission(patch.permission)) return false;
+	if (!optionalString(patch.provider) || !optionalString(patch.model)) return false;
 	if (patch.freeze !== void 0 && patch.freeze !== null && freezePayload(patch.freeze) === void 0) return false;
 	return patch.handover === void 0 || patch.handover === null || handoverPayload(patch.handover) !== void 0;
 }
