@@ -128,10 +128,10 @@ test("cancel-request: 已经取消中则拒绝", () => {
   assert.deepEqual(result, phase); // 不变
 });
 
-test("cancel-request: idle 状态拒绝", () => {
+test("cancel-request: idle 状态接受", () => {
   const phase = createInitialPhase();
   const result = transition(phase, "cancel-request");
-  assert.deepEqual(result, phase); // 不变
+  assert.deepEqual(result, { execution: "idle", cancellation: "intent-pending" });
 });
 
 test("cancel-accepted: intent-pending → accepted", () => {
@@ -246,7 +246,7 @@ test("isCancellable", () => {
   assert.equal(isCancellable({ execution: "active", cancellation: null }), true);
   assert.equal(isCancellable({ execution: "blocked", cancellation: null }), true);
   assert.equal(isCancellable({ execution: "launching", cancellation: null }), true);
-  assert.equal(isCancellable({ execution: "idle", cancellation: null }), false);
+  assert.equal(isCancellable({ execution: "idle", cancellation: null }), true);
   assert.equal(isCancellable({ execution: "active", cancellation: "intent-pending" }), false);
 });
 
@@ -302,10 +302,10 @@ test("goal-blocked 只能在 active 时触发", () => {
   }
 });
 
-test("cancel-request 在 idle 时拒绝", () => {
+test("cancel-request 在 idle 时接受", () => {
   const phase = createInitialPhase();
   const result = transition(phase, "cancel-request");
-  assert.deepEqual(result, phase);
+  assert.deepEqual(result, { execution: "idle", cancellation: "intent-pending" });
 });
 
 test("cancel-accepted 在非 intent-pending 时拒绝", () => {

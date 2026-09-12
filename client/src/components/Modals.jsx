@@ -34,6 +34,7 @@ export function NewTaskModal(props) {
   var webhook = React.useState(config.webhook || "");
   var provider = React.useState("");
   var model = React.useState("");
+  var modelOptions = (props.options && props.options.models) || [];
   var autoArchive = React.useState(config.autoArchive !== false);
   var enableNotifications = React.useState(config.enableNotifications === true);
   var advancedOpen = React.useState(false);
@@ -44,21 +45,39 @@ export function NewTaskModal(props) {
   function loadTemplates() {
     if (templates[0].length) { showTemplates[1](!showTemplates[0]); return; }
     templatesLoading[1](true);
+    error[1]("");
     transport.listTemplates().then(function (data) {
       templates[1]((data && data.templates) || []);
       templatesLoading[1](false);
       showTemplates[1](true);
-    }).catch(function () { templatesLoading[1](false); });
+    }).catch(function (err) {
+      templatesLoading[1](false);
+      error[1]("加载模板失败: " + (err.message || "网络错误"));
+    });
   }
 
   function onTemplateSelect(tpl) {
+    if (!tpl || !tpl.name) { error[1]("模板数据无效"); return; }
     fromTemplate[1](tpl);
-    content[1](tpl.body || "");
     if (!key[0].trim()) {
       var ts = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 12);
       key[1]((tpl.name || "task") + "-" + ts);
     }
     showTemplates[1](false);
+    error[1]("");
+    // listTemplates 只返回元数据，需要单独获取完整正文
+    content[1]("");
+    transport.getTemplate(tpl.name).then(function (data) {
+      if (data && data.body) {
+        content[1](data.body);
+      } else {
+        error[1]("模板内容为空");
+        content[1]("");
+      }
+    }).catch(function (err) {
+      error[1]("获取模板内容失败: " + (err.message || "网络错误"));
+      content[1]("");
+    });
   }
 
   function handleSubmit(e) {
@@ -135,8 +154,8 @@ export function NewTaskModal(props) {
             h(Field, { label: "最多启动尝试（1-10）" }, h("input", { type: "number", min: "1", max: "10", value: maxAttempts[0], onChange: function (e) { maxAttempts[1](e.target.value); }, className: "aq-input" }))
           ),
           advancedOpen[0] && h("div", { className: "mt-3 grid grid-cols-2 gap-3" },
-            h(Field, { label: "Provider", help: "留空继承 Host 默认" }, h("input", { value: provider[0], onChange: function (e) { provider[1](e.target.value); }, placeholder: "例如 openai", className: "aq-input" })),
-            h(Field, { label: "Model", help: "留空继承 Host 默认" }, h("input", { value: model[0], onChange: function (e) { model[1](e.target.value); }, placeholder: "例如 gpt-4o", className: "aq-input" }))
+            h(Field, { label: "Provider", help: "留空继承 Host 默认" }, h("input", { value: provider[0], onChange: function (e) { var v = e.target.value; provider[1](v); if (model[0] && !modelOptions.some(function (m) { return m.provider === v && m.id === model[0]; })) model[1](""); }, placeholder: "例如 openai", className: "aq-input" })),
+            h(Field, { label: "Model", help: "留空继承 Host 默认" }, h(ModelSelect, { options: modelOptions, provider: provider[0], model: model[0], onChange: function (p, m) { provider[1](p); model[1](m); } }))
           ),
           advancedOpen[0] && h("div", { className: "mt-3 space-y-3" },
             h(Field, { label: "Webhook URL" }, h("input", { type: "url", value: webhook[0], onChange: function (e) { webhook[1](e.target.value); }, placeholder: "https://example.com/hook", className: "aq-input" })),
@@ -171,6 +190,7 @@ export function EditTaskModal(props) {
   var webhook = React.useState(task.webhook || "");
   var provider = React.useState(task.provider || "");
   var model = React.useState(task.model || "");
+  var modelOptions = (props.options && props.options.models) || [];
   var advancedOpen = React.useState(false);
   var notifyOpen = React.useState(false);
   var error = React.useState("");
@@ -228,8 +248,8 @@ export function EditTaskModal(props) {
           h(Field, { label: "最多启动尝试（1-10）" }, h("input", { type: "number", min: "1", max: "10", value: maxAttempts[0], onChange: function (e) { maxAttempts[1](e.target.value); }, placeholder: "默认 3", className: "aq-input" }))
         ),
         advancedOpen[0] && h("div", { className: "mt-3 grid grid-cols-2 gap-3" },
-          h(Field, { label: "Provider", help: "留空继承 Host 默认" }, h("input", { value: provider[0], onChange: function (e) { provider[1](e.target.value); }, placeholder: "例如 openai", className: "aq-input" })),
-          h(Field, { label: "Model", help: "留空继承 Host 默认" }, h("input", { value: model[0], onChange: function (e) { model[1](e.target.value); }, placeholder: "例如 gpt-4o", className: "aq-input" }))
+          h(Field, { label: "Provider", help: "留空继承 Host 默认" }, h("input", { value: provider[0], onChange: function (e) { var v = e.target.value; provider[1](v); if (model[0] && !modelOptions.some(function (m) { return m.provider === v && m.id === model[0]; })) model[1](""); }, placeholder: "例如 openai", className: "aq-input" })),
+          h(Field, { label: "Model", help: "留空继承 Host 默认" }, h(ModelSelect, { options: modelOptions, provider: provider[0], model: model[0], onChange: function (p, m) { provider[1](p); model[1](m); } }))
         ),
       ),
 
@@ -368,6 +388,32 @@ export function ConfirmModal(props) {
 }
 
 // ─── Shared helpers ─────────────────────────────────────────
+
+function ModelSelect(props) {
+  var options = props.options || [];
+  var provider = props.provider || "";
+  var model = props.model || "";
+  var idx = options.findIndex(function (m) { return m.provider === provider && m.id === model; });
+  var hasCustom = provider && model && idx < 0;
+  var value = idx >= 0 ? String(idx) : (hasCustom ? "custom" : "");
+  return h("select", {
+    value: value,
+    onChange: function (e) {
+      var v = e.target.value;
+      if (v === "" || v === "custom") { props.onChange("", ""); return; }
+      var i = parseInt(v, 10);
+      var opt = options[i];
+      if (opt) props.onChange(opt.provider, opt.id);
+    },
+    className: "aq-input"
+  },
+    h("option", { value: "" }, "系统默认（继承 Host）"),
+    options.map(function (m, i) {
+      return h("option", { key: i, value: String(i) }, m.provider + " / " + (m.name || m.id));
+    }),
+    hasCustom && h("option", { value: "custom" }, provider + " / " + model)
+  );
+}
 
 function Field(props) {
   return h("div", null,

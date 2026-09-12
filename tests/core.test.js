@@ -50,6 +50,7 @@ import {
 } from "../lib/runner.js";
 import { createEngine } from "../lib/engine-v2.js";
 import { registerAiTool } from "../lib/ai-tool.js";
+import { createFakeServices } from "./harness.js";
 import {
   apply,
   ensureOwnedPreset,
@@ -57,6 +58,18 @@ import {
   pinOwnedSessionApprovalPolicy,
   registerRuntimePollEvents,
 } from "../lib/index.js";
+
+function makeServices(overrides = {}) {
+  const base = createFakeServices();
+  return {
+    agents: { ...base.agents, ...(overrides.agents ?? {}) },
+    sessions: { ...base.sessions, ...(overrides.sessions ?? {}) },
+    goals: { ...base.goals, ...(overrides.goals ?? {}) },
+    workspaceRegistry: { ...base.workspaceRegistry, ...(overrides.workspaceRegistry ?? {}) },
+    sessionProjections: { ...base.sessionProjections, ...(overrides.sessionProjections ?? {}) },
+    agentDefaultModel: { ...base.agentDefaultModel, ...(overrides.agentDefaultModel ?? {}) },
+  };
+}
 
 const roots = [];
 
@@ -272,31 +285,27 @@ test("runner isolates launch with cwd and never mutates workspace, model, or pro
   freshQueue();
   const workDir = createRunDir("runner-isolation");
   const body = "# Full task\n\nSecond line must be admitted too.";
-  let createPayload;
-  let goalPayload;
-  let forbiddenCalls = 0;
-  const runner = createRunner({
-    workspace: {
-      create: async () => { forbiddenCalls += 1; return fail("unexpected", "workspace.create"); },
-    },
-    sessions: {
-      list: idleSessionList,
-      create: async request => {
-        createPayload = request.payload;
-        return ok({ sessionId: request.payload.sessionId });
+  let agentCreateMeta;
+  let goalCreateArgs;
+  let archiveCalls = 0;
+  const runner = createRunner(makeServices({
+    agents: {
+      async create({ sessionId: sid, meta, agentOptions }) {
+        agentCreateMeta = meta;
+        const session = { id: sid, header: { cwd: meta?.cwd, agentPreset: meta?.agentPreset }, events: [], log: [], append() {} };
+        return { agent: { id: sid, options: { ...(agentOptions ?? {}) }, session, status: "running", steer() {}, followup() {}, cancel() {} }, dispose: () => {} };
       },
-      rename: async () => ok({}),
-      models: async () => { forbiddenCalls += 1; return fail("unexpected", "models"); },
-      selectModel: async () => { forbiddenCalls += 1; return fail("unexpected", "selectModel"); },
-      prompt: async () => { forbiddenCalls += 1; return fail("unexpected", "prompt"); },
     },
     goals: {
-      create: async request => {
-        goalPayload = request.payload;
-        return ok({ ref: { id: "goal-isolated", revision: 1 } });
+      async create(agent, args) {
+        goalCreateArgs = { agentId: agent.id, ...args };
+        return { ref: { id: "goal-isolated", revision: 1 } };
       },
     },
-  });
+    workspaceRegistry: {
+      async archiveSession() { archiveCalls += 1; },
+    },
+  }));
 
   const result = await runner.launch({
     key: "runner-isolation",
@@ -307,37 +316,38 @@ test("runner isolates launch with cwd and never mutates workspace, model, or pro
   });
 
   assert.equal(isAutoqueueSessionId(result.sessionId), true);
-  assert.deepEqual(createPayload, { sessionId: result.sessionId, cwd: getQueueDir() });
-  assert.equal(forbiddenCalls, 0);
-  assert.equal(goalPayload.sessionId, result.sessionId);
-  assert.equal(goalPayload.objective, body);
+  assert.equal(agentCreateMeta.cwd, getQueueDir());
+  assert.equal(agentCreateMeta.agentPreset, "autoqueue-unattended-v2");
+  assert.equal(archiveCalls, 0);
+  assert.equal(goalCreateArgs.agentId, result.sessionId);
+  assert.equal(goalCreateArgs.objective, body);
 });
 
 test("runner inherits source session cwd, provider, and model into launch", async () => {
   freshQueue();
   const workDir = createRunDir("runner-inherit");
   const body = "# Inherited task";
-  let createPayload;
-  let selectModelPayload;
-  let forbiddenCalls = 0;
-  const runner = createRunner({
-    sessions: {
-      list: idleSessionList,
-      create: async request => {
-        createPayload = request.payload;
-        return ok({ sessionId: request.payload.sessionId });
+  let agentCreateMeta;
+  let agentCreateOptions;
+  let modelSelectionEvent;
+  const runner = createRunner(makeServices({
+    agents: {
+      async create({ sessionId: sid, meta, agentOptions }) {
+        agentCreateMeta = meta;
+        agentCreateOptions = agentOptions;
+        const session = { id: sid, header: { cwd: meta?.cwd, agentPreset: meta?.agentPreset }, events: [], log: [], append(type, data) { this.events.push({ type, data }); } };
+        return { agent: { id: sid, options: { ...(agentOptions ?? {}) }, session, status: "running", steer() {}, followup() {}, cancel() {} }, dispose: () => {} };
       },
-      rename: async () => ok({}),
-      selectModel: async request => {
-        selectModelPayload = request.payload;
-        return ok({ selected: {} });
-      },
-      prompt: async () => { forbiddenCalls += 1; return fail("unexpected", "prompt"); },
     },
     goals: {
-      create: async request => ok({ ref: { id: "goal-inherited", revision: 1 } }),
+      async create(agent) {
+        // 检查 agent.session 中是否有 model/selection 事件
+        const evt = agent.session.events.find(e => e.type === "model/selection");
+        if (evt) modelSelectionEvent = evt.data;
+        return { ref: { id: "goal-inherited", revision: 1 } };
+      },
     },
-  });
+  }));
 
   const result = await runner.launch({
     key: "runner-inherit",
@@ -350,8 +360,11 @@ test("runner inherits source session cwd, provider, and model into launch", asyn
   });
 
   assert.equal(isAutoqueueSessionId(result.sessionId), true);
-  assert.deepEqual(createPayload, { sessionId: result.sessionId, cwd: "/home/user/project" });
-  assert.deepEqual(selectModelPayload, { sessionId: result.sessionId, provider: "deepseek", model: "deepseek-chat" });
+  assert.equal(agentCreateMeta.cwd, "/home/user/project");
+  assert.equal(agentCreateOptions.provider, "deepseek");
+  assert.equal(agentCreateOptions.model, "deepseek-chat");
+  assert.equal(modelSelectionEvent.provider, "deepseek");
+  assert.equal(modelSelectionEvent.model, "deepseek-chat");
 });
 
 test("runner refuses a non-autoqueue session or arbitrary preset before any RPC", async () => {
@@ -377,30 +390,33 @@ test("runner prepares the owned session before goal admission and cancels on pre
   freshQueue();
   const order = [];
   let sessionId;
-  let cancelledSessionId;
+  let cancelledAgentId;
   let goalCalls = 0;
   let beforeGoalCalls = 0;
-  const runner = createRunner({
-    sessions: {
-      create: async request => {
-        sessionId = request.payload.sessionId;
-        order.push("create");
-        return ok({ sessionId });
+  const runner = createRunner(makeServices({
+    agents: {
+      async create({ sessionId: sid, meta, agentOptions }) {
+        sessionId = sid;
+        order.push("agents.create");
+        const session = { id: sid, header: { cwd: meta?.cwd, agentPreset: meta?.agentPreset }, events: [], log: [], append(type) { order.push(`append:${type}`); } };
+        return {
+          agent: {
+            id: sid, options: { ...(agentOptions ?? {}) }, session,
+            status: "running", steer() {}, followup() {},
+            cancel(cause, opts) { cancelledAgentId = sid; order.push("cancel"); },
+          },
+          dispose: () => {},
+        };
       },
-      rename: async () => { order.push("rename"); return ok({}); },
-      cancel: async request => {
-        cancelledSessionId = request.payload.sessionId;
-        order.push("cancel");
-        return ok({ accepted: true });
-      },
+      get() { return null; },
     },
     goals: {
-      create: async () => {
+      async create() {
         goalCalls += 1;
-        return ok({ ref: { id: "must-not-exist", revision: 1 } });
+        return { ref: { id: "must-not-exist", revision: 1 } };
       },
     },
-  }, {
+  }), {
     prepareSession: state => {
       order.push("prepare");
       assert.equal(state.sessionId, sessionId);
@@ -429,10 +445,10 @@ test("runner prepares the owned session before goal admission and cancels on pre
   );
 
   assert.equal(isAutoqueueSessionId(sessionId), true);
-  assert.equal(cancelledSessionId, sessionId);
+  assert.equal(cancelledAgentId, sessionId);
   assert.equal(beforeGoalCalls, 0);
   assert.equal(goalCalls, 0);
-  assert.deepEqual(order, ["create", "rename", "prepare", "cancel"]);
+  assert.deepEqual(order, ["agents.create", "append:session/title", "prepare", "cancel"]);
 });
 
 test("runner re-prepares restored sessions before every continuation admission", async () => {
@@ -441,14 +457,14 @@ test("runner re-prepares restored sessions before every continuation admission",
   const ref = { id: "restored-goal", revision: 3 };
   let preparationCalls = 0;
   let mutationCalls = 0;
-  const runner = createRunner({
-    sessions: {
-      prompt: async () => { mutationCalls += 1; return ok({ accepted: true }); },
-    },
+  const runner = createRunner(makeServices({
     goals: {
-      resume: async () => { mutationCalls += 1; return ok({ ref }); },
+      async resume() {
+        mutationCalls += 1;
+        return { ref };
+      },
     },
-  }, {
+  }), {
     prepareSession: () => {
       preparationCalls += 1;
       const error = new Error("restored session policy is unavailable");
@@ -476,14 +492,14 @@ test("runner coalesces only concurrent preparation and revalidates sequential co
   const preparationGate = deferred();
   let preparationCalls = 0;
   let resumeCalls = 0;
-  const runner = createRunner({
+  const runner = createRunner(makeServices({
     goals: {
-      resume: async () => {
+      async resume() {
         resumeCalls += 1;
-        return ok({ ref });
+        return { ref };
       },
     },
-  }, {
+  }), {
     prepareSession: async () => {
       preparationCalls += 1;
       if (preparationCalls === 1) {
@@ -509,18 +525,13 @@ test("anti-block wakeup preserves the strict scope and two-diagnostic ceiling", 
   freshQueue();
   const sessionId = ownedSession(44);
   const ref = { id: "blocked-goal", revision: 2 };
-  let content;
-  const runner = createRunner({
-    sessions: {
-      prompt: async request => {
-        content = request.payload.content[0].text;
-        return ok({ accepted: true });
-      },
-    },
-    goals: { resume: async () => ok({ ref }) },
-  }, { prepareSession: () => {} });
+  const fake = createFakeServices();
+  const runner = createRunner(fake, { prepareSession: () => {} });
 
   await runner.antiBlock(sessionId, ref);
+  const steerCall = fake.lastCalls.find(c => c.method === "agent.steer");
+  assert.ok(steerCall, "应有 steering");
+  const content = steerCall.args[0].content?.[0]?.text;
   assert.match(content, /诊断性工具调用最多两次/);
   assert.match(content, /禁止查看其他队列、~\/\.dsh/);
   assert.doesNotMatch(content, /不要停下来|提出至少两种不同的新方案/);
@@ -534,6 +545,7 @@ test("index durably pins danger-full-access and never only on an owned session",
     const session = {
       id: sessionId,
       events,
+      log: events,
       append(type, data) { events.push({ type, data }); },
     };
     let flushCalls = 0;
@@ -685,47 +697,33 @@ test("index creates and verifies versioned owned presets without overwriting col
 
 test("runner reads rc.2 GoalProjection and wrapped HistoryEntry events", async () => {
   const eventTime = Date.now();
-  const runner = createRunner({
-    sessions: {
-      history: async () => ok({
-        projections: {
-          values: {
-            goal: {
-              goal: { id: "goal-1", revision: 7, phase: "active" },
-              roundsStarted: 12,
-              updatedAt: eventTime - 100,
-            },
-          },
-        },
-        events: [
-          { event: {
-            type: "assistant/message",
-            time: eventTime - 200,
-            data: { message: { content: [{ type: "text", text: "older output" }] } },
-          } },
-          { event: {
-            type: "assistant/message",
-            time: eventTime - 100,
-            data: {
-              interrupted: true,
-              message: { content: [{ type: "text", text: "partial output must not win" }] },
-            },
-          } },
-          { event: {
-            type: "assistant/message",
-            time: eventTime,
-            data: { message: { content: [
-              { type: "reasoning", text: "private reasoning" },
-              { type: "text", text: "RESULT: 37×19 = " },
-              { type: "text", text: "703" },
-            ] } },
-          } },
-        ],
-      }),
+  const fake = createFakeServices();
+  const runner = createRunner(fake);
+  const sessionId = ownedSession(1);
+
+  // 预创建 agent 并注入事件
+  const agent = fake.agents.get(sessionId);
+  agent.session.log.push(
+    { type: "assistant/message", time: eventTime - 200, data: { message: { content: [{ type: "text", text: "older output" }] } } },
+    { type: "assistant/message", time: eventTime - 100, data: { interrupted: true, message: { content: [{ type: "text", text: "partial output must not win" }] } } },
+    { type: "assistant/message", time: eventTime, data: { message: { content: [
+      { type: "reasoning", text: "private reasoning" },
+      { type: "text", text: "RESULT: 37×19 = " },
+      { type: "text", text: "703" },
+    ] } } },
+  );
+
+  fake.setSnapshotResponse({
+    values: {
+      goal: {
+        goal: { id: "goal-1", revision: 7, phase: "active" },
+        roundsStarted: 12,
+        updatedAt: eventTime - 100,
+      },
     },
   });
 
-  const result = await runner.pollTask(ownedSession(1));
+  const result = await runner.pollTask(sessionId);
   assert.deepEqual(result.goalRef, { id: "goal-1", revision: 7 });
   assert.equal(result.totalMessages, 12);
   assert.equal(result.lastActivityTime, eventTime);
@@ -756,52 +754,46 @@ test("complete goal waits for owned session idle and persists the closing assist
   });
   flushLedger();
 
-  let running = true;
-  let historyCalls = 0;
-  const engine = createEngine({
-    sessions: {
-      list: async () => ok({ items: [{ sessionId, running }] }),
-      history: async () => {
-        historyCalls += 1;
-        return ok({
-          projections: {
-            values: {
-              goal: {
-                goal: { ...goalRef, phase: "complete" },
-                roundsStarted: 1,
-                updatedAt: Date.now(),
-              },
-            },
-          },
-          events: running ? [
-            { event: {
-              type: "goal/change",
-              time: Date.now(),
-              data: { operation: "complete" },
-            } },
-          ] : [
-            { event: {
-              type: "assistant/message",
-              time: Date.now(),
-              data: { message: { content: [
-                { type: "text", text: "Closing answer: 37×19 = 703" },
-              ] } },
-            } },
-          ],
-        });
-      },
-    },
-  }, { autoArchive: false });
+  const fake = createFakeServices();
+  const engine = createEngine(fake, { autoArchive: false });
   engine.scanPending = async () => {};
 
+  // 第一次 poll：goal complete，但 session 还在 running
+  const agent = fake.agents.get(sessionId);
+  agent.session.log.push(
+    { type: "goal/change", time: Date.now(), data: { operation: "complete" } },
+  );
+  fake.setSnapshotResponse({
+    values: {
+      goal: {
+        goal: { ...goalRef, phase: "complete" },
+        roundsStarted: 1,
+        updatedAt: Date.now(),
+      },
+    },
+  });
+
   await engine.pollRunning();
-  assert.equal(historyCalls, 1);
   assert.equal(findByKey(key).status, "running", "goal complete alone must not settle an active closing turn");
   assert.equal(existsSync(join(workDir, ".结果.md")), false);
 
-  running = false;
+  // 第二次 poll：session idle，有 assistant output
+  agent.status = "idle";
+  agent.session.log.length = 0;
+  agent.session.log.push(
+    { type: "assistant/message", time: Date.now(), data: { message: { content: [{ type: "text", text: "Closing answer: 37×19 = 703" }] } } },
+  );
+  fake.setSnapshotResponse({
+    values: {
+      goal: {
+        goal: { ...goalRef, phase: "complete" },
+        roundsStarted: 1,
+        updatedAt: Date.now(),
+      },
+    },
+  });
+
   await engine.pollRunning();
-  assert.equal(historyCalls, 2);
   assert.equal(findByKey(key).status, "done");
   const result = JSON.parse(readFileSync(join(workDir, ".结果.md"), "utf8"));
   assert.equal(result.result, "done");

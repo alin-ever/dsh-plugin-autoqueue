@@ -35,14 +35,20 @@ describe("engine 反阻塞", () => {
     h.api.reset();
     makeRunning("k1", "autoqueue-session-00000000-0000-4000-8000-000000000001");
 
-    h.api.setListResponse({
-      result: { ok: true, value: { items: [{ sessionId: "autoqueue-session-00000000-0000-4000-8000-000000000001", running: true }] } },
-    });
-    h.api.setHistoryResponse({
-      result: { ok: true, value: {
-        projections: { values: { goal: { goal: { id: "g1", revision: 1, phase: "blocked" } } } },
-        events: [{ event: { type: "turn/end", seq: 1, data: { turn: 1, reason: { kind: "error", error: { code: "INVALID_API_KEY", message: "bad key", status: 401 } } } } }],
-      } },
+    h.api.setListResponse([
+      { id: "autoqueue-session-00000000-0000-4000-8000-000000000001", status: "running" },
+    ]);
+    h.api.setSnapshotResponse({
+      values: {
+        goal: {
+          goal: { id: "g1", revision: 1, phase: "blocked" },
+          roundsStarted: 1,
+          updatedAt: Date.now(),
+        },
+      },
+      events: [
+        { type: "turn/end", time: Date.now(), data: { turn: 1, reason: { kind: "error", error: { code: "INVALID_API_KEY", message: "bad key", status: 401 } } } },
+      ],
     });
 
     await h.engine.pollRunning();
@@ -53,19 +59,25 @@ describe("engine 反阻塞", () => {
     h.api.reset();
     makeRunning("k2", "autoqueue-session-00000000-0000-4000-8000-000000000002");
 
-    h.api.setListResponse({
-      result: { ok: true, value: { items: [{ sessionId: "autoqueue-session-00000000-0000-4000-8000-000000000002", running: true }] } },
-    });
-    h.api.setHistoryResponse({
-      result: { ok: true, value: {
-        projections: { values: { goal: { goal: { id: "g2", revision: 1, phase: "blocked" } } } },
-        events: [{ event: { type: "turn/end", seq: 1, data: { turn: 1, reason: { kind: "error", error: { code: "UPSTREAM", message: "timeout", status: 502 } } } } }],
-      } },
+    h.api.setListResponse([
+      { id: "autoqueue-session-00000000-0000-4000-8000-000000000002", status: "running" },
+    ]);
+    h.api.setSnapshotResponse({
+      values: {
+        goal: {
+          goal: { id: "g2", revision: 1, phase: "blocked" },
+          roundsStarted: 1,
+          updatedAt: Date.now(),
+        },
+      },
+      events: [
+        { type: "turn/end", time: Date.now(), data: { turn: 1, reason: { kind: "error", error: { code: "UPSTREAM", message: "timeout", status: 502 } } } },
+      ],
     });
 
     await h.engine.pollRunning();
     const calls = h.api.lastCalls.map(c => c.method);
-    assert.ok(calls.includes("sessions.prompt"), "应有 steering");
+    assert.ok(calls.includes("agent.steer"), "应有 steering");
     assert.ok(calls.includes("goals.resume"), "应有 resume");
   });
 });
