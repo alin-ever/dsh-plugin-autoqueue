@@ -32,8 +32,9 @@ export function NewTaskModal(props) {
   var timeoutMinutes = React.useState(String(Math.round(v(config.taskTimeoutMs, 10800000) / 60000)));
   var maxAttempts = React.useState(String(v(config.maxAttempts, 3)));
   var webhook = React.useState(config.webhook || "");
-  var provider = React.useState("");
-  var model = React.useState("");
+  var provider = React.useState(config.defaultProvider || "");
+  var model = React.useState(config.defaultModel || "");
+  var sandbox = React.useState(config.defaultSandbox || "");
   var modelOptions = (props.options && props.options.models) || [];
   var autoArchive = React.useState(config.autoArchive !== false);
   var enableNotifications = React.useState(config.enableNotifications === true);
@@ -65,6 +66,12 @@ export function NewTaskModal(props) {
     }
     showTemplates[1](false);
     error[1]("");
+    // 选择模板后，先用元数据填充推荐调度配置
+    if (tpl.suggestedCron) cron[1](tpl.suggestedCron);
+    else cron[1]("");
+    if (tpl.suggestedDeadline) deadline[1](tpl.suggestedDeadline);
+    else deadline[1]("");
+    if (tpl.suggestedPriority) priority[1](String(tpl.suggestedPriority));
     // listTemplates 只返回元数据，需要单独获取完整正文
     content[1]("");
     transport.getTemplate(tpl.name).then(function (data) {
@@ -98,6 +105,7 @@ export function NewTaskModal(props) {
     if (webhook[0].trim()) data.webhook = webhook[0].trim();
     if (provider[0].trim()) data.provider = provider[0].trim();
     if (model[0].trim()) data.model = model[0].trim();
+    if (sandbox[0].trim()) data.sandbox = sandbox[0].trim();
 
     submitting[1](true); error[1]("");
     props.onCreate(data).catch(function (e) {
@@ -154,8 +162,11 @@ export function NewTaskModal(props) {
             h(Field, { label: "最多启动尝试（1-10）" }, h("input", { type: "number", min: "1", max: "10", value: maxAttempts[0], onChange: function (e) { maxAttempts[1](e.target.value); }, className: "aq-input" }))
           ),
           advancedOpen[0] && h("div", { className: "mt-3 grid grid-cols-2 gap-3" },
-            h(Field, { label: "Provider", help: "留空继承 Host 默认" }, h("input", { value: provider[0], onChange: function (e) { var v = e.target.value; provider[1](v); if (model[0] && !modelOptions.some(function (m) { return m.provider === v && m.id === model[0]; })) model[1](""); }, placeholder: "例如 openai", className: "aq-input" })),
-            h(Field, { label: "Model", help: "留空继承 Host 默认" }, h(ModelSelect, { options: modelOptions, provider: provider[0], model: model[0], onChange: function (p, m) { provider[1](p); model[1](m); } }))
+            h(Field, { label: "Provider", help: "留空继承全局默认" }, h("input", { value: provider[0], onChange: function (e) { var v = e.target.value; provider[1](v); if (model[0] && !modelOptions.some(function (m) { return m.provider === v && m.id === model[0]; })) model[1](""); }, placeholder: "例如 openai", className: "aq-input" })),
+            h(Field, { label: "Model", help: "留空继承全局默认" }, h(ModelSelect, { options: modelOptions, provider: provider[0], model: model[0], onChange: function (p, m) { provider[1](p); model[1](m); } }))
+          ),
+          advancedOpen[0] && h("div", { className: "mt-3" },
+            h(Field, { label: "Sandbox 权限", help: "留空继承全局默认，如 danger-full-access / work-read / work-write" }, h("input", { value: sandbox[0], onChange: function (e) { sandbox[1](e.target.value); }, placeholder: "例如 danger-full-access", className: "aq-input" }))
           ),
           advancedOpen[0] && h("div", { className: "mt-3 space-y-3" },
             h(Field, { label: "Webhook URL" }, h("input", { type: "url", value: webhook[0], onChange: function (e) { webhook[1](e.target.value); }, placeholder: "https://example.com/hook", className: "aq-input" })),
@@ -190,6 +201,7 @@ export function EditTaskModal(props) {
   var webhook = React.useState(task.webhook || "");
   var provider = React.useState(task.provider || "");
   var model = React.useState(task.model || "");
+  var sandbox = React.useState(task.sandbox || "");
   var modelOptions = (props.options && props.options.models) || [];
   var advancedOpen = React.useState(false);
   var notifyOpen = React.useState(false);
@@ -214,6 +226,7 @@ export function EditTaskModal(props) {
     add("webhook", webhook[0].trim() || null, task.webhook || null);
     add("provider", provider[0].trim() || null, task.provider || null);
     add("model", model[0].trim() || null, task.model || null);
+    add("sandbox", sandbox[0].trim() || null, task.sandbox || null);
     if (!Object.keys(patch).length) { props.onClose(); return; }
     submitting[1](true); error[1]("");
     props.onUpdate(task.key, patch).catch(function (e) { error[1](e.message || "保存失败"); }).finally(function () { submitting[1](false); });
@@ -248,8 +261,11 @@ export function EditTaskModal(props) {
           h(Field, { label: "最多启动尝试（1-10）" }, h("input", { type: "number", min: "1", max: "10", value: maxAttempts[0], onChange: function (e) { maxAttempts[1](e.target.value); }, placeholder: "默认 3", className: "aq-input" }))
         ),
         advancedOpen[0] && h("div", { className: "mt-3 grid grid-cols-2 gap-3" },
-          h(Field, { label: "Provider", help: "留空继承 Host 默认" }, h("input", { value: provider[0], onChange: function (e) { var v = e.target.value; provider[1](v); if (model[0] && !modelOptions.some(function (m) { return m.provider === v && m.id === model[0]; })) model[1](""); }, placeholder: "例如 openai", className: "aq-input" })),
-          h(Field, { label: "Model", help: "留空继承 Host 默认" }, h(ModelSelect, { options: modelOptions, provider: provider[0], model: model[0], onChange: function (p, m) { provider[1](p); model[1](m); } }))
+          h(Field, { label: "Provider", help: "留空继承全局默认" }, h("input", { value: provider[0], onChange: function (e) { var v = e.target.value; provider[1](v); if (model[0] && !modelOptions.some(function (m) { return m.provider === v && m.id === model[0]; })) model[1](""); }, placeholder: "例如 openai", className: "aq-input" })),
+          h(Field, { label: "Model", help: "留空继承全局默认" }, h(ModelSelect, { options: modelOptions, provider: provider[0], model: model[0], onChange: function (p, m) { provider[1](p); model[1](m); } }))
+        ),
+        advancedOpen[0] && h("div", { className: "mt-3" },
+          h(Field, { label: "Sandbox 权限", help: "留空继承全局默认，如 danger-full-access / work-read / work-write" }, h("input", { value: sandbox[0], onChange: function (e) { sandbox[1](e.target.value); }, placeholder: "例如 danger-full-access", className: "aq-input" }))
         ),
       ),
 
@@ -290,6 +306,10 @@ export function ConfigPanel(props) {
   var priority = React.useState(String(v(config.priority, 5)));
   var backoffBaseSec = React.useState(String(Math.round(v(config.retryBackoffBaseMs, 30000) / 1000)));
   var backoffMaxSec = React.useState(String(Math.round(v(config.retryBackoffMaxMs, 300000) / 1000)));
+  var defaultProvider = React.useState(config.defaultProvider || "");
+  var defaultModel = React.useState(config.defaultModel || "");
+  var defaultCwd = React.useState(config.defaultCwd || "");
+  var defaultSandbox = React.useState(config.defaultSandbox || "");
   var saving = React.useState(false);
   var saveError = React.useState("");
 
@@ -309,6 +329,10 @@ export function ConfigPanel(props) {
     add("priority", parseInt(priority[0], 10), v(config.priority, 5));
     add("retryBackoffBaseMs", parseInt(backoffBaseSec[0], 10) * 1000, v(config.retryBackoffBaseMs, 30000));
     add("retryBackoffMaxMs", parseInt(backoffMaxSec[0], 10) * 1000, v(config.retryBackoffMaxMs, 300000));
+    add("defaultProvider", defaultProvider[0].trim() || null, config.defaultProvider || null);
+    add("defaultModel", defaultModel[0].trim() || null, config.defaultModel || null);
+    add("defaultCwd", defaultCwd[0].trim() || null, config.defaultCwd || null);
+    add("defaultSandbox", defaultSandbox[0].trim() || null, config.defaultSandbox || null);
     var ops = [];
     var concurrency = parseInt(maxConcurrent[0], 10);
     if (concurrency !== v(config.maxConcurrent, 1)) ops.push(props.onSetConcurrency(concurrency));
@@ -348,6 +372,14 @@ export function ConfigPanel(props) {
         h("div", { className: "grid grid-cols-2 gap-3" },
           h(Field, { label: "默认优先级" }, h("input", { type: "number", min: "1", max: "10", value: priority[0], onChange: function (e) { priority[1](e.target.value); }, className: "aq-input" })),
           h(Field, { label: "默认截止时间（cron）" }, h("input", { value: defaultDeadline[0], onChange: function (e) { defaultDeadline[1](e.target.value); }, placeholder: "0 21 * * *", className: "aq-input" }))
+        ),
+        h("div", { className: "grid grid-cols-2 gap-3 mt-3" },
+          h(Field, { label: "默认 Provider" }, h("input", { value: defaultProvider[0], onChange: function (e) { defaultProvider[1](e.target.value); }, placeholder: "继承自当前会话", className: "aq-input" })),
+          h(Field, { label: "默认 Model" }, h("input", { value: defaultModel[0], onChange: function (e) { defaultModel[1](e.target.value); }, placeholder: "继承自当前会话", className: "aq-input" }))
+        ),
+        h("div", { className: "grid grid-cols-2 gap-3 mt-3" },
+          h(Field, { label: "默认工作目录" }, h("input", { value: defaultCwd[0], onChange: function (e) { defaultCwd[1](e.target.value); }, placeholder: "继承自当前会话", className: "aq-input" })),
+          h(Field, { label: "默认 Sandbox" }, h("input", { value: defaultSandbox[0], onChange: function (e) { defaultSandbox[1](e.target.value); }, placeholder: "继承自当前会话", className: "aq-input" }))
         ),
         h("div", { className: "mt-3" },
           h(Field, { label: "Webhook URL" }, h("input", { type: "url", value: webhook[0], onChange: function (e) { webhook[1](e.target.value); }, placeholder: "https://example.com/hook", className: "aq-input" }))
@@ -453,6 +485,12 @@ function CronField(props) {
     var match = (props.presets || []).find(function (p) { return p.value === props.value && p.value !== "" && p.value !== "__custom__"; });
     return match ? match.value : (props.value ? "__custom__" : "");
   });
+  // 当外部 value 变化时同步下拉框选中状态（防御性修复，防止父组件只更新 props 而不重新挂载）
+  React.useEffect(function () {
+    var match = (props.presets || []).find(function (p) { return p.value === props.value && p.value !== "" && p.value !== "__custom__"; });
+    var next = match ? match.value : (props.value ? "__custom__" : "");
+    selectValue[1](next);
+  }, [props.value]);
   var custom = selectValue[0] === "__custom__";
   return h("div", null,
     h("span", { className: "block text-sm font-semibold text-aq-ink-2 mb-1.5" }, props.label),
@@ -507,7 +545,8 @@ function TemplatePickerInline(props) {
           className: "text-left p-3 rounded-lg border border-aq-line hover:border-aq-blue hover:bg-aq-blue-soft/50 transition"
         },
           h("div", { className: "text-sm font-semibold text-aq-ink" }, tpl.name),
-          h("p", { className: "text-xs text-aq-muted mt-0.5 line-clamp-2" }, tpl.description || "暂无描述")
+          h("p", { className: "text-xs text-aq-muted mt-0.5 line-clamp-2" }, tpl.description || "暂无描述"),
+          tpl.suggestedCron && h("span", { className: "inline-block mt-1 text-xs text-aq-faint bg-aq-surface-alt px-1.5 py-0.5 rounded" }, tpl.suggestedCron)
         );
       })
     )
@@ -522,7 +561,7 @@ export function TemplateManager(props) {
   var loading = React.useState(true);
   var error = React.useState("");
   var editing = React.useState(null);
-  var form = React.useState({ name: "", description: "", category: "", body: "" });
+  var form = React.useState({ name: "", description: "", category: "", suggestedCron: "", suggestedDeadline: "", suggestedPriority: "", body: "" });
   var saving = React.useState(false);
   var saveError = React.useState("");
 
@@ -540,7 +579,7 @@ export function TemplateManager(props) {
 
   function startEdit(tpl) {
     editing[1](tpl ? tpl.name : null);
-    form[1](tpl ? { name: tpl.name, description: tpl.description || "", category: tpl.category || "", body: tpl.body || "" } : { name: "", description: "", category: "", body: "" });
+    form[1](tpl ? { name: tpl.name, description: tpl.description || "", category: tpl.category || "", suggestedCron: tpl.suggestedCron || "", suggestedDeadline: tpl.suggestedDeadline || "", suggestedPriority: tpl.suggestedPriority || "", body: tpl.body || "" } : { name: "", description: "", category: "", suggestedCron: "", suggestedDeadline: "", suggestedPriority: "", body: "" });
   }
 
   function handleSave(e) {
@@ -577,14 +616,19 @@ export function TemplateManager(props) {
             saveError[0] && h("div", { className: "p-3 mb-4 rounded-lg bg-aq-red-soft text-sm text-aq-red" }, saveError[0]),
             h(Field, { label: "模板名称" }, h("input", { value: form[0].name, onChange: function (e) { form[1](Object.assign({}, form[0], { name: e.target.value })); }, className: "aq-input" })),
             h("div", { className: "grid grid-cols-2 gap-3 mt-3" },
-              h(Field, { label: "分类" }, h("input", { value: form[0].category, onChange: function (e) { form[1](Object.assign({}, form[0], { category: e.target.value })); }, placeholder: "开发", className: "aq-input" })),
+              h(Field, { label: "分类" }, h("input", { value: form[0].category, onChange: function (e) { form[1](Object.assign({}, form[0], { category: e.target.value })); }, placeholder: "日常", className: "aq-input" })),
               h(Field, { label: "描述" }, h("input", { value: form[0].description, onChange: function (e) { form[1](Object.assign({}, form[0], { description: e.target.value })); }, className: "aq-input" }))
+            ),
+            h("div", { className: "grid grid-cols-3 gap-3 mt-3" },
+              h(Field, { label: "推荐 cron", help: "可选，如 0 18 * * 1-5" }, h("input", { value: form[0].suggestedCron, onChange: function (e) { form[1](Object.assign({}, form[0], { suggestedCron: e.target.value })); }, placeholder: "0 9 * * 1", className: "aq-input" })),
+              h(Field, { label: "推荐 deadline", help: "可选" }, h("input", { value: form[0].suggestedDeadline, onChange: function (e) { form[1](Object.assign({}, form[0], { suggestedDeadline: e.target.value })); }, placeholder: "0 21 * * *", className: "aq-input" })),
+              h(Field, { label: "推荐优先级", help: "可选，1-10" }, h("input", { value: form[0].suggestedPriority, onChange: function (e) { form[1](Object.assign({}, form[0], { suggestedPriority: e.target.value })); }, placeholder: "5", className: "aq-input" }))
             ),
             h("div", { className: "mt-3" },
               h("label", { className: "block text-sm font-semibold text-aq-ink-2 mb-1.5" }, "模板内容（Markdown）"),
               h("textarea", { value: form[0].body, onChange: function (e) { form[1](Object.assign({}, form[0], { body: e.target.value })); }, className: "w-full h-48 p-3 rounded-xl border border-aq-line-2 bg-aq-paper text-sm text-aq-ink resize-y focus:border-aq-blue focus:ring-2 focus:ring-aq-blue/10 outline-none font-mono" })
             ),
-            h("p", { className: "text-xs text-aq-faint mt-1" }, "使用 YAML frontmatter 定义参数。支持 {{key}} 占位符语法。"),
+            h("p", { className: "text-xs text-aq-faint mt-1" }, "模板为即用型纯文案，选择后直接填入任务内容。"),
             h("div", { className: "flex justify-end gap-3 mt-4 pt-4 border-t border-aq-line" },
               h("button", { type: "button", className: "aq-btn aq-btn-ghost", onClick: function () { editing[1](null); }, disabled: saving[0] }, "取消"),
               h("button", { type: "submit", className: "aq-btn aq-btn-primary", disabled: saving[0] }, saving[0] ? "保存中…" : "保存")

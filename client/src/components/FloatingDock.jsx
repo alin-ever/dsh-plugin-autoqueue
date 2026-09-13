@@ -1,12 +1,11 @@
-﻿import { Transition } from "@headlessui/react";
-import { Workstation } from "./Workstation.jsx";
+﻿import { Workstation } from "./Workstation.jsx";
 
 function h() { return React.createElement.apply(React, arguments); }
 
 export function FloatingDock(props) {
   var controller = props.controller;
   var transport = props.transport;
-  var sessions = props.sessions;
+  var ctx = props.ctx;
   var state = React.useState(function () { return controller.getSnapshot(); });
   var snap = state[0];
   var containerRef = React.useRef(null);
@@ -103,43 +102,37 @@ export function FloatingDock(props) {
       },
       onClick: toggle
     }),
-    h(Transition, {
-      show: boardOpen,
-      enter: "transition duration-300 ease-out",
-      enterFrom: "opacity-0 scale-95",
-      enterTo: "opacity-100 scale-100",
-      leave: "transition duration-200 ease-in",
-      leaveFrom: "opacity-100 scale-100",
-      leaveTo: "opacity-0 scale-95"
+    h("div", {
+      style: {
+        position: "fixed",
+        top: 0, left: 0, right: 0, bottom: 0,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "24px",
+        zIndex: 92,
+        pointerEvents: "none",
+        opacity: boardOpen ? 1 : 0,
+        transform: boardOpen ? "scale(1)" : "scale(0.95)",
+        transition: boardOpen ? "opacity 300ms ease-out, transform 300ms ease-out" : "opacity 200ms ease-in, transform 200ms ease-in",
+        visibility: boardOpen ? "visible" : "hidden"
+      }
     },
       h("div", {
         style: {
-          position: "fixed",
-          top: 0, left: 0, right: 0, bottom: 0,
+          width: "min(912px, calc(100vw - 48px))",
+          height: "min(80vh, 640px)",
+          maxWidth: "calc(100vw - 48px)",
+          borderRadius: "20px",
+          backgroundColor: "var(--aq-paper, #fff)",
+          boxShadow: "0 25px 80px rgba(16,24,40,0.32), 0 0 0 1px rgba(0,0,0,0.06)",
+          overflow: "hidden",
           display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "24px",
-          zIndex: 92,
-          pointerEvents: "none"
+          flexDirection: "column",
+          pointerEvents: "auto"
         }
       },
-        h("div", {
-          style: {
-            width: "min(912px, calc(100vw - 48px))",
-            height: "min(80vh, 640px)",
-            maxWidth: "calc(100vw - 48px)",
-            borderRadius: "20px",
-            backgroundColor: "var(--aq-paper, #fff)",
-            boxShadow: "0 25px 80px rgba(16,24,40,0.32), 0 0 0 1px rgba(0,0,0,0.06)",
-            overflow: "hidden",
-            display: "flex",
-            flexDirection: "column",
-            pointerEvents: "auto"
-          }
-        },
-          h(Workstation, { controller: controller, transport: transport, sessions: sessions, compact: true })
-        )
+        h(Workstation, { controller: controller, transport: transport, ctx: ctx, compact: true })
       )
     ),
     // ─── 可拖拽 Dock 入口按钮 ─────────────────────────────

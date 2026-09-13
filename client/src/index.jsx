@@ -5,14 +5,14 @@ import { FloatingDock } from "./components/FloatingDock.jsx";
 
 // ─── 浮动面板挂载（直接挂到 body，不遮挡对话区）──────────
 
-function mountFloatingPanel(controller, transport, React, reactDomClient, sessions) {
+function mountFloatingPanel(controller, transport, React, reactDomClient, ctx) {
   var root = null;
   var container = document.createElement("div");
   container.id = "aq-floating-root";
   container.setAttribute("data-dsh-plugin", "autoqueue");
   document.body.appendChild(container);
   root = reactDomClient.createRoot(container);
-  root.render(React.createElement(FloatingDock, { controller: controller, transport: transport, sessions: sessions }));
+  root.render(React.createElement(FloatingDock, { controller: controller, transport: transport, ctx: ctx }));
 
   return function () {
     if (root) root.unmount();
@@ -37,7 +37,6 @@ window.__ModuleLoader__.load({
     return {
       dispose: function () {},
       apply: function (ctx) {
-        var sessions = ctx.get("sessions");
         var transport = createTransport();
         var controller = createController(transport);
 
@@ -50,8 +49,9 @@ window.__ModuleLoader__.load({
           document.head.appendChild(style);
         }
 
-        // 浮动面板
-        var panelDisposer = mountFloatingPanel(controller, transport, window.__React, window.__ReactDOM, sessions);
+        // 浮动面板 — 传入 ctx 而非 sessions，让组件在渲染时动态获取
+        // DSH 0.1.5-rc.1 中 sessions 服务可能在 apply 调用时尚未注册
+        var panelDisposer = mountFloatingPanel(controller, transport, window.__React, window.__ReactDOM, ctx);
 
         return function () {
           controller.closeBoard();

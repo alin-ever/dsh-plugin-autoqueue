@@ -204,6 +204,11 @@ export function createFakeServices() {
         lastRpcCalls.push({ method: "goals.clear", args: [agent.id, ref] });
         return {};
       },
+
+      async complete(agent, ref) {
+        lastRpcCalls.push({ method: "goals.complete", args: [agent.id, ref] });
+        return { ref: { id: ref?.id ?? "goal-1", revision: (ref?.revision ?? 0) + 1 } };
+      },
     },
 
     workspaceRegistry: {

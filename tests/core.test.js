@@ -367,6 +367,87 @@ test("runner inherits source session cwd, provider, and model into launch", asyn
   assert.equal(modelSelectionEvent.model, "deepseek-chat");
 });
 
+test("runner resolves model from sourceSessionId when entry lacks provider/model", async () => {
+  freshQueue();
+  const workDir = createRunDir("runner-inherit-source");
+  const body = "# Inherit from source session";
+  let agentCreateOptions;
+  let modelSelectionEvent;
+  const runner = createRunner(makeServices({
+    sessions: {
+      get(id) {
+        if (id === "session-source-456") {
+          return {
+            id,
+            header: { provider: "agnes", model: "agnes-2.5-flash", cwd: "D:\\Projects" },
+          };
+        }
+        return null;
+      },
+    },
+    agents: {
+      async create({ sessionId: sid, meta, agentOptions }) {
+        agentCreateOptions = agentOptions;
+        const session = { id: sid, header: { cwd: meta?.cwd, agentPreset: meta?.agentPreset }, events: [], log: [], append(type, data) { this.events.push({ type, data }); } };
+        return { agent: { id: sid, options: { ...(agentOptions ?? {}) }, session, status: "running", steer() {}, followup() {}, cancel() {} }, dispose: () => {} };
+      },
+    },
+    goals: {
+      async create(agent) {
+        const evt = agent.session.events.find(e => e.type === "model/selection");
+        if (evt) modelSelectionEvent = evt.data;
+        return { ref: { id: "goal-inherit-source", revision: 1 } };
+      },
+    },
+  }));
+
+  const result = await runner.launch({
+    key: "runner-inherit-source",
+    body,
+    workDir,
+    sourceSessionId: "session-source-456",
+    // 不传 provider/model/cwd，应该从 sourceSession 继承
+  });
+
+  assert.equal(isAutoqueueSessionId(result.sessionId), true);
+  // 模型通过 agentOptions 传给 agents.create，runner 不会在 entry 无显式 provider/model 时 append model/selection
+  assert.equal(agentCreateOptions?.provider, "agnes");
+  assert.equal(agentCreateOptions?.model, "agnes-2.5-flash");
+});
+
+test("runner falls back to default model when no source session or entry model", async () => {
+  freshQueue();
+  const workDir = createRunDir("runner-default-model");
+  const body = "# Default model fallback";
+  let agentCreateOptions;
+  const runner = createRunner(makeServices({
+    agents: {
+      async create({ sessionId: sid, agentOptions }) {
+        agentCreateOptions = agentOptions;
+        const session = { id: sid, header: { agentPreset: "autoqueue-unattended-v2" }, events: [], log: [], append() {} };
+        return { agent: { id: sid, options: { ...(agentOptions ?? {}) }, session, status: "running", steer() {}, followup() {}, cancel() {} }, dispose: () => {} };
+      },
+    },
+    goals: {
+      async create() {
+        return { ref: { id: "goal-default", revision: 1 } };
+      },
+    },
+  }));
+
+  const result = await runner.launch({
+    key: "runner-default-model",
+    body,
+    workDir,
+    // 不传 provider/model/cwd/sourceSessionId，应该 fallback 到默认模型
+  });
+
+  assert.equal(isAutoqueueSessionId(result.sessionId), true);
+  // makeServices 中的 agentDefaultModel.currentSelection() 返回 { provider: "deepseek", model: "deepseek-chat" }
+  assert.equal(agentCreateOptions?.provider, "deepseek");
+  assert.equal(agentCreateOptions?.model, "deepseek-chat");
+});
+
 test("runner refuses a non-autoqueue session or arbitrary preset before any RPC", async () => {
   freshQueue();
   let rpcCalls = 0;

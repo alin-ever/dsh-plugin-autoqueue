@@ -9,7 +9,8 @@ function h() { return React.createElement.apply(React, arguments); }
 export function Workstation(props) {
   var controller = props.controller;
   var transport = props.transport;
-  var sessions = props.sessions;
+  var ctx = props.ctx;
+  var sessions = ctx ? ctx.get("sessions") : null;
   var state = React.useState(function () { return controller.getSnapshot(); });
   var confirm = React.useState(null);
   var message = React.useState(null);

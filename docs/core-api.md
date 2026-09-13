@@ -282,6 +282,7 @@ const runner = {
   listSessions(),
   antiBlock(sessionId, goalRef),
   wakeup(sessionId, goalRef),
+  completeGoal(sessionId, goalRef),
   pauseGoal(sessionId, goalRef),
   resumeGoal(sessionId, goalRef),
   finalize(entry, result, error),
@@ -317,9 +318,9 @@ rc.2 的 goal driver 在 `goals.create` 后自行开始工作。因此新 launch
 
 | phase | engine 行为 |
 |---|---|
-| `active` / `running` | 静默等待并更新轮次/活动信息 |
+| `active` / `running` | 更新轮次/活动信息；检测到 AI 输出的 `taskComplete` 标记时，由系统调用 `runner.completeGoal` 直接标记完成，无需 AI 参与 |
 | `complete` | finalize 为 done，Webhook，按策略归档 |
-| `blocked` | Host 可用时 steering + resume；超过上限则 failed |
+| `blocked` | Host 可用时 steering + resume；超过上限则 failed；若 AI 已输出 `taskComplete`，系统同样会代劳标记完成 |
 | `paused` | 前台暂停任务双重空闲确认后 resume；其他 dormant 在 Host 可用时恢复，均无重复 prompt |
 | `unknown` | 连续计数，达到阈值后 wakeup 或 bounded retry |
 

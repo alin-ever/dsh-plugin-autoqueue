@@ -1,5 +1,4 @@
-﻿import { Dialog, DialogPanel, DialogTitle, DialogBackdrop, Transition } from "@headlessui/react";
-import { iconHtml } from "../utils.js";
+﻿import { iconHtml } from "../utils.js";
 
 function h() { return React.createElement.apply(React, arguments); }
 
@@ -13,21 +12,31 @@ export function DialogShell(props) {
   var width = SIZE_MAP[size] || 1116;
   var height = HEIGHT_MAP[size] || "640px";
 
-  return h(Dialog, {
-    open: props.open,
-    onClose: props.onClose,
-    className: "relative z-[100] data-[closed]:hidden"
-  },
-    h(DialogBackdrop, {
-      transition: true,
-      className: "fixed inset-0 bg-black/40 transition duration-200 ease-out data-[closed]:opacity-0"
+  // ESC 关闭
+  React.useEffect(function () {
+    function onKey(e) {
+      if (e.key === "Escape") props.onClose();
+    }
+    document.addEventListener("keydown", onKey);
+    return function () { document.removeEventListener("keydown", onKey); };
+  }, [props.onClose]);
+
+  return h("div", { style: { position: "relative", zIndex: 100 } },
+    // Backdrop
+    h("div", {
+      className: "fixed inset-0 bg-black/40 transition-opacity duration-200",
+      style: { zIndex: 100 },
+      onClick: props.onClose
     }),
-    h("div", { className: isDrawer ? "fixed inset-0 flex justify-end" : "fixed inset-0 flex items-center justify-center p-4", style: { overscrollBehaviorY: "contain" } },
-      h(DialogPanel, {
-        transition: true,
+    // Panel container
+    h("div", {
+      className: isDrawer ? "fixed inset-0 flex justify-end" : "fixed inset-0 flex items-center justify-center p-4",
+      style: { zIndex: 101, overscrollBehaviorY: "contain" }
+    },
+      h("div", {
         className: (isDrawer
-          ? "h-full w-[min(1056px,94vw)] bg-aq-paper shadow-2xl transition duration-200 ease-out data-[closed]:translate-x-4 data-[closed]:opacity-0 flex flex-col"
-          : "rounded-2xl bg-aq-paper shadow-2xl border border-aq-line transition duration-200 ease-out data-[closed]:scale-95 data-[closed]:opacity-0 flex flex-col overflow-hidden"
+          ? "h-full w-[min(1056px,94vw)] bg-aq-paper shadow-2xl flex flex-col"
+          : "rounded-2xl bg-aq-paper shadow-2xl border border-aq-line flex flex-col overflow-hidden"
         ) + (props.className ? " " + props.className : ""),
         style: isDrawer ? {} : Object.assign({ maxHeight: height, width: "min(" + width + "px, 94vw)" }, (props.style || {}))
       },
@@ -40,7 +49,7 @@ export function DialogShell(props) {
 
 function ModalHeader(props) {
   return h("div", { className: "flex items-center justify-between px-6 pt-5 pb-4 border-b border-aq-line" },
-    h(DialogTitle, { className: "text-lg font-bold text-aq-ink" }, props.title),
+    h("h2", { className: "text-lg font-bold text-aq-ink" }, props.title),
     h(CloseButton, { onClose: props.onClose })
   );
 }
@@ -48,7 +57,7 @@ function ModalHeader(props) {
 function DrawerHeader(props) {
   return h("div", { className: "flex items-start gap-3 px-6 pt-5 pb-4 border-b border-aq-line bg-aq-paper" },
     h("div", { className: "flex-1 min-w-0" },
-      h(DialogTitle, { className: "text-lg font-bold text-aq-ink break-words" }, props.title)
+      h("h2", { className: "text-lg font-bold text-aq-ink break-words" }, props.title)
     ),
     h(CloseButton, { onClose: props.onClose })
   );

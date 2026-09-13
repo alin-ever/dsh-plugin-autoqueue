@@ -1,5 +1,5 @@
 var API_PREFIX = "/api/queue";
-var REQUEST_TIMEOUT_MS = 15e3;
+var REQUEST_TIMEOUT_MS = 30e3;
 var SSE_MAX_RETRIES = 5;
 var SSE_RETRY_BASE_MS = 2000;
 var SSE_RETRY_MAX_MS = 30000;
@@ -15,26 +15,59 @@ function randomUUID() {
   }
 }
 
-function readJson(response) {
-  return response.text().then(function (text) {
-    var body = null;
-    try { body = text ? JSON.parse(text) : null; }
-    catch (e) {
-      throw new Error("HTTP " + response.status + " 返回了无效 JSON");
-    }
-    if (!response.ok) {
-      throw new Error((body && body.error) || text || "HTTP " + response.status);
-    }
-    return body;
-  });
-}
-
 function requestAt(url, init) {
-  var controller = new AbortController();
-  var timeout = setTimeout(function () { controller.abort(); }, REQUEST_TIMEOUT_MS);
-  return fetch(url, Object.assign({}, init, { signal: controller.signal }))
-    .then(readJson)
-    .finally(function () { clearTimeout(timeout); });
+  var start = Date.now();
+  var method = (init && init.method) || "GET";
+  if (typeof console !== "undefined" && console.log) console.log("[autoqueue] " + method + " " + url + " 开始");
+
+  return new Promise(function (resolve, reject) {
+    var xhr = new XMLHttpRequest();
+    xhr.open(method, url, true);
+    xhr.setRequestHeader("Accept", "application/json");
+    if (init && init.headers) {
+      for (var key in init.headers) {
+        if (init.headers.hasOwnProperty(key)) {
+          xhr.setRequestHeader(key, init.headers[key]);
+        }
+      }
+    }
+
+    var timeout = setTimeout(function () {
+      xhr.abort();
+      reject(new Error("请求超时（" + (REQUEST_TIMEOUT_MS / 1000) + "秒），请检查网络连接或刷新页面重试"));
+    }, REQUEST_TIMEOUT_MS);
+
+    xhr.onload = function () {
+      clearTimeout(timeout);
+      if (typeof console !== "undefined" && console.log) console.log("[autoqueue] " + method + " " + url + " 响应 " + xhr.status + "，耗时 " + (Date.now() - start) + "ms");
+      var text = xhr.responseText;
+      var body = null;
+      try { body = text ? JSON.parse(text) : null; }
+      catch (e) {
+        reject(new Error("HTTP " + xhr.status + " 返回了无效 JSON"));
+        return;
+      }
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(body);
+      } else {
+        reject(new Error((body && body.error) || text || "HTTP " + xhr.status));
+      }
+    };
+
+    xhr.onerror = function () {
+      clearTimeout(timeout);
+      if (typeof console !== "undefined" && console.error) console.error("[autoqueue] " + method + " " + url + " 失败，耗时 " + (Date.now() - start) + "ms: 网络错误");
+      reject(new Error("网络错误，请检查连接或刷新页面重试"));
+    };
+
+    xhr.onabort = function () {
+      clearTimeout(timeout);
+      if (typeof console !== "undefined" && console.error) console.error("[autoqueue] " + method + " " + url + " 失败，耗时 " + (Date.now() - start) + "ms: 请求已取消");
+      reject(new Error("请求已取消"));
+    };
+
+    xhr.send(init && init.body ? init.body : null);
+  });
 }
 
 function request(url, init) {
@@ -43,9 +76,6 @@ function request(url, init) {
 
 export function createTransport() {
   return {
-    // The workstation owns both the active and archived views. Always request
-    // the complete projection so an SSE refresh cannot make archived rows
-    // disappear after the initial load.
     state: function () { return request("/state?archived=1"); },
     detail: function (key) { return request("/detail?key=" + encodeURIComponent(key)); },
     options: function () { return request("/options"); },
@@ -68,9 +98,6 @@ export function createTransport() {
     },
     listTemplates: function () { return request("/templates"); },
     getTemplate: function (name) { return request("/templates?name=" + encodeURIComponent(name)); },
-    resolveTemplate: function (name, params) {
-      return request("/templates/resolve", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: name, params: params || {} }) });
-    },
     createTemplate: function (data) {
       return request("/templates", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(data) });
     },
@@ -137,11 +164,8 @@ export function createTransport() {
       var onopen = events.onopen;
       var onmessage = events.onmessage;
       var onerror = events.onerror;
-      var onVisible = function () { if (document.visibilityState === "visible") listener(null); };
-      document.addEventListener("visibilitychange", onVisible);
       return function () {
         closed = true;
-        document.removeEventListener("visibilitychange", onVisible);
         events.close();
         reportHealth({ status: "disconnected", connected: false, reconnecting: false });
       };
