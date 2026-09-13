@@ -1,7 +1,7 @@
 ﻿import { Checkbox, Field, Input } from "@headlessui/react";
 import { iconHtml, isUnread, taskSummary, cronToHuman, STATUS_CONFIG } from "../utils.js";
 import { TaskDetailPanel } from "./TaskDetail.jsx";
-import { NewTaskModal, EditTaskModal, ConfigPanel, ConfirmModal } from "./Modals.jsx";
+import { NewTaskModal, EditTaskModal, ConfigPanel, ConfirmModal, TemplateManager } from "./Modals.jsx";
 import { DialogShell } from "./DialogShell.jsx";
 
 function h() { return React.createElement.apply(React, arguments); }
@@ -104,6 +104,7 @@ export function Workstation(props) {
       snap: snap, message: message[0],
       onNewTask: function () { controller.openNewTask(); },
       onConfig: function () { controller.openConfig(); },
+      onTemplates: function () { controller.openTemplates(); },
       onClose: function () { controller.closeBoard(); },
       onScan: function () { runAction("force-scan"); }
     }),
@@ -160,6 +161,10 @@ export function Workstation(props) {
       onUpdate: function (patch) { return controller.updateConfig(patch); },
       onSetConcurrency: function (n) { return controller.setConcurrency(n); }
     }),
+    snap.showTemplates && h(TemplateManager, {
+      transport: transport,
+      onClose: function () { controller.closeTemplates(); }
+    }),
     confirm[0] && h(ConfirmModal, {
       title: confirm[0].title, message: confirm[0].message, confirmLabel: confirm[0].confirmLabel, tone: confirm[0].tone,
       onConfirm: confirm[0].onConfirm, onCancel: function () { confirm[1](null); }
@@ -177,8 +182,9 @@ function CompactHeader(props) {
         "任务队列"
       )
     ),
-    props.message && h("div", { className: "absolute top-0 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-b-lg bg-aq-navy text-white text-xs shadow-lg z-50" }, props.message),
+    props.message && h("div", { className: "absolute top-10 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-lg bg-aq-navy text-white text-xs shadow-lg z-50" }, props.message),
     h("button", { className: "aq-btn aq-btn-ghost h-7 text-xs", onClick: props.onScan, title: "立即扫描收件箱", dangerouslySetInnerHTML: { __html: iconHtml("scan") + " 扫描" } }),
+    h("button", { className: "aq-btn aq-btn-ghost h-7 text-xs", onClick: props.onTemplates, title: "模板管理", dangerouslySetInnerHTML: { __html: iconHtml("doc") } }),
     h("button", { className: "aq-btn aq-btn-ghost h-7 text-xs", onClick: props.onConfig, title: "运行设置", dangerouslySetInnerHTML: { __html: iconHtml("gear") } }),
     h("button", { className: "aq-btn aq-btn-ghost h-7 text-xs", onClick: props.onClose, dangerouslySetInnerHTML: { __html: iconHtml("close") + " 关闭" } })
   );
@@ -323,7 +329,7 @@ function CompactTaskList(props) {
           h("th", { className: "text-left py-1 pl-0 text-xs font-semibold text-aq-faint uppercase tracking-wide" }, "任务"),
           h("th", { className: "py-1 text-xs font-semibold text-aq-faint uppercase tracking-wide text-center" }, "调度"),
           h("th", { className: "pr-4 py-1 text-xs font-semibold text-aq-faint uppercase tracking-wide text-right" }, "状态"),
-          h("th", { className: "pr-4 py-1 text-xs font-semibold text-aq-faint uppercase tracking-wide" }, "操作")
+          h("th", { className: "pr-4 py-1 text-xs font-semibold text-aq-faint uppercase tracking-wide text-right" }, "操作")
         )
       ),
       h("tbody", { className: "divide-y divide-aq-line" },
@@ -378,18 +384,20 @@ function TaskRow(props) {
       (unread ? " border-l-2 border-l-aq-blue" : ""),
     onClick: openRow
   },
-    h("td", { className: "pl-4 pr-2 py-2.5 align-middle", onClick: function (e) { e.stopPropagation(); } },
-      h(Checkbox, { checked: props.selected, disabled: !selectable, onChange: function () { props.onSelect(task.key); },
-        className: "group/box flex items-center" },
-        h("span", { className: "flex h-4 w-4 items-center justify-center rounded border transition " +
-          (props.selected ? "border-aq-blue bg-aq-blue" : "border-aq-line-2 bg-white") +
-          (!selectable ? " opacity-40" : " cursor-pointer group-hover/box:border-aq-blue") },
-          props.selected && h("svg", { className: "h-3 w-3 text-white", viewBox: "0 0 12 12", fill: "none" },
-            h("path", { d: "M2.5 6l2.5 2.5 4.5-4.5", stroke: "currentColor", strokeWidth: "1.5", strokeLinecap: "round", strokeLinejoin: "round" })
+    task.archivedAt
+      ? h("td", { className: "pl-4 pr-2 py-2.5 align-middle" })
+      : h("td", { className: "pl-4 pr-2 py-2.5 align-middle", onClick: function (e) { e.stopPropagation(); } },
+        h(Checkbox, { checked: props.selected, disabled: !selectable, onChange: function () { props.onSelect(task.key); },
+          className: "group/box flex items-center" },
+          h("span", { className: "flex h-4 w-4 items-center justify-center rounded border transition " +
+            (props.selected ? "border-aq-blue bg-aq-blue" : "border-aq-line-2 bg-white") +
+            (!selectable ? " opacity-40" : " cursor-pointer group-hover/box:border-aq-blue") },
+            props.selected && h("svg", { className: "h-3 w-3 text-white", viewBox: "0 0 12 12", fill: "none" },
+              h("path", { d: "M2.5 6l2.5 2.5 4.5-4.5", stroke: "currentColor", strokeWidth: "1.5", strokeLinecap: "round", strokeLinejoin: "round" })
+            )
           )
         )
-      )
-    ),
+      ),
     h("td", { className: "py-2.5 align-middle overflow-hidden", style: { fontSize: "13px", minWidth: "120px" } },
       h("div", { className: "flex items-center gap-1.5 min-w-0" },
         h("span", { className: "flex-shrink-0 w-1.5 h-1.5 rounded-full " + (unread ? "bg-aq-blue" : "bg-transparent"), title: unread ? "未读" : undefined }),
@@ -410,14 +418,13 @@ function TaskRow(props) {
       )
     ),
     h("td", { className: "py-2.5 pr-4 align-middle", style: { fontSize: "12px" } },
-      h("div", { className: "flex items-center gap-1 flex-wrap" },
+      h("div", { className: "flex items-center gap-1 flex-wrap justify-end" },
         task.status === "running" && task.stopPending !== true && !task.archivedAt && h("button", { style: actionBtnStyle, className: "hover:bg-aq-red-soft", onClick: function (e) { e.stopPropagation(); props.onAction("stop", task.key); } }, "停止"),
         task.status === "pending" && !task.archivedAt && h("button", { style: actionBtnStyle, className: "hover:bg-aq-surface-alt", onClick: function (e) { e.stopPropagation(); props.onEdit(task.key); } }, "编辑"),
         ["done", "failed", "stopped", "interrupted"].indexOf(task.status) >= 0 && !task.archivedAt && h("button", { style: Object.assign({}, actionBtnStyle, { color: "var(--aq-green, #067647)" }), className: "hover:bg-aq-green-soft", onClick: function (e) { e.stopPropagation(); props.onAction("rerun", task.key); } }, "重跑"),
-        task.status !== "running" && !task.archivedAt && h("button", { style: actionBtnStyle, className: "hover:bg-aq-surface-alt", onClick: function (e) { e.stopPropagation(); props.onAction("archive", task.key); } }, "归档"),
+        ["done", "failed", "stopped", "interrupted"].indexOf(task.status) >= 0 && !task.archivedAt && h("button", { style: actionBtnStyle, className: "hover:bg-aq-surface-alt", onClick: function (e) { e.stopPropagation(); props.onAction("archive", task.key); } }, "归档"),
         task.archivedAt && h("button", { style: actionBtnStyle, className: "hover:bg-aq-surface-alt", onClick: function (e) { e.stopPropagation(); props.onAction("restore", task.key); } }, "还原"),
-        ["pending", "failed", "stopped", "interrupted"].indexOf(task.status) >= 0 && !task.archivedAt && h("button", { style: Object.assign({}, actionBtnStyle, { color: "var(--aq-red, #b42318)" }), className: "hover:bg-aq-red-soft", onClick: function (e) { e.stopPropagation(); props.onAction("delete", task.key); } }, "删除"),
-        sessionId && !task.archivedAt && h("button", { style: actionBtnStyle, className: "hover:bg-aq-surface-alt", onClick: function (e) { e.stopPropagation(); if (props.onSession) props.onSession(sessionId); } }, "会话")
+        sessionId && h("button", { style: actionBtnStyle, className: "hover:bg-aq-surface-alt", onClick: function (e) { e.stopPropagation(); if (props.onSession) props.onSession(sessionId); } }, "会话")
       )
     )
   );

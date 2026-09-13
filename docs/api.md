@@ -5,13 +5,13 @@
 ## 0. 安全边界
 
 - 每个 attempt 使用专属 `autoqueue-session-<uuid>` 和独立 cwd；插件拒绝操作其他 DSH 会话。
-- 引擎只选择 `autoqueue-unattended-v2` / `autoqueue-ptc-unattended-v2`。v1 只保留不覆盖；v2 marker 必须完整，并禁用提问、高扇出子会话/工作流/后台任务工具，bash/pwsh 只能前台运行。调用方不能指定任意 preset。
+- 引擎只选择 `autoqueue-unattended-v2`。v1 只保留不覆盖；v2 marker 必须完整，并禁用提问、高扇出子会话/工作流/后台任务工具，bash/pwsh 只能前台运行。调用方不能指定任意 preset。
 - 专属会话在 `goals.create` 前先持久化并验证 `approvalPolicy=never`；验证失败则不允许 goal 入场。
-- runner 不调用 `workspace.create`，不调用 `session.selectModel`，也不发送重复的初始 queue prompt。完整任务只进入一次 `goals.create.objective`。
+- runner 不调用 `workspace.create`，仅在任务显式指定 provider 和 model 时调用 `session.selectModel`，也不发送重复的初始 queue prompt。完整任务只进入一次 `goals.create.objective`。
 - 普通前台会话活跃时暂停派发；`sessions.list` 调用失败或返回结构未知时同样按前台忙碌处理。已经运行的 owned goal 先持久化 pause intent，再 pause goal、取消当前 turn；只有连续两次可信空闲观察后才 resume。
 - 任务与配置请求均不能覆盖 Host 的模型、工作区或任意 Agent preset。未知字段会被拒绝。
-- 默认 `maxConcurrent=1`、`autoArchive=true`、`enableNotifications=false`。
-- Host 普通会话中的 19 个 AI 工具随插件自动注册，可用 `enableHostAiTools: false` 关闭；外部 AI 始终可以使用本 API。
+- 默认 `maxConcurrent=1`、`autoArchive=false`、`enableNotifications=false`。
+- Host 普通会话中的 18 个 AI 工具随插件自动注册，可用 `enableHostAiTools: false` 关闭；外部 AI 始终可以使用本 API。
 
 ## 1. 访问控制
 
@@ -67,7 +67,9 @@ Capabilities 与 OpenAPI 使用和业务接口相同的鉴权。Capabilities 中
 | `POST` | `/api/queue/mark-read` | 标记已读或未读 |
 | `GET` | `/api/queue/events` | compact SSE 快照 |
 | `GET` | `/api/queue/templates` | 列出模板库 / 获取单个模板 |
-| `POST` | `/api/queue/templates/resolve` | 解析模板参数 |
+| `POST` | `/api/queue/templates` | 创建模板 |
+| `PUT` | `/api/queue/templates?name=...` | 更新模板 |
+| `DELETE` | `/api/queue/templates?name=...` | 删除模板 |
 
 ## 4. `GET /api/queue/state`
 
@@ -101,7 +103,7 @@ Capabilities 与 OpenAPI 使用和业务接口相同的鉴权。Capabilities 中
       "goalPhase": "active",
       "foregroundPaused": false,
       "stopPending": false,
-      "autoArchive": true,
+      "autoArchive": false,
       "enableNotifications": false,
       "createdAt": "2026-08-31T08:00:00.000Z",
       "updatedAt": "2026-08-31T08:01:00.000Z"
@@ -193,7 +195,7 @@ Capabilities 与 OpenAPI 使用和业务接口相同的鉴权。Capabilities 中
   "deadline": "0 21 * * *",
   "priority": 8,
   "maxGoalRounds": 50,
-  "autoArchive": true,
+  "autoArchive": false,
   "enableNotifications": false
 }
 ```
@@ -228,7 +230,7 @@ Capabilities 与 OpenAPI 使用和业务接口相同的鉴权。Capabilities 中
 | `archive` | `key` | 非 running；隐藏任务并归档其插件自有 sessions |
 | `archive` | `keys` | 1-100 个唯一 key，逐项返回结果 |
 | `restore` | `key` | 清除 `archivedAt` |
-| `delete` | `key` | 仅 pending；删除收件箱文件和账本项 |
+| `delete` | `key` | pending / failed / stopped；删除收件箱文件和账本项 |
 | `rerun` | `key` | 非 running 且未归档；terminal 与 pending 均可重新入队 |
 | `update` | `key` + patch | 仅 pending 且未归档 |
 | `force-scan` | 无 | 立即检查 Markdown 收件箱 |
@@ -369,7 +371,7 @@ Capabilities 与 OpenAPI 使用和业务接口相同的鉴权。Capabilities 中
   "unknownThreshold": 3,
   "maxAttempts": 3,
   "taskTimeoutMs": 10800000,
-  "autoArchive": true,
+  "autoArchive": false,
   "webhook": null,
   "queueDir": null,
   "enableNotifications": false,
@@ -391,8 +393,12 @@ Capabilities 与 OpenAPI 使用和业务接口相同的鉴权。Capabilities 中
 | `unknownThreshold` | 1-10 |
 | `maxAttempts` | 1-10 |
 | `taskTimeoutMs` | 600000-86400000 |
-| `autoArchive` | boolean；默认 true |
+| `autoArchive` | boolean；默认 false |
 | `webhook` | http/https URL；空字符串或 null 清除 |
+| `defaultProvider` | string/null；默认 LLM 提供商 |
+| `defaultModel` | string/null；默认 LLM 模型名 |
+| `defaultCwd` | string/null；默认任务工作目录 |
+| `defaultSandbox` | string/null；默认 sandbox 模式 |
 | `enableNotifications` | boolean；默认 false |
 | `priority` | 1-10 |
 | `defaultDeadline` | 5 字段 cron；空字符串或 null 清除 |
@@ -402,7 +408,7 @@ Capabilities 与 OpenAPI 使用和业务接口相同的鉴权。Capabilities 中
 ```json
 {
   "maxGoalRounds": 60,
-  "autoArchive": true,
+  "autoArchive": false,
   "enableNotifications": false,
   "defaultDeadline": "0 21 * * *"
 }
@@ -460,10 +466,7 @@ data: {"revision":42,"tasks":[...],"config":{...},"runtime":{...}}
       "name": "代码审查",
       "description": "对代码仓库或指定文件进行深度审查",
       "category": "开发",
-      "parameters": [
-        { "key": "target", "label": "审查目标", "required": true },
-        { "key": "focus", "label": "审查重点", "required": false, "default": "代码质量、安全性、性能" }
-      ],
+      "suggestedCron": "0 2 * * 1",
       "file": "代码审查.md"
     }
   ]
@@ -472,37 +475,33 @@ data: {"revision":42,"tasks":[...],"config":{...},"runtime":{...}}
 
 ### `GET /api/queue/templates?name=...`
 
-获取单个模板，包含完整正文和参数 schema：
+获取单个模板，包含完整正文和可选的推荐调度配置：
 
 ```json
 {
   "name": "代码审查",
   "description": "...",
   "category": "开发",
-  "parameters": [...],
+  "suggestedCron": "0 2 * * 1",
+  "suggestedDeadline": "0 8 * * 1",
+  "suggestedPriority": "7",
   "body": "# 代码审查\n\n请对以下代码..."
 }
 ```
 
-### `POST /api/queue/templates/resolve`
+### 模板 CRUD
 
-用参数值填充模板占位符，返回可用的任务正文：
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| `POST` | `/api/queue/templates` | 创建新模板；必填 `name` + `body` |
+| `PUT` | `/api/queue/templates?name=...` | 更新现有模板 |
+| `DELETE` | `/api/queue/templates?name=...` | 删除模板 |
 
-```json
-// 请求
-{ "name": "代码审查", "params": { "target": "src/", "focus": "安全性" } }
-
-// 响应
-{ "ok": true, "content": "# 代码审查\n\n- **目标路径**: src/\n...", "templateName": "代码审查" }
-```
-
-缺少必填参数时返回 `400` 并列出 `missing` 字段。
-
-模板使用 `{{key}}` 占位符语法，与 YAML frontmatter 中的 `parameters` 定义对应。模板文件位于项目 `templates/` 目录，随插件发布。
+模板为即用型纯文案，不带参数占位符。`suggestedCron`、`suggestedDeadline`、`suggestedPriority` 是可选的推荐调度配置，供创建任务时参考。模板文件位于项目 `templates/` 目录，随插件发布。
 
 ## 13. Host AI 工具（自动注入）
 
-启动配置 `enableHostAiTools` 默认是 `true`。插件加载后向普通 DSH 会话注册以下 19 个 HTTP 薄客户端工具；需要保持原始 tool catalog 的部署可显式设置为 `false`。`autoqueue-session-*` 自有任务 Agent 会隐藏这些工具，执行 guard 也会拒绝其通过 Host 工具递归控制队列：
+启动配置 `enableHostAiTools` 默认是 `true`。插件加载后向普通 DSH 会话注册以下 18 个 HTTP 薄客户端工具；需要保持原始 tool catalog 的部署可显式设置为 `false`。`autoqueue-session-*` 自有任务 Agent 会隐藏这些工具，执行 guard 也会拒绝其通过 Host 工具递归控制队列：
 
 工具默认访问 `http://127.0.0.1:3080`。若当前 DSH Web 不在该地址，启动配置必须提供正确的 `baseUrl`。
 
@@ -518,7 +517,7 @@ data: {"revision":42,"tasks":[...],"config":{...},"runtime":{...}}
 | `autoqueue_archive_task` | 归档单任务 |
 | `autoqueue_batch_archive` | 批量归档 1-100 个任务 |
 | `autoqueue_restore_task` | 恢复归档任务 |
-| `autoqueue_delete_task` | 删除 pending 任务 |
+| `autoqueue_delete_task` | 删除 pending / failed / stopped 任务 |
 | `autoqueue_rerun_task` | 重新执行非 running 任务 |
 | `autoqueue_mark_read` | 标记已读/未读 |
 | `autoqueue_get_options` | 读取隔离锁 |
@@ -527,8 +526,7 @@ data: {"revision":42,"tasks":[...],"config":{...},"runtime":{...}}
 | `autoqueue_force_scan` | 立即检查收件箱 |
 | `autoqueue_set_concurrency` | 设置 1-8 并发 |
 | `autoqueue_list_templates` | 列出可用任务模板 |
-| `autoqueue_get_template` | 获取模板详情和参数 schema |
-| `autoqueue_resolve_template` | 解析模板参数，返回可用的任务正文 |
+| `autoqueue_get_template` | 获取模板详情和推荐调度配置 |
 
 工具全部通过 HTTP API，不绕过 HTTP 校验直接访问 engine/ledger，也不会暴露 token。外部 AI 不依赖这组 Host 工具；即使关闭自动注入，HTTP API 仍保持可用。
 

@@ -26,6 +26,7 @@ export function NewTaskModal(props) {
   var content = React.useState("");
   var priority = React.useState(String(v(config.priority, 5)));
   var cron = React.useState("");
+  var schedule = React.useState("");
   var deadline = React.useState(config.defaultDeadline || "");
   var maxGoalRounds = React.useState(String(v(config.maxGoalRounds, 40)));
   var maxBlockedResumes = React.useState(String(v(config.maxBlockedResumes, 3)));
@@ -69,6 +70,7 @@ export function NewTaskModal(props) {
     // 选择模板后，先用元数据填充推荐调度配置
     if (tpl.suggestedCron) cron[1](tpl.suggestedCron);
     else cron[1]("");
+    schedule[1]("");
     if (tpl.suggestedDeadline) deadline[1](tpl.suggestedDeadline);
     else deadline[1]("");
     if (tpl.suggestedPriority) priority[1](String(tpl.suggestedPriority));
@@ -97,6 +99,7 @@ export function NewTaskModal(props) {
     };
     if (key[0].trim()) data.key = key[0].trim();
     if (cron[0]) data.cron = cron[0];
+    if (schedule[0]) data.schedule = schedule[0];
     if (deadline[0]) data.deadline = deadline[0];
     if (maxGoalRounds[0]) data.maxGoalRounds = parseInt(maxGoalRounds[0], 10);
     if (maxBlockedResumes[0]) data.maxBlockedResumes = parseInt(maxBlockedResumes[0], 10);
@@ -113,7 +116,7 @@ export function NewTaskModal(props) {
     }).finally(function () { submitting[1](false); });
   }
 
-  return h(DialogShell, { open: true, onClose: props.onClose, title: "新建无人值守任务", variant: "modal", size: "lg" },
+  return h(DialogShell, { open: true, onClose: props.onClose, title: "新建无人值守任务", variant: "drawer" },
     h("form", { className: "flex flex-col flex-1 min-h-0 px-6 pb-6", onSubmit: handleSubmit },
       showTemplates[0] && h(TemplatePickerInline, {
         templates: templates[0], loading: templatesLoading[0],
@@ -143,7 +146,9 @@ export function NewTaskModal(props) {
 
         // 调度
         h("div", { className: "mt-4 space-y-4" },
-          h(CronField, { label: "定时调度", value: cron[0], onChange: cron[1], presets: CRON_PRESETS, placeholder: "0 8 * * *" }),
+          h(CronField, { label: "定时调度（循环）", value: cron[0], onChange: cron[1], presets: CRON_PRESETS, placeholder: "0 8 * * *" }),
+          h(Field, { label: "一次性定时", help: "选择本地时间，留空立即执行" },
+            h("input", { type: "datetime-local", value: schedule[0], onChange: function (e) { schedule[1](e.target.value); }, className: "aq-input" })),
           h(CronField, { label: "执行截止时间", value: deadline[0], onChange: deadline[1], presets: DEADLINE_PRESETS, placeholder: "0 21 * * *" })
         ),
 
@@ -190,6 +195,7 @@ export function EditTaskModal(props) {
   var task = props.task;
   var content = React.useState(task.body || "");
   var cron = React.useState(task.cron || "");
+  var schedule = React.useState(task.schedule || "");
   var deadline = React.useState(task.deadline || "");
   var priority = React.useState(String(task.priority || 5));
   var autoArchive = React.useState(task.autoArchive !== false);
@@ -215,6 +221,7 @@ export function EditTaskModal(props) {
     var add = function (n, next, prev) { if (next !== prev) patch[n] = next; };
     add("content", content[0], task.body || "");
     add("cron", cron[0], task.cron || "");
+    add("schedule", schedule[0] || null, task.schedule || null);
     add("deadline", deadline[0], task.deadline || "");
     add("priority", parseInt(priority[0], 10), task.priority || 5);
     add("autoArchive", autoArchive[0], task.autoArchive !== false);
@@ -232,7 +239,7 @@ export function EditTaskModal(props) {
     props.onUpdate(task.key, patch).catch(function (e) { error[1](e.message || "保存失败"); }).finally(function () { submitting[1](false); });
   }
 
-  return h(DialogShell, { open: true, onClose: props.onClose, title: "编辑任务 · " + task.key, variant: "modal", size: "lg" },
+  return h(DialogShell, { open: true, onClose: props.onClose, title: "编辑任务 · " + task.key, variant: "drawer" },
     h("form", { className: "flex flex-col flex-1 min-h-0 px-6 pb-6", onSubmit: handleSubmit },
       h("p", { className: "text-sm text-aq-muted py-3" }, "仅待执行任务可编辑；运行中的任务请先停止。"),
       error[0] && h("div", { className: "p-3 mb-4 rounded-lg bg-aq-red-soft text-sm text-aq-red" }, error[0]),
@@ -242,9 +249,11 @@ export function EditTaskModal(props) {
 
       h("div", { className: "grid grid-cols-2 gap-3 mt-4" },
         h(Field, { label: "优先级（1-10）" }, h("input", { type: "number", min: "1", max: "10", value: priority[0], onChange: function (e) { priority[1](e.target.value); }, className: "aq-input" })),
-        h(CronField, { label: "定时调度", value: cron[0], onChange: cron[1], presets: CRON_PRESETS, placeholder: "0 8 * * *" })
+        h(CronField, { label: "定时调度（循环）", value: cron[0], onChange: cron[1], presets: CRON_PRESETS, placeholder: "0 8 * * *" })
       ),
-      h("div", { className: "mt-4" },
+      h("div", { className: "mt-4 space-y-4" },
+        h(Field, { label: "一次性定时", help: "选择本地时间，留空立即执行" },
+          h("input", { type: "datetime-local", value: schedule[0], onChange: function (e) { schedule[1](e.target.value); }, className: "aq-input" })),
         h(CronField, { label: "执行截止时间", value: deadline[0], onChange: deadline[1], presets: DEADLINE_PRESETS, placeholder: "0 21 * * *" })
       ),
 
@@ -312,6 +321,7 @@ export function ConfigPanel(props) {
   var defaultSandbox = React.useState(config.defaultSandbox || "");
   var saving = React.useState(false);
   var saveError = React.useState("");
+  var saveSuccess = React.useState(false);
 
   function handleSave(e) {
     e.preventDefault();
@@ -338,13 +348,17 @@ export function ConfigPanel(props) {
     if (concurrency !== v(config.maxConcurrent, 1)) ops.push(props.onSetConcurrency(concurrency));
     if (Object.keys(patch).length) ops.push(props.onUpdate(patch));
     if (!ops.length) { props.onClose(); return; }
-    saving[1](true); saveError[1]("");
-    Promise.all(ops).then(props.onClose).catch(function (e) { saveError[1](e.message || "保存失败"); }).finally(function () { saving[1](false); });
+    saving[1](true); saveError[1](""); saveSuccess[1](false);
+    Promise.all(ops).then(function () {
+      saveSuccess[1](true);
+      setTimeout(function () { props.onClose(); }, 900);
+    }).catch(function (e) { saveError[1](e.message || "保存失败"); }).finally(function () { saving[1](false); });
   }
 
   return h(DialogShell, { open: true, onClose: props.onClose, title: "运行设置", variant: "drawer" },
     h("form", { className: "flex-1 min-h-0 px-6 pt-4 pb-0 overflow-y-auto", style: { overscrollBehaviorY: "contain" }, onSubmit: handleSave },
       saveError[0] && h("div", { className: "p-3 mb-4 rounded-lg bg-aq-red-soft text-sm text-aq-red" }, saveError[0]),
+      saveSuccess[0] && h("div", { className: "p-3 mb-4 rounded-lg bg-aq-green-soft text-sm text-aq-green" }, "设置已保存"),
 
       h(Section, { title: "执行限制" },
         h("div", { className: "grid grid-cols-2 gap-3" },
@@ -507,7 +521,7 @@ function CronField(props) {
         (props.presets || []).map(function (p) { return h("option", { key: p.value, value: p.value }, p.label); })
       ),
       h("input", {
-        value: custom ? props.value : "",
+        value: props.value || "",
         onChange: function (e) { props.onChange(e.target.value); },
         placeholder: props.placeholder,
         disabled: !custom,
@@ -564,6 +578,7 @@ export function TemplateManager(props) {
   var form = React.useState({ name: "", description: "", category: "", suggestedCron: "", suggestedDeadline: "", suggestedPriority: "", body: "" });
   var saving = React.useState(false);
   var saveError = React.useState("");
+  var confirmDelete = React.useState(null);
 
   function load() {
     loading[1](true); error[1]("");
@@ -605,57 +620,72 @@ export function TemplateManager(props) {
   }
 
   function handleDelete(name) {
-    if (!confirm("确认删除模板 \"" + name + "\"？此操作不可恢复。")) return;
+    confirmDelete[1]({ name: name });
+  }
+
+  function doDelete() {
+    var name = confirmDelete[0].name;
+    confirmDelete[1](null);
     transport.deleteTemplate(name).then(load).catch(function (err) { error[1](err.message || "删除失败"); });
   }
 
-  return h(DialogShell, { open: true, onClose: props.onClose, title: "模板管理", variant: "drawer" },
-    h("div", { className: "flex flex-col h-full" },
-      editing[0] !== null
-        ? h("form", { className: "flex-1 overflow-y-auto px-6 py-4", style: { overscrollBehaviorY: "contain" }, onSubmit: handleSave },
-            saveError[0] && h("div", { className: "p-3 mb-4 rounded-lg bg-aq-red-soft text-sm text-aq-red" }, saveError[0]),
-            h(Field, { label: "模板名称" }, h("input", { value: form[0].name, onChange: function (e) { form[1](Object.assign({}, form[0], { name: e.target.value })); }, className: "aq-input" })),
-            h("div", { className: "grid grid-cols-2 gap-3 mt-3" },
-              h(Field, { label: "分类" }, h("input", { value: form[0].category, onChange: function (e) { form[1](Object.assign({}, form[0], { category: e.target.value })); }, placeholder: "日常", className: "aq-input" })),
-              h(Field, { label: "描述" }, h("input", { value: form[0].description, onChange: function (e) { form[1](Object.assign({}, form[0], { description: e.target.value })); }, className: "aq-input" }))
-            ),
-            h("div", { className: "grid grid-cols-3 gap-3 mt-3" },
-              h(Field, { label: "推荐 cron", help: "可选，如 0 18 * * 1-5" }, h("input", { value: form[0].suggestedCron, onChange: function (e) { form[1](Object.assign({}, form[0], { suggestedCron: e.target.value })); }, placeholder: "0 9 * * 1", className: "aq-input" })),
-              h(Field, { label: "推荐 deadline", help: "可选" }, h("input", { value: form[0].suggestedDeadline, onChange: function (e) { form[1](Object.assign({}, form[0], { suggestedDeadline: e.target.value })); }, placeholder: "0 21 * * *", className: "aq-input" })),
-              h(Field, { label: "推荐优先级", help: "可选，1-10" }, h("input", { value: form[0].suggestedPriority, onChange: function (e) { form[1](Object.assign({}, form[0], { suggestedPriority: e.target.value })); }, placeholder: "5", className: "aq-input" }))
-            ),
-            h("div", { className: "mt-3" },
-              h("label", { className: "block text-sm font-semibold text-aq-ink-2 mb-1.5" }, "模板内容（Markdown）"),
-              h("textarea", { value: form[0].body, onChange: function (e) { form[1](Object.assign({}, form[0], { body: e.target.value })); }, className: "w-full h-48 p-3 rounded-xl border border-aq-line-2 bg-aq-paper text-sm text-aq-ink resize-y focus:border-aq-blue focus:ring-2 focus:ring-aq-blue/10 outline-none font-mono" })
-            ),
-            h("p", { className: "text-xs text-aq-faint mt-1" }, "模板为即用型纯文案，选择后直接填入任务内容。"),
-            h("div", { className: "flex justify-end gap-3 mt-4 pt-4 border-t border-aq-line" },
-              h("button", { type: "button", className: "aq-btn aq-btn-ghost", onClick: function () { editing[1](null); }, disabled: saving[0] }, "取消"),
-              h("button", { type: "submit", className: "aq-btn aq-btn-primary", disabled: saving[0] }, saving[0] ? "保存中…" : "保存")
+  return [
+    h(DialogShell, { open: true, onClose: props.onClose, title: "模板管理", variant: "drawer" },
+      h("div", { className: "flex flex-col h-full" },
+        editing[0] !== null
+          ? h("form", { className: "flex-1 overflow-y-auto px-6 py-4", style: { overscrollBehaviorY: "contain" }, onSubmit: handleSave },
+              saveError[0] && h("div", { className: "p-3 mb-4 rounded-lg bg-aq-red-soft text-sm text-aq-red" }, saveError[0]),
+              h(Field, { label: "模板名称" }, h("input", { value: form[0].name, onChange: function (e) { form[1](Object.assign({}, form[0], { name: e.target.value })); }, className: "aq-input" })),
+              h("div", { className: "grid grid-cols-2 gap-3 mt-3" },
+                h(Field, { label: "分类" }, h("input", { value: form[0].category, onChange: function (e) { form[1](Object.assign({}, form[0], { category: e.target.value })); }, placeholder: "日常", className: "aq-input" })),
+                h(Field, { label: "描述" }, h("input", { value: form[0].description, onChange: function (e) { form[1](Object.assign({}, form[0], { description: e.target.value })); }, className: "aq-input" }))
+              ),
+              h("div", { className: "grid grid-cols-3 gap-3 mt-3" },
+                h(Field, { label: "推荐 cron", help: "可选，如 0 18 * * 1-5" }, h("input", { value: form[0].suggestedCron, onChange: function (e) { form[1](Object.assign({}, form[0], { suggestedCron: e.target.value })); }, placeholder: "0 9 * * 1", className: "aq-input" })),
+                h(Field, { label: "推荐 deadline", help: "可选" }, h("input", { value: form[0].suggestedDeadline, onChange: function (e) { form[1](Object.assign({}, form[0], { suggestedDeadline: e.target.value })); }, placeholder: "0 21 * * *", className: "aq-input" })),
+                h(Field, { label: "推荐优先级", help: "可选，1-10" }, h("input", { value: form[0].suggestedPriority, onChange: function (e) { form[1](Object.assign({}, form[0], { suggestedPriority: e.target.value })); }, placeholder: "5", className: "aq-input" }))
+              ),
+              h("div", { className: "mt-3" },
+                h("label", { className: "block text-sm font-semibold text-aq-ink-2 mb-1.5" }, "模板内容（Markdown）"),
+                h("textarea", { value: form[0].body, onChange: function (e) { form[1](Object.assign({}, form[0], { body: e.target.value })); }, className: "w-full h-48 p-3 rounded-xl border border-aq-line-2 bg-aq-paper text-sm text-aq-ink resize-y focus:border-aq-blue focus:ring-2 focus:ring-aq-blue/10 outline-none font-mono" })
+              ),
+              h("p", { className: "text-xs text-aq-faint mt-1" }, "模板为即用型纯文案，选择后直接填入任务内容。"),
+              h("div", { className: "flex justify-end gap-3 mt-4 pt-4 border-t border-aq-line" },
+                h("button", { type: "button", className: "aq-btn aq-btn-ghost", onClick: function () { editing[1](null); }, disabled: saving[0] }, "取消"),
+                h("button", { type: "submit", className: "aq-btn aq-btn-primary", disabled: saving[0] }, saving[0] ? "保存中…" : "保存")
+              )
             )
-          )
-        : h("div", { className: "flex-1 overflow-y-auto px-6 py-4", style: { overscrollBehaviorY: "contain" } },
-            h("div", { className: "flex items-center justify-between mb-4" },
-              h("span", { className: "text-sm font-semibold text-aq-ink" }, "模板列表"),
-              h("button", { className: "aq-btn aq-btn-primary text-xs h-7", onClick: function () { startEdit(null); } }, "新建模板")
-            ),
-            loading[0] && h("div", { className: "text-center py-8 text-sm text-aq-muted" }, "加载中…"),
-            error[0] && h("div", { className: "p-3 rounded-lg bg-aq-red-soft text-sm text-aq-red mb-3" }, error[0]),
-            !loading[0] && !templates[0].length && h("p", { className: "text-sm text-aq-muted py-4" }, "暂无模板"),
-            templates[0].map(function (tpl) {
-              return h("div", { key: tpl.name, className: "flex items-center justify-between py-3 border-b border-aq-line last:border-b-0" },
-                h("div", { className: "flex-1 min-w-0" },
-                  h("div", { className: "text-sm font-semibold text-aq-ink" }, tpl.name),
-                  h("div", { className: "text-xs text-aq-faint mt-0.5" }, tpl.description || "暂无描述"),
-                  tpl.category && h("span", { className: "inline-block mt-1 text-xs text-aq-muted bg-aq-surface-alt px-1.5 py-0.5 rounded" }, tpl.category)
-                ),
-                h("div", { className: "flex items-center gap-1 flex-shrink-0 ml-3" },
-                  h("button", { className: "aq-btn aq-btn-ghost h-6 px-2 text-xs", onClick: function () { startEdit(tpl); } }, "编辑"),
-                  h("button", { className: "aq-btn aq-btn-ghost h-6 px-2 text-xs text-aq-red", onClick: function () { handleDelete(tpl.name); } }, "删除")
-                )
-              );
-            })
-          )
-    )
-  );
+          : h("div", { className: "flex-1 overflow-y-auto px-6 py-4", style: { overscrollBehaviorY: "contain" } },
+              h("div", { className: "flex items-center justify-between mb-4" },
+                h("span", { className: "text-sm font-semibold text-aq-ink" }, "模板列表"),
+                h("button", { className: "aq-btn aq-btn-primary text-xs h-7", onClick: function () { startEdit(null); } }, "新建模板")
+              ),
+              loading[0] && h("div", { className: "text-center py-8 text-sm text-aq-muted" }, "加载中…"),
+              error[0] && h("div", { className: "p-3 rounded-lg bg-aq-red-soft text-sm text-aq-red mb-3" }, error[0]),
+              !loading[0] && !templates[0].length && h("p", { className: "text-sm text-aq-muted py-4" }, "暂无模板"),
+              templates[0].map(function (tpl) {
+                return h("div", { key: tpl.name, className: "flex items-center justify-between py-3 border-b border-aq-line last:border-b-0" },
+                  h("div", { className: "flex-1 min-w-0" },
+                    h("div", { className: "text-sm font-semibold text-aq-ink" }, tpl.name),
+                    h("div", { className: "text-xs text-aq-faint mt-0.5" }, tpl.description || "暂无描述"),
+                    tpl.category && h("span", { className: "inline-block mt-1 text-xs text-aq-muted bg-aq-surface-alt px-1.5 py-0.5 rounded" }, tpl.category)
+                  ),
+                  h("div", { className: "flex items-center gap-1 flex-shrink-0 ml-3" },
+                    h("button", { className: "aq-btn aq-btn-ghost h-6 px-2 text-xs", onClick: function () { startEdit(tpl); } }, "编辑"),
+                    h("button", { className: "aq-btn aq-btn-ghost h-6 px-2 text-xs text-aq-red", onClick: function () { handleDelete(tpl.name); } }, "删除")
+                  )
+                );
+              })
+            )
+      )
+    ),
+    confirmDelete[0] && h(ConfirmModal, {
+      title: "删除模板",
+      message: '确认删除模板 "' + confirmDelete[0].name + '"？此操作不可恢复。',
+      confirmLabel: "删除",
+      tone: "danger",
+      onConfirm: doDelete,
+      onCancel: function () { confirmDelete[1](null); }
+    })
+  ];
 }

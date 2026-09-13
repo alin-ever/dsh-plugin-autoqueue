@@ -4,7 +4,7 @@
 
 autoqueue 是 DSH 的无人值守任务队列插件。丢 .md 文件进收件箱 → AI 自动执行 → 产出报告。
 
-当前实现与安全结论的精确基线是 `@deepseek-ai/dsh 0.1.1-rc.2`。清单允许 `>=0.1.1-rc.2 <0.1.2`，但升级 Host 后必须重新验证 session/goal/approval 隔离语义。
+当前实现与安全结论的精确基线是 `@deepseek-ai/dsh 0.1.5-rc.1`。清单允许 `>=0.1.1-rc.2 <0.1.6`，但升级 Host 后必须重新验证 session/goal/approval 隔离语义。
 
 ## 文档索引（先读这些，别翻源码）
 

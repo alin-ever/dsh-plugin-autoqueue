@@ -12,14 +12,42 @@ export function DialogShell(props) {
   var width = SIZE_MAP[size] || 1116;
   var height = HEIGHT_MAP[size] || "640px";
 
-  // ESC 关闭
+  // ESC 关闭 + 焦点锁定
   React.useEffect(function () {
-    function onKey(e) {
+    function onEsc(e) {
       if (e.key === "Escape") props.onClose();
     }
-    document.addEventListener("keydown", onKey);
-    return function () { document.removeEventListener("keydown", onKey); };
+    document.addEventListener("keydown", onEsc);
+    return function () { document.removeEventListener("keydown", onEsc); };
   }, [props.onClose]);
+
+  React.useEffect(function () {
+    var panel = document.querySelector('[data-aq-dialog-panel="true"]');
+    if (!panel) return;
+    var focusables = Array.from(panel.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')).filter(function (el) {
+      return !el.disabled && el.offsetParent !== null;
+    });
+    var previous = document.activeElement;
+    if (focusables[0]) focusables[0].focus();
+
+    function onTab(e) {
+      if (e.key !== "Tab" || focusables.length === 0) return;
+      var first = focusables[0];
+      var last = focusables[focusables.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+    panel.addEventListener("keydown", onTab);
+    return function () {
+      panel.removeEventListener("keydown", onTab);
+      if (previous && previous.focus) previous.focus();
+    };
+  }, []);
 
   return h("div", { style: { position: "relative", zIndex: 100 } },
     // Backdrop
@@ -34,6 +62,7 @@ export function DialogShell(props) {
       style: { zIndex: 101, overscrollBehaviorY: "contain" }
     },
       h("div", {
+        "data-aq-dialog-panel": "true",
         className: (isDrawer
           ? "h-full w-[min(1056px,94vw)] bg-aq-paper shadow-2xl flex flex-col"
           : "rounded-2xl bg-aq-paper shadow-2xl border border-aq-line flex flex-col overflow-hidden"
