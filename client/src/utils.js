@@ -4,7 +4,8 @@ export var STATUS_CONFIG = {
   done: { label: "已完成", color: "#067647" },
   failed: { label: "已失败", color: "#b42318" },
   stopped: { label: "已停止", color: "#9a6700" },
-  interrupted: { label: "已中断", color: "#7a5af8" }
+  interrupted: { label: "已中断", color: "#7a5af8" },
+  archived: { label: "已归档", color: "#667085" }
 };
 
 export var CRON_PRESETS = [

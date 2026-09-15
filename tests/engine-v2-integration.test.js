@@ -146,11 +146,10 @@ test("getConfig / setConfig", () => {
   assert.equal(engine.getConfig().maxGoalRounds, 40);
   assert.equal(engine.getConfig().maxAttempts, 3);
 
-  engine.setConfig({ maxGoalRounds: 50, maxAttempts: 5, autoArchive: false });
+  engine.setConfig({ maxGoalRounds: 50, maxAttempts: 5 });
 
   assert.equal(engine.getConfig().maxGoalRounds, 50);
   assert.equal(engine.getConfig().maxAttempts, 5);
-  assert.equal(engine.getConfig().autoArchive, false);
 
   // 隔离覆盖被拒绝（仅 workspace 和 agentPreset）
   assert.throws(() => engine.setConfig({ workspace: "custom" }));
@@ -271,6 +270,45 @@ test("applyAction set-concurrency", async () => {
 
   const result = await engine.applyAction(null, "set-concurrency", null, { maxConcurrent: 3 });
   assert.equal(result.ok, true);
+
+  engine.dispose();
+});
+
+test("scanPending 能发现文件已被删除的 pending cron 任务", async () => {
+  freshQueue();
+  const engine = createEngine({ sessions: {}, goals: {} }, {});
+
+  makeTask("cron-no-file", "# cron 测试", { cron: "*/3 * * * *" });
+
+  // 删除文件，模拟首次 dispatch 后的状态
+  const taskPath = join(getTasksDir(), "cron-no-file.md");
+  assert.equal(existsSync(taskPath), true);
+  rmSync(taskPath);
+  assert.equal(existsSync(taskPath), false);
+
+  // 设置任务为 pending 且 nextRunAt 已过期
+  const entry = findByKey("cron-no-file");
+  upsertEntry("cron-no-file", {
+    status: "pending",
+    nextRunAt: Date.now() - 1000, // 已过期
+    _generation: entry._generation,
+  });
+  flushLedger();
+
+  // mock _dispatch 以验证被调用
+  let dispatchCalled = false;
+  const originalDispatch = engine._dispatch.bind(engine);
+  engine._dispatch = async (task, held) => {
+    if (task.key === "cron-no-file") dispatchCalled = true;
+    // 不真正调用 original，避免 runner 错误
+    return;
+  };
+
+  const result = await engine.scanPending();
+
+  engine._dispatch = originalDispatch;
+
+  assert.equal(dispatchCalled, true, "scanPending 应发现无文件的 cron 任务并尝试 dispatch");
 
   engine.dispose();
 });

@@ -14,12 +14,12 @@ autoqueue 不是普通会话的全局自动化开关。每次执行都遵守以�
 
 1. 每次 attempt 先在账本中持久化一个 `autoqueue-session-<uuid>` 专属会话 ID；runner 拒绝读取或修改不属于该命名空间的会话。
 2. 每次 attempt 使用独立运行目录，并通过 `sessions.create({ sessionId, cwd, ... })` 把 cwd 绑定到该会话；不会创建、选择或切换 Host 全局工作区。
-3. 执行模式只由引擎在两个插件自有、带版本号的 preset 中选择：`autoqueue-unattended-v2` 与 `autoqueue-ptc-unattended-v2`。v1 内容保留且绝不覆盖，但不再被新执行选择。v2 要求 `[autoqueue:unattended-discipline:v2]` 完整匹配，并禁用提问、jobs、subagent/fork/control/list、workflow、Ralph；bash/pwsh 强制 `enableRunInBackground:false`，禁止 detached/daemon/background 工作逃离 owned session。已有 v2 若 marker 缺失或内容被改动，插件启动失败，不覆盖外部内容。
+3. 执行模式只由引擎在插件自有、带版本号的 preset 中选择：`autoqueue-unattended-v2`。v1 内容保留且绝不覆盖，但不再被新执行选择。v2 要求 `[autoqueue:unattended-discipline:v2]` 完整匹配，并禁用提问、jobs、subagent/fork/control/list、workflow、Ralph；bash/pwsh 强制 `enableRunInBackground:false`，禁止 detached/daemon/background 工作逃离 owned session。已有 v2 若 marker 缺失或内容被改动，插件启动失败，不覆盖外部内容。
 4. 会话创建后、`goals.create` 前，插件把该专属会话的 `approvalPolicy` 固化为 `never`，持久化并回读验证。失败时不投递 goal，并尝试取消该会话。
 5. 任务正文只通过一次完整的 `goals.create.objective` 入场。不会调用 `workspace.create`、不会调用 `session.selectModel`，也不会再发送一条重复的初始 queue prompt。
 6. DSH 原生 `agent/status`、owned `goal/changed` 与 `session/disposed` 事件只负责唤醒权威对账；每轮仍读取 `sessions.list` / history。存在活跃普通会话或列表不可信时拒绝新派发，运行中的 owned goal 先持久 pause、再暂停并协作取消 turn；连续两次可信空闲后才无 prompt 恢复。
 7. 手动停止、deadline、超时和清理先持久化取消意图。`sessions.cancel` 成功只代表 DSH 受理请求；ownership 会一直保留到受理之后连续两次权威 idle/缺席观察，再结算或重试。
-8. 默认最大并发为 `1`、终态自动归档开启、浏览器通知关闭。插件加载后会向普通 Host 会话自动注册 19 个 `autoqueue_*` 工具；它们不会自行执行或改变普通会话状态，且在 `autoqueue-session-*` 自有任务 Agent 中被隐藏并由执行 guard 拒绝。
+8. 默认最大并发为 `1`、终态自动归档关闭、浏览器通知关闭。插件加载后会向普通 Host 会话自动注册 19 个 `autoqueue_*` 工具；它们不会自行执行或改变普通会话状态，且在 `autoqueue-session-*` 自有任务 Agent 中被隐藏并由执行 guard 拒绝。
 
 DSH rc.2 的公开选择接口会持久化 Host 默认路由，因此任务和运行时配置都不能覆盖模型、工作区或任意 Agent preset。`GET /api/queue/options` 会明确返回三类空数组和隔离锁，而不是枚举 Host 状态。
 

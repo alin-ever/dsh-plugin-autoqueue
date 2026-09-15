@@ -5,7 +5,7 @@
 > @baseline: lib/engine-v2.js lib/runner.js lib/cancellation.js lib/lifecycle.js lib/state-machine.js @ 2026-09-08
 > 本文描述架构决策与"为什么"；实现细节以源码注释为准，本文不重复。
 
-实现、RPC 形状和安全结论的精确审计基线是 **`@deepseek-ai/dsh 0.1.1-rc.2`**。插件清单接受 `>=0.1.1-rc.2 <0.1.2`，但不同版本仍需重新验证 Host session、goal 与选择状态语义。
+实现、RPC 形状和安全结论的精确审计基线是 **`@deepseek-ai/dsh 0.1.5-rc.1`**。插件清单接受 `>=0.1.1-rc.2 <0.1.6`，但不同版本仍需重新验证 Host session、goal 与选择状态语义。
 
 ## 1. 产品目标
 

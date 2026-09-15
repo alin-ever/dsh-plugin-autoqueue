@@ -11,18 +11,22 @@ export function DialogShell(props) {
   var size = props.size || "lg";
   var width = SIZE_MAP[size] || 1116;
   var height = HEIGHT_MAP[size] || "640px";
+  var panelRef = React.useRef(null);
+  var onCloseRef = React.useRef(props.onClose);
+  React.useEffect(function () { onCloseRef.current = props.onClose; }, [props.onClose]);
 
-  // ESC 关闭 + 焦点锁定
+  // ESC 关闭
   React.useEffect(function () {
     function onEsc(e) {
-      if (e.key === "Escape") props.onClose();
+      if (e.key === "Escape") onCloseRef.current();
     }
     document.addEventListener("keydown", onEsc);
     return function () { document.removeEventListener("keydown", onEsc); };
-  }, [props.onClose]);
+  }, []);
 
+  // 焦点锁定：使用 panelRef 精确锁定当前 dialog，避免全局 querySelector 选错
   React.useEffect(function () {
-    var panel = document.querySelector('[data-aq-dialog-panel="true"]');
+    var panel = panelRef.current;
     if (!panel) return;
     var focusables = Array.from(panel.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')).filter(function (el) {
       return !el.disabled && el.offsetParent !== null;
@@ -62,6 +66,7 @@ export function DialogShell(props) {
       style: { zIndex: 101, overscrollBehaviorY: "contain" }
     },
       h("div", {
+        ref: panelRef,
         "data-aq-dialog-panel": "true",
         className: (isDrawer
           ? "h-full w-[min(1056px,94vw)] bg-aq-paper shadow-2xl flex flex-col"

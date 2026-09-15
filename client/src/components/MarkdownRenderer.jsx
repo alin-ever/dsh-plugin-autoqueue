@@ -12,6 +12,8 @@ export function renderMarkdown(text) {
   var codeBlockLang = "";
   var inList = false;
   var listType = ""; // "ul" | "ol"
+  var inBlockquote = false;
+  var blockquoteLines = [];
 
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i];
@@ -90,8 +92,17 @@ export function renderMarkdown(text) {
     // 引用块
     var blockquoteMatch = line.match(/^>\s*(.*)/);
     if (blockquoteMatch) {
-      html += "<blockquote class='aq-mk-blockquote'><p>" + inlineMarkdown(blockquoteMatch[1]) + "</p></blockquote>\n";
+      if (!inBlockquote) {
+        inBlockquote = true;
+        blockquoteLines = [];
+      }
+      blockquoteLines.push(blockquoteMatch[1]);
       continue;
+    }
+    if (inBlockquote) {
+      html += "<blockquote class='aq-mk-blockquote'><p>" + inlineMarkdown(blockquoteLines.join("\n")) + "</p></blockquote>\n";
+      inBlockquote = false;
+      blockquoteLines = [];
     }
 
     // 普通段落
@@ -103,6 +114,9 @@ export function renderMarkdown(text) {
   }
   if (inList) {
     html += "</" + listType + ">\n";
+  }
+  if (inBlockquote) {
+    html += "<blockquote class='aq-mk-blockquote'><p>" + inlineMarkdown(blockquoteLines.join("\n")) + "</p></blockquote>\n";
   }
 
   return html;

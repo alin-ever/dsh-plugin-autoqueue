@@ -29,9 +29,8 @@ export function createController(transport) {
   var runtimeObservation = null;
   var sseDisposer = null;
   var disposed = false;
-  var prevStatuses = {};
+  var prevStates = {};
   var TERMINAL = { done: 1, failed: 1, stopped: 1, interrupted: 1 };
-  var disposed = false;
   var lifecycle = 0;
   var initPromise = null;
 
@@ -108,16 +107,22 @@ export function createController(transport) {
     if (notifyTransitions) {
       for (var i = 0; i < newTasks.length; i++) {
         var t = newTasks[i];
-        var prev = prevStatuses[t.key];
-        var notificationsEnabled = t.enableNotifications === true || (t.enableNotifications == null && effectiveConfig.enableNotifications === true);
-        if (prev !== undefined && prev !== t.status && (TERMINAL[t.status] || prev === "running" && t.status === "todo") && notificationsEnabled) {
+        var prevState = prevStates[t.key];
+        var notificationsEnabled = t.enableNotifications === true;
+        if (!notificationsEnabled || !prevState) continue;
+        var statusChanged = prevState.status !== t.status;
+        var terminalTransition = statusChanged && (TERMINAL[t.status] || prevState.status === "running" && t.status === "todo");
+        var notifyFirstTime = !statusChanged && TERMINAL[t.status] && prevState.enableNotifications !== true;
+        if (terminalTransition || notifyFirstTime) {
           var label = (STATUS_CONFIG[t.status] || {}).label || t.status;
-          try { if (typeof Notification !== "undefined" && Notification.permission === "granted") new Notification("autoqueue", { body: t.key + " → " + label, tag: t.key }); } catch (e) {}
+          try { if (typeof Notification !== "undefined" && Notification.permission === "granted") new Notification("autoqueue", { body: t.key + " \u2192 " + label, tag: t.key }); } catch (e) {}
         }
       }
     }
-    prevStatuses = {};
-    for (var j = 0; j < newTasks.length; j++) prevStatuses[newTasks[j].key] = newTasks[j].status;
+    prevStates = {};
+    for (var j = 0; j < newTasks.length; j++) {
+      prevStates[newTasks[j].key] = { status: newTasks[j].status, enableNotifications: newTasks[j].enableNotifications };
+    }
     tasks = newTasks;
     if (Number.isFinite(incomingRevision)) revision = incomingRevision;
     runtimeHealth = Object.assign({}, runtimeHealth, { revision: revision });
@@ -125,8 +130,8 @@ export function createController(transport) {
     mergeConfig(data.config);
     metrics = Object.assign(deriveMetrics(newTasks), data.metrics || {});
     error = null;
-    if (showDetail && !tasks.find(function (t) { return t.key === showDetail; })) { showDetail = null; error = "任务 \"" + showDetail + "\" 已被删除或移除"; }
-    if (showEdit && !tasks.find(function (t) { return t.key === showEdit; })) { showEdit = null; editTaskData = null; error = "任务 \"" + showEdit + "\" 已被删除或移除"; }
+    if (showDetail && !tasks.find(function (t) { return t.key === showDetail; })) { error = "任务 \"" + showDetail + "\" 已被删除或移除"; showDetail = null; }
+    if (showEdit && !tasks.find(function (t) { return t.key === showEdit; })) { error = "任务 \"" + showEdit + "\" 已被删除或移除"; showEdit = null; editTaskData = null; }
     return true;
   }
 
@@ -246,7 +251,6 @@ export function createController(transport) {
         maxGoalRounds: data.maxGoalRounds, maxBlockedResumes: data.maxBlockedResumes,
         timeoutMs: data.timeoutMs, maxAttempts: data.maxAttempts, webhook: data.webhook,
         provider: data.provider, model: data.model,
-        autoArchive: data.autoArchive, enableNotifications: data.enableNotifications
       });
       if (!result.ok) throw new Error(result.error || "创建失败");
       showNewTask = false;

@@ -102,18 +102,16 @@ export function Workstation(props) {
   return h("div", { className: "flex flex-col h-full overflow-hidden" },
     h(CompactHeader, {
       snap: snap, message: message[0],
-      onNewTask: function () { controller.openNewTask(); },
       onConfig: function () { controller.openConfig(); },
       onTemplates: function () { controller.openTemplates(); },
       onClose: function () { controller.closeBoard(); },
       onScan: function () { runAction("force-scan"); }
     }),
-    h(NavCategories, { snap: snap, onNav: function (v) { controller.setNavGroup(v); } }),
+    h(NavCategories, { snap: snap, onNav: function (v) { controller.setNavGroup(v); }, onNewTask: function () { controller.openNewTask(); } }),
     h(ConcurrencyBanner, { snap: snap }),
     h(CompactFilters, {
       snap: snap, query: query[0], onQuery: query[1],
-      onFilter: function (v) { controller.setFilter(v); },
-      onNewTask: function () { controller.openNewTask(); }
+      onFilter: function (v) { controller.setFilter(v); }
     }),
     selected[0].length > 0 && h("div", { className: "flex items-center gap-2 px-4 py-2 bg-aq-blue-soft border-b border-aq-blue/20" },
       h("span", { className: "text-xs font-semibold text-aq-blue mr-auto" }, "已选择 ", selected[0].length, " 个"),
@@ -126,6 +124,7 @@ export function Workstation(props) {
     }),
     snap.showDetail && snap.detailTask && h(TaskDetailPanel, {
       key: snap.detailTask.key, task: snap.detailTask, transport: transport, controller: controller, sessions: sessions,
+      config: snap.config,
       onClose: function () { controller.closeDetail(); },
       onActionRequest: function (kind, key) { controller.closeDetail(); handleAction(kind, key); },
       onUpdate: controller.updateTask
@@ -233,10 +232,18 @@ function NavCategories(props) {
         onClick: function () { props.onNav(c[0]); }
       }, c[1], c[2] > 0 ? h("span", { className: "ml-1 opacity-70" }, c[2]) : null);
     }),
-    done24h > 0 && h("span", { className: "ml-auto flex items-center gap-1.5 text-xs whitespace-nowrap" },
-      h("span", { className: "w-1.5 h-1.5 rounded-full bg-aq-green" }),
-      h("span", { className: "text-aq-faint" }, "24h完成"),
-      h("span", { className: "font-bold text-aq-green" }, done24h)
+    h("div", { className: "ml-auto flex items-center gap-3 flex-shrink-0" },
+      done24h > 0 && h("span", { className: "flex items-center gap-1.5 text-xs whitespace-nowrap" },
+        h("span", { className: "w-1.5 h-1.5 rounded-full bg-aq-green" }),
+        h("span", { className: "text-aq-faint" }, "24h完成"),
+        h("span", { className: "font-bold text-aq-green" }, done24h)
+      ),
+      h("button", {
+        className: "aq-btn aq-btn-primary flex-shrink-0",
+        style: { height: "26px", fontSize: "12px", padding: "0 10px" },
+        onClick: props.onNewTask,
+        dangerouslySetInnerHTML: { __html: iconHtml("plus") + " 新建" }
+      })
     )
   );
 }
@@ -273,13 +280,7 @@ function CompactFilters(props) {
           onClick: function () { props.onFilter(t[0]); }
         }, t[1], t[2] > 0 ? h("span", { className: "ml-1 opacity-60" }, t[2]) : null);
       })
-    ),
-    h("button", {
-      className: "aq-btn aq-btn-primary flex-shrink-0",
-      style: { height: "28px", fontSize: "12px", padding: "0 10px" },
-      onClick: props.onNewTask,
-      dangerouslySetInnerHTML: { __html: iconHtml("plus") + " 新建" }
-    })
+    )
   );
 }
 
@@ -298,11 +299,12 @@ function CompactTaskList(props) {
       h("button", { className: "aq-btn aq-btn-primary text-xs", onClick: function () { props.controller.openNewTask(); } }, "创建第一个任务")
     );
   }
+  var isArchivedView = props.snap.navGroup === "archived";
   var selectableCount = props.tasks.filter(function (t) { return t.status !== "running" && !t.archivedAt; }).length;
   return h("div", { className: "flex-1 overflow-y-auto overflow-x-hidden" },
     h("table", { className: "w-full table-fixed", style: { borderSpacing: "0" } },
       h("colgroup", null,
-        h("col", { style: { width: "40px" } }),
+        !isArchivedView && h("col", { style: { width: "40px" } }),
         h("col", null),
         h("col", { style: { width: "120px" } }),
         h("col", { style: { width: "76px" } }),
@@ -310,7 +312,7 @@ function CompactTaskList(props) {
       ),
       h("thead", null,
         h("tr", { className: "border-b border-aq-line bg-aq-surface-alt" },
-          h("th", { className: "pl-4 pr-2 py-1" },
+          !isArchivedView && h("th", { className: "pl-4 pr-2 py-1" },
             h(Checkbox, {
               checked: selectableCount > 0 && props.selected.length === selectableCount,
               indeterminate: props.selected.length > 0 && props.selected.length < selectableCount,
@@ -329,7 +331,7 @@ function CompactTaskList(props) {
           h("th", { className: "text-left py-1 pl-0 text-xs font-semibold text-aq-faint uppercase tracking-wide" }, "任务"),
           h("th", { className: "py-1 text-xs font-semibold text-aq-faint uppercase tracking-wide text-center" }, "调度"),
           h("th", { className: "pr-4 py-1 text-xs font-semibold text-aq-faint uppercase tracking-wide text-right" }, "状态"),
-          h("th", { className: "pr-4 py-1 text-xs font-semibold text-aq-faint uppercase tracking-wide text-right" }, "操作")
+          h("th", { className: "pr-4 py-1 text-xs font-semibold text-aq-faint uppercase tracking-wide text-center" }, "操作")
         )
       ),
       h("tbody", { className: "divide-y divide-aq-line" },
@@ -340,7 +342,8 @@ function CompactTaskList(props) {
             onSelect: props.onSelect, onAction: props.onAction,
             onDetail: function (k) { props.controller.openDetail(k); },
             onEdit: function (k) { props.controller.openEdit(k); },
-            onSession: function (sid) { props.controller.closeBoard(); props.sessions.open(sid); }
+            onSession: function (sid) { props.controller.closeBoard(); props.sessions.open(sid); },
+            hideCheckbox: isArchivedView
           });
         })
       )
@@ -384,7 +387,7 @@ function TaskRow(props) {
       (unread ? " border-l-2 border-l-aq-blue" : ""),
     onClick: openRow
   },
-    task.archivedAt
+    !props.hideCheckbox && (task.archivedAt
       ? h("td", { className: "pl-4 pr-2 py-2.5 align-middle" })
       : h("td", { className: "pl-4 pr-2 py-2.5 align-middle", onClick: function (e) { e.stopPropagation(); } },
         h(Checkbox, { checked: props.selected, disabled: !selectable, onChange: function () { props.onSelect(task.key); },
@@ -397,7 +400,7 @@ function TaskRow(props) {
             )
           )
         )
-      ),
+      )),
     h("td", { className: "py-2.5 align-middle overflow-hidden", style: { fontSize: "13px", minWidth: "120px" } },
       h("div", { className: "flex items-center gap-1.5 min-w-0" },
         h("span", { className: "flex-shrink-0 w-1.5 h-1.5 rounded-full " + (unread ? "bg-aq-blue" : "bg-transparent"), title: unread ? "未读" : undefined }),
@@ -418,13 +421,13 @@ function TaskRow(props) {
       )
     ),
     h("td", { className: "py-2.5 pr-4 align-middle", style: { fontSize: "12px" } },
-      h("div", { className: "flex items-center gap-1 flex-wrap justify-end" },
-        task.status === "running" && task.stopPending !== true && !task.archivedAt && h("button", { style: actionBtnStyle, className: "hover:bg-aq-red-soft", onClick: function (e) { e.stopPropagation(); props.onAction("stop", task.key); } }, "停止"),
-        task.status === "pending" && !task.archivedAt && h("button", { style: actionBtnStyle, className: "hover:bg-aq-surface-alt", onClick: function (e) { e.stopPropagation(); props.onEdit(task.key); } }, "编辑"),
+      h("div", { className: "flex items-center gap-1 flex-wrap justify-center" },
+        (task.status === "running" || (task.status === "pending" && (task.cron || task.schedule))) && task.stopPending !== true && !task.archivedAt && h("button", { style: actionBtnStyle, className: "hover:bg-aq-red-soft", onClick: function (e) { e.stopPropagation(); props.onAction("stop", task.key); } }, "停止"),
+        ["pending", "stopped"].indexOf(task.status) >= 0 && !task.archivedAt && h("button", { style: actionBtnStyle, className: "hover:bg-aq-surface-alt", onClick: function (e) { e.stopPropagation(); props.onEdit(task.key); } }, "编辑"),
         ["done", "failed", "stopped", "interrupted"].indexOf(task.status) >= 0 && !task.archivedAt && h("button", { style: Object.assign({}, actionBtnStyle, { color: "var(--aq-green, #067647)" }), className: "hover:bg-aq-green-soft", onClick: function (e) { e.stopPropagation(); props.onAction("rerun", task.key); } }, "重跑"),
         ["done", "failed", "stopped", "interrupted"].indexOf(task.status) >= 0 && !task.archivedAt && h("button", { style: actionBtnStyle, className: "hover:bg-aq-surface-alt", onClick: function (e) { e.stopPropagation(); props.onAction("archive", task.key); } }, "归档"),
         task.archivedAt && h("button", { style: actionBtnStyle, className: "hover:bg-aq-surface-alt", onClick: function (e) { e.stopPropagation(); props.onAction("restore", task.key); } }, "还原"),
-        sessionId && h("button", { style: actionBtnStyle, className: "hover:bg-aq-surface-alt", onClick: function (e) { e.stopPropagation(); if (props.onSession) props.onSession(sessionId); } }, "会话")
+        sessionId && !task.archivedAt && h("button", { style: actionBtnStyle, className: "hover:bg-aq-surface-alt", onClick: function (e) { e.stopPropagation(); if (props.onSession) props.onSession(sessionId); } }, "会话")
       )
     )
   );

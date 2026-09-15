@@ -1,6 +1,6 @@
 # autoqueue HTTP API
 
-业务 API 位于 `/api/queue/*`，机器发现 API 位于 `/api/autoqueue/*`。本文按 **`@deepseek-ai/dsh 0.1.1-rc.2`** 精确基线验证；插件清单的运行范围是 `>=0.1.1-rc.2 <0.1.2`，但其他 DSH 版本需要重新验证隔离语义。
+业务 API 位于 `/api/queue/*`，机器发现 API 位于 `/api/autoqueue/*`。本文按 **`@deepseek-ai/dsh 0.1.5-rc.1`** 精确基线验证；插件清单的运行范围是 `>=0.1.1-rc.2 <0.1.6`，但其他 DSH 版本需要重新验证隔离语义。
 
 ## 0. 安全边界
 
@@ -501,7 +501,7 @@ data: {"revision":42,"tasks":[...],"config":{...},"runtime":{...}}
 
 ## 13. Host AI 工具（自动注入）
 
-启动配置 `enableHostAiTools` 默认是 `true`。插件加载后向普通 DSH 会话注册以下 18 个 HTTP 薄客户端工具；需要保持原始 tool catalog 的部署可显式设置为 `false`。`autoqueue-session-*` 自有任务 Agent 会隐藏这些工具，执行 guard 也会拒绝其通过 Host 工具递归控制队列：
+启动配置 `enableHostAiTools` 默认是 `true`。插件加载后向普通 DSH 会话注册以下 19 个 HTTP 薄客户端工具；需要保持原始 tool catalog 的部署可显式设置为 `false`。`autoqueue-session-*` 自有任务 Agent 会隐藏这些工具，执行 guard 也会拒绝其通过 Host 工具递归控制队列：
 
 工具默认访问 `http://127.0.0.1:3080`。若当前 DSH Web 不在该地址，启动配置必须提供正确的 `baseUrl`。
 
@@ -527,6 +527,7 @@ data: {"revision":42,"tasks":[...],"config":{...},"runtime":{...}}
 | `autoqueue_set_concurrency` | 设置 1-8 并发 |
 | `autoqueue_list_templates` | 列出可用任务模板 |
 | `autoqueue_get_template` | 获取模板详情和推荐调度配置 |
+| `autoqueue_guard_session` | 开启普通会话守护（反阻塞、空转检测） |
 
 工具全部通过 HTTP API，不绕过 HTTP 校验直接访问 engine/ledger，也不会暴露 token。外部 AI 不依赖这组 Host 工具；即使关闭自动注入，HTTP API 仍保持可用。
 

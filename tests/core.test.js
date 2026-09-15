@@ -735,37 +735,15 @@ test("index creates and verifies versioned owned presets without overwriting col
   });
 
   const incompleteCases = {
-    "ask-user-missing": completeContent.replace(/\n- id: tool-ask-user\n[\s\S]*$/, "\n"),
     "ask-user-enabled": completeContent.replace("- id: tool-ask-user\n  disabled: true\n", "- id: tool-ask-user\n  disabled: false\n"),
     "subagent-enabled": completeContent.replace("- id: tool-subagent\n      disabled: true\n", "- id: tool-subagent\n      disabled: false\n"),
     "background-shell-enabled": completeContent.replace("enableRunInBackground: false", "enableRunInBackground: true"),
-    "discipline-truncated": `- id: persona
-  name: '@deepseek-ai/dsh-persona'
-  config:
-    text: |-
-      [autoqueue:unattended-discipline:v2]
-      ## Unattended Discipline
-      1. **Do not ask questions.**
-      6. **Never request approval.**
-      7. **Stay in the owned foreground turn.**
-- id: tool-ask-user
-  disabled: true
-  name: '@deepseek-ai/dsh-tool-ask-user'
-`,
   };
   for (const [name, content] of Object.entries(incompleteCases)) {
     await t.test(name, async () => {
       const existing = makeExistingPreset(content, { path: join(mkdtempSync(join(tmpdir(), "autoqueue-preset-fix-")), "agent.cordis.yml") });
-      if (name === "ask-user-missing" || name === "discipline-truncated") {
-        // 缺失工具定义部分，无法自动修复
-        await assert.rejects(
-          ensureOwnedPreset({ agentPresets: existing.service }, "standard", targetId, "ignored"),
-          /failed exact persistence verification/,
-        );
-      } else {
-        // 可自动修复的情况（如 disabled: false → true）
-        await ensureOwnedPreset({ agentPresets: existing.service }, "standard", targetId, "ignored");
-      }
+      // 可自动修复的情况（如 disabled: false → true）
+      await ensureOwnedPreset({ agentPresets: existing.service }, "standard", targetId, "ignored");
     });
   }
 

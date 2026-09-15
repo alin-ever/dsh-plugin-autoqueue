@@ -91,21 +91,21 @@ export function TaskDetailPanel(props) {
           h(TabPanel, null,
             loading[0] ? h(LoadingView) :
             detailError[0] ? h(ErrorView, { error: detailError[0], onRetry: function () { retry[1](retry[0] + 1); } }) :
-            h(PolicyTab, { task: value, onUpdate: props.onUpdate })
+            h(PolicyTab, { task: value, config: props.config, onUpdate: props.onUpdate })
           )
         )
       ),
 
       // 底部操作栏
       h("div", { className: "flex-shrink-0 flex flex-wrap gap-2 px-6 py-3 border-t border-aq-line bg-aq-paper" },
-        value.status === "pending" && h("button", { className: "aq-btn aq-btn-ghost text-sm", onClick: function () { props.onClose(); controller.openEdit(value.key); } }, "编辑"),
+        ["pending", "stopped"].indexOf(value.status) >= 0 && h("button", { className: "aq-btn aq-btn-ghost text-sm", onClick: function () { props.onClose(); controller.openEdit(value.key); } }, "编辑"),
+        (value.status === "running" || (value.status === "pending" && (value.cron || value.schedule))) && value.stopPending !== true && h("button", { className: "aq-btn aq-btn-ghost text-sm text-aq-red", onClick: function () { requestAction("stop"); }, disabled: value.stopPending === true }, "停止"),
         ["pending", "failed", "stopped", "interrupted"].indexOf(value.status) >= 0 && h("button", { className: "aq-btn aq-btn-ghost text-sm text-aq-red", onClick: function () { requestAction("delete"); } }, "删除"),
-        value.status === "running" && value.stopPending !== true && h("button", { className: "aq-btn aq-btn-ghost text-sm text-aq-red", onClick: function () { requestAction("stop"); }, disabled: value.stopPending === true }, "停止"),
         ["done", "failed", "stopped", "interrupted"].indexOf(value.status) >= 0 && !value.archivedAt && h("button", { className: "aq-btn aq-btn-ghost text-sm text-aq-green", onClick: function () { requestAction("rerun"); } }, "重新执行"),
-        value.status !== "running" && !value.archivedAt && h("button", { className: "aq-btn aq-btn-ghost text-sm", onClick: function () { doAction("archive"); } }, "归档"),
+        ["done", "failed", "stopped", "interrupted"].indexOf(value.status) >= 0 && !value.archivedAt && h("button", { className: "aq-btn aq-btn-ghost text-sm", onClick: function () { doAction("archive"); } }, "归档"),
         value.archivedAt && h("button", { className: "aq-btn aq-btn-ghost text-sm", onClick: function () { doAction("restore"); } }, "恢复"),
         h("span", { className: "flex-1" }),
-        sessionId && h("button", { className: "aq-btn aq-btn-primary text-sm", onClick: function () { props.onClose(); controller.closeBoard(); if (props.sessions && props.sessions.open) props.sessions.open(sessionId); }, dangerouslySetInnerHTML: { __html: iconHtml("external") + " 跳转会话" } })
+        sessionId && !value.archivedAt && h("button", { className: "aq-btn aq-btn-primary text-sm", onClick: function () { props.onClose(); controller.closeBoard(); if (props.sessions && props.sessions.open) props.sessions.open(sessionId); }, dangerouslySetInnerHTML: { __html: iconHtml("external") + " 跳转会话" } })
       )
     )
   );
@@ -361,35 +361,11 @@ function parseReportJSON(text) {
 
 function PolicyTab(props) {
   var task = props.task;
-  var updating = React.useState(false);
-  var effectiveAutoArchive = task.autoArchive === true || (task.autoArchive === undefined && config.autoArchive === true);
-  function toggleArchive() {
-    if (!props.onUpdate || updating[0]) return;
-    updating[1](true);
-    props.onUpdate(task.key, { autoArchive: !effectiveAutoArchive }).then(function () {
-      updating[1](false);
-    }).catch(function () {
-      updating[1](false);
-    });
-  }
   return h("div", { className: "space-y-4" },
     h(Section, { title: "调度" },
       h(Grid, null,
         h(Fact, { label: "定时调度", value: task.cron ? cronToHuman(task.cron) : "未设置" }),
-        h(Fact, { label: "截止窗口", value: task.deadline ? cronToHuman(task.deadline) : "未设置" }),
-        h("div", null,
-          h("span", { className: "block text-xs text-aq-faint mb-0.5" }, "自动归档"),
-          h("button", {
-            onClick: toggleArchive,
-            disabled: updating[0],
-            className: "inline-flex items-center gap-2 text-sm font-semibold " + (effectiveAutoArchive ? "text-aq-green" : "text-aq-muted") + " cursor-pointer disabled:opacity-40"
-          },
-            h("span", { className: "w-8 h-4 rounded-full relative transition-colors " + (effectiveAutoArchive ? "bg-aq-green" : "bg-aq-line") },
-              h("span", { className: "absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-transform " + (effectiveAutoArchive ? "translate-x-4" : "") })
-            ),
-            effectiveAutoArchive ? "开启" : "关闭"
-          )
-        )
+        h(Fact, { label: "截止窗口", value: task.deadline ? cronToHuman(task.deadline) : "未设置" })
       )
     ),
     h(Section, { title: "失败处理" },
@@ -398,7 +374,6 @@ function PolicyTab(props) {
         h(Fact, { label: "最多自动恢复", value: String(task.maxBlockedResumes ?? "继承默认") }),
         h(Fact, { label: "任务超时", value: task.timeoutMs ? Math.round(task.timeoutMs / 60000) + " 分钟" : "继承默认" }),
         h(Fact, { label: "最大尝试", value: String(task.maxAttempts || "继承默认") }),
-        h(Fact, { label: "浏览器通知", value: task.enableNotifications === true ? "开启" : (task.enableNotifications === false ? "静默" : "继承默认") }),
         h(Fact, { label: "Webhook", value: task.webhook || "未设置" })
       )
     ),

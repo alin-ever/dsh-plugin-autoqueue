@@ -82,33 +82,33 @@ export function createTransport() {
     capabilities: function () { return requestAt("/api/autoqueue/capabilities"); },
     getConfig: function () { return request("/config"); },
     setConfig: function (patch) {
-      return request("/config", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(patch) });
+      return request("/config", { method: "POST", headers: { "content-type": "application/json; charset=utf-8" }, body: JSON.stringify(patch) });
     },
     createTask: function (data) {
-      return request("/task", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(data) });
+      return request("/task", { method: "POST", headers: { "content-type": "application/json; charset=utf-8" }, body: JSON.stringify(data) });
     },
     action: function (kind, key, opts) {
       var action = Object.assign({}, opts || {}, { kind: kind });
       if (key !== undefined && key !== null) action.key = key;
       return request("/action", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json; charset=utf-8" },
         body: JSON.stringify({ requestId: randomUUID(), action: action })
       });
     },
     listTemplates: function () { return request("/templates"); },
     getTemplate: function (name) { return request("/templates?name=" + encodeURIComponent(name)); },
     createTemplate: function (data) {
-      return request("/templates", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(data) });
+      return request("/templates", { method: "POST", headers: { "content-type": "application/json; charset=utf-8" }, body: JSON.stringify(data) });
     },
     updateTemplate: function (name, data) {
-      return request("/templates?name=" + encodeURIComponent(name), { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(data) });
+      return request("/templates?name=" + encodeURIComponent(name), { method: "PUT", headers: { "content-type": "application/json; charset=utf-8" }, body: JSON.stringify(data) });
     },
     deleteTemplate: function (name) {
       return request("/templates?name=" + encodeURIComponent(name), { method: "DELETE" });
     },
     markRead: function (key, read) {
-      return request("/mark-read", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key: key, read: read !== false }) });
+      return request("/mark-read", { method: "POST", headers: { "content-type": "application/json; charset=utf-8" }, body: JSON.stringify({ key: key, read: read !== false }) });
     },
     subscribe: function (listener, healthListener) {
       var events = new EventSource(API_PREFIX + "/events?archived=1");

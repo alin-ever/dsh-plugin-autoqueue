@@ -1,6 +1,6 @@
 # autoqueue 核心层 API
 
-本文描述 `files`、`ledger`、`runner`、`engine` 及 Host 装配边界。实现和测试逐项对照的精确基线是 **`@deepseek-ai/dsh 0.1.1-rc.2`**；清单虽允许 `>=0.1.1-rc.2 <0.1.2`，安全语义仍以 rc.2 为准。
+本文描述 `files`、`ledger`、`runner`、`engine` 及 Host 装配边界。实现和测试逐项对照的精确基线是 **`@deepseek-ai/dsh 0.1.5-rc.1`**；清单允许 `>=0.1.1-rc.2 <0.1.6`，安全语义仍以 rc.2 为准。
 
 ## 1. 模块边界
 
@@ -39,10 +39,7 @@ apiProxy.sessions.create({
 
 ### 2.3 Versioned owned presets
 
-引擎只能选择：
-
-- `autoqueue-unattended-v2`
-- `autoqueue-ptc-unattended-v2`
+引擎只能选择 `autoqueue-unattended-v2`。
 
 `ensureOwnedPreset()` 从 Host 内置来源复制首次版本，并注入 `[autoqueue:unattended-discipline:v2]` 与完整无人值守纪律。v2 的可收口约束是：
 
@@ -50,7 +47,7 @@ apiProxy.sessions.create({
 - `tool-bash` 与 `tool-pwsh` 必须配置 `enableRunInBackground: false`。
 - persona 明确禁止 detached、daemon、background-job、workflow、Ralph 和 child-agent 工作；命令必须在当前 owned foreground turn 内完成。
 
-原因是这些高扇出/后台工作不会继承 autoqueue owned session ID，Host 前台抢占时无法可靠 pause/cancel。已存在的 v2 只有在 marker、工具禁用、shell 配置和纪律都精确匹配时才接受；缺失或被修改会 fail closed。旧 v1 preset 保留在 Host 上且绝不覆盖，但 runner 的 allowlist 只接受 v2。
+原因是这些高扇出/后台工作不会继承 autoqueue owned session ID，Host 前台抢占时无法可靠 pause/cancel。已存在的 v2 只有在 marker、工具禁用、shell 配置和纪律都精确匹配时才接受；缺失或被修改会 fail closed。旧 v1 preset 保留在 Host 上且绝不覆盖，但 runner 的 allowlist 只接受 `autoqueue-unattended-v2`。
 
 ### 2.4 Approval policy before goal
 
