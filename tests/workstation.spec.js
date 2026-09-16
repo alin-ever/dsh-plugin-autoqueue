@@ -73,7 +73,7 @@ async function mockApi(page, setup = {}) {
       displayName: "任务队列",
       aliases: ["老登"],
       apiVersion: "1.0.0",
-      pluginVersion: "0.3.0",
+      pluginVersion: "0.4.1",
       dshCompatibility: ">=0.1.1-rc.2 <0.1.6",
       basePath: "/api/queue",
       openapi: "/api/autoqueue/openapi.json",
