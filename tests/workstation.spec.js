@@ -74,7 +74,7 @@ async function mockApi(page, setup = {}) {
       aliases: ["老登"],
       apiVersion: "1.0.0",
       pluginVersion: "0.3.0",
-      dshCompatibility: ">=0.1.1-rc.2 <0.1.2",
+      dshCompatibility: ">=0.1.1-rc.2 <0.1.6",
       basePath: "/api/queue",
       openapi: "/api/autoqueue/openapi.json",
       authentication: {
