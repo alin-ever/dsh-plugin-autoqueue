@@ -4,9 +4,9 @@
 
 ## 兼容基线
 
-- 本版本逐项审计和自测的精确基线是 **`@deepseek-ai/dsh 0.1.1-rc.2`**。
-- 插件清单接受 `>=0.1.1-rc.2 <0.1.2`，但升级 DSH 后仍应重新跑单元测试和 Playwright；本文的安全结论不自动外推到其他版本。
-- `@deepseek-ai/dsh-sandbox-policy`、`@deepseek-ai/dsh-tools` 与 `@deepseek-ai/dsh-user-approval` 固定为 `0.1.1-rc.2`。
+- 本版本逐项审计和自测的精确基线是 **`@deepseek-ai/dsh 0.1.5-rc.1`**。
+- 插件清单接受 `>=0.1.1-rc.2 <0.1.6`，但升级 DSH 后仍应重新跑单元测试和 Playwright；本文的安全结论不自动外推到其他版本。
+- `@deepseek-ai/dsh-sandbox-policy`、`@deepseek-ai/dsh-tools` 与 `@deepseek-ai/dsh-user-approval` 跟随 `dsh` 引擎版本范围。
 
 ## 无人值守安全边界
 
