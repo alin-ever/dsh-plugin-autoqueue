@@ -11,7 +11,7 @@
 - 普通前台会话活跃时暂停派发；`sessions.list` 调用失败或返回结构未知时同样按前台忙碌处理。已经运行的 owned goal 先持久化 pause intent，再 pause goal、取消当前 turn；只有连续两次可信空闲观察后才 resume。
 - 任务与配置请求均不能覆盖 Host 的模型、工作区或任意 Agent preset。未知字段会被拒绝。
 - 默认 `maxConcurrent=1`、`autoArchive=false`、`enableNotifications=false`。
-- Host 普通会话中的 18 个 AI 工具随插件自动注册，可用 `enableHostAiTools: false` 关闭；外部 AI 始终可以使用本 API。
+- Host 普通会话中的 20 个 AI 工具随插件自动注册，可用 `enableHostAiTools: false` 关闭；外部 AI 始终可以使用本 API。
 
 ## 1. 访问控制
 
