@@ -48,6 +48,55 @@ export function formatIso(iso) {
   return new Date(iso).toLocaleString("zh-CN", { hour12: false });
 }
 
+export function formatLocalDateTime(iso) {
+  if (!iso) return "";
+  var d = new Date(iso);
+  var m = String(d.getMonth() + 1).padStart(2, "0");
+  var day = String(d.getDate()).padStart(2, "0");
+  var h = String(d.getHours()).padStart(2, "0");
+  var min = String(d.getMinutes()).padStart(2, "0");
+  return m + "-" + day + " " + h + ":" + min;
+}
+
+var CRON_LIMITS = [[0, 59], [0, 23], [1, 31], [1, 12], [0, 7]];
+
+function validateCronField(field, min, max, label) {
+  if (!field || field.length > 64) throw new Error(label + " 字段无效");
+  var items = field.split(",");
+  for (var j = 0; j < items.length; j++) {
+    var item = items[j];
+    if (!item) throw new Error(label + " 列表包含空项");
+    if (item === "*") continue;
+    var stepMatch = item.match(/^\*\/(\d+)$/);
+    if (stepMatch) {
+      var n = Number(stepMatch[1]);
+      if (!Number.isSafeInteger(n) || n < 1 || n > (max - min + 1)) throw new Error(label + " 步长超出范围");
+      continue;
+    }
+    var rangeMatch = item.match(/^(\d+)-(\d+)$/);
+    if (rangeMatch) {
+      var a = Number(rangeMatch[1]);
+      var b = Number(rangeMatch[2]);
+      if (!Number.isSafeInteger(a) || !Number.isSafeInteger(b) || a < min || b > max || a > b) throw new Error(label + " 范围无效");
+      continue;
+    }
+    var num = Number(item);
+    if (!Number.isSafeInteger(num) || num < min || num > max) throw new Error(label + " 数值超出范围");
+  }
+}
+
+export function validateCronExpression(value, label) {
+  if (typeof value !== "string") throw new Error(label + " 必须是字符串");
+  var cron = value.trim();
+  if (!cron || cron.length > 128) throw new Error(label + " 长度无效");
+  var fields = cron.split(/\s+/);
+  if (fields.length !== 5) throw new Error(label + " 必须包含 5 个字段");
+  for (var i = 0; i < fields.length; i++) {
+    validateCronField(fields[i], CRON_LIMITS[i][0], CRON_LIMITS[i][1], label);
+  }
+  return fields.join(" ");
+}
+
 export function taskSummary(body) {
   if (!body) return "";
   var text = body;

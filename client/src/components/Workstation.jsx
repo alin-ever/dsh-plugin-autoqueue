@@ -1,5 +1,5 @@
 ﻿import { Checkbox, Field, Input } from "@headlessui/react";
-import { iconHtml, isUnread, taskSummary, cronToHuman, STATUS_CONFIG } from "../utils.js";
+import { iconHtml, isUnread, taskSummary, cronToHuman, STATUS_CONFIG, formatLocalDateTime } from "../utils.js";
 import { TaskDetailPanel } from "./TaskDetail.jsx";
 import { NewTaskModal, EditTaskModal, ConfigPanel, ConfirmModal, TemplateManager } from "./Modals.jsx";
 import { DialogShell } from "./DialogShell.jsx";
@@ -343,7 +343,7 @@ function CompactTaskList(props) {
               )
             )
           ),
-          h("th", { className: "text-left py-1 pl-0 text-xs font-semibold text-aq-faint uppercase tracking-wide" }, "任务"),
+          h("th", { className: "text-left py-1 " + (isArchivedView ? "pl-4" : "pl-0") + " text-xs font-semibold text-aq-faint uppercase tracking-wide" }, "任务"),
           h("th", { className: "py-1 text-xs font-semibold text-aq-faint uppercase tracking-wide text-center" }, "调度"),
           h("th", { className: "pr-4 py-1 text-xs font-semibold text-aq-faint uppercase tracking-wide text-right" }, "状态"),
           h("th", { className: "pr-4 py-1 text-xs font-semibold text-aq-faint uppercase tracking-wide text-center" }, "操作")
@@ -384,7 +384,7 @@ function TaskRow(props) {
   var unread = isUnread(task);
   var sessionId = task.sessionId || task.lastSessionId || (task.executions && task.executions.length ? task.executions[task.executions.length - 1].sessionId : null);
 
-  var plan = task.cron ? cronToHuman(task.cron) : "即时";
+  var plan = task.cron ? cronToHuman(task.cron) : (task.schedule ? formatLocalDateTime(task.schedule) : "即时");
   if (task.cron && task.attempts > 1) plan = plan + " · 第" + task.attempts + "次";
   var statusColor = task.stopPending ? "#9a6700" : (task.foregroundPaused ? "#27776e" : cfg.color);
   var statusLabel = task.stopPending ? "停止中" : (task.foregroundPaused ? "已暂停" : cfg.label);
@@ -416,7 +416,7 @@ function TaskRow(props) {
           )
         )
       )),
-    h("td", { className: "py-2.5 align-middle overflow-hidden", style: { fontSize: "13px", minWidth: "120px" } },
+    h("td", { className: "py-2.5 " + (props.hideCheckbox ? "pl-4" : "") + " align-middle overflow-hidden", style: { fontSize: "13px", minWidth: "120px" } },
       h("div", { className: "flex items-center gap-1.5 min-w-0" },
         h("span", { className: "flex-shrink-0 w-1.5 h-1.5 rounded-full " + (unread ? "bg-aq-blue" : "bg-transparent"), title: unread ? "未读" : undefined }),
         h("span", { className: "font-semibold text-aq-ink leading-snug flex-shrink-0", style: { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "160px" } }, attention ? "! " + task.key : task.key),
@@ -436,7 +436,7 @@ function TaskRow(props) {
       )
     ),
     h("td", { className: "py-2.5 pr-4 align-middle", style: { fontSize: "12px" } },
-      h("div", { className: "flex items-center gap-1 flex-wrap justify-center" },
+      h("div", { className: "flex items-center gap-1 flex-wrap justify-center w-full" },
         (task.status === "running" || (task.status === "pending" && (task.cron || task.schedule))) && task.stopPending !== true && !task.archivedAt && h("button", { style: actionBtnStyle, className: "hover:bg-aq-red-soft", onClick: function (e) { e.stopPropagation(); props.onAction("stop", task.key); } }, "停止"),
         ["pending", "stopped"].indexOf(task.status) >= 0 && !task.archivedAt && h("button", { style: actionBtnStyle, className: "hover:bg-aq-surface-alt", onClick: function (e) { e.stopPropagation(); props.onEdit(task.key); } }, "编辑"),
         ["done", "failed", "stopped", "interrupted"].indexOf(task.status) >= 0 && !task.archivedAt && h("button", { style: Object.assign({}, actionBtnStyle, { color: "var(--aq-green, #067647)" }), className: "hover:bg-aq-green-soft", onClick: function (e) { e.stopPropagation(); props.onAction("rerun", task.key); } }, "重跑"),

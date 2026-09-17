@@ -1,10 +1,21 @@
 ﻿import { Switch } from "@headlessui/react";
-import { CRON_PRESETS, DEADLINE_PRESETS } from "../utils.js";
+import { CRON_PRESETS, DEADLINE_PRESETS, validateCronExpression } from "../utils.js";
 import { DialogShell } from "./DialogShell.jsx";
 
 function h() { return React.createElement.apply(React, arguments); }
 
 function numberOrUndefined(value) { return value === "" ? undefined : parseInt(value, 10); }
+
+function isoToDatetimeLocal(iso) {
+  if (!iso) return "";
+  var d = new Date(iso);
+  var y = d.getFullYear();
+  var m = String(d.getMonth() + 1).padStart(2, "0");
+  var day = String(d.getDate()).padStart(2, "0");
+  var h = String(d.getHours()).padStart(2, "0");
+  var min = String(d.getMinutes()).padStart(2, "0");
+  return y + "-" + m + "-" + day + "T" + h + ":" + min;
+}
 
 function requestNotificationPermission() {
   if (typeof Notification === "undefined" || Notification.permission !== "default") return;
@@ -38,7 +49,7 @@ export function NewTaskModal(props) {
   var sandbox = React.useState(config.defaultSandbox || "");
   var cwd = React.useState("");
   var modelOptions = (props.options && props.options.models) || [];
-  var advancedOpen = React.useState(false);
+  var advancedOpen = React.useState(true);
   var error = React.useState("");
   var submitting = React.useState(false);
 
@@ -91,6 +102,8 @@ export function NewTaskModal(props) {
     e.preventDefault();
     var finalContent = content[0].trim();
     if (!finalContent) { error[1]("请填写任务内容"); return; }
+    if (cron[0]) { try { validateCronExpression(cron[0], "定时调度"); } catch (err) { error[1](err.message); return; } }
+    if (deadline[0]) { try { validateCronExpression(deadline[0], "执行截止时间"); } catch (err) { error[1](err.message); return; } }
     var data = {
       content: finalContent, priority: parseInt(priority[0], 10)
     };
@@ -193,7 +206,7 @@ export function EditTaskModal(props) {
   var task = props.task;
   var content = React.useState(task.body || "");
   var cron = React.useState(task.cron || "");
-  var schedule = React.useState(task.schedule || "");
+  var schedule = React.useState(isoToDatetimeLocal(task.schedule) || "");
   var deadline = React.useState(task.deadline || "");
   var priority = React.useState(String(task.priority || 5));
   var maxGoalRounds = React.useState(task.maxGoalRounds == null ? "" : String(task.maxGoalRounds));
@@ -206,7 +219,7 @@ export function EditTaskModal(props) {
   var sandbox = React.useState(task.sandbox || "");
   var cwd = React.useState(task.cwd || "");
   var modelOptions = (props.options && props.options.models) || [];
-  var advancedOpen = React.useState(false);
+  var advancedOpen = React.useState(true);
   var notifyOpen = React.useState(false);
   var error = React.useState("");
   var submitting = React.useState(false);
@@ -214,6 +227,8 @@ export function EditTaskModal(props) {
   function handleSubmit(e) {
     e.preventDefault();
     if (!content[0].trim()) { error[1]("任务内容不能为空"); return; }
+    if (cron[0]) { try { validateCronExpression(cron[0], "定时调度"); } catch (err) { error[1](err.message); return; } }
+    if (deadline[0]) { try { validateCronExpression(deadline[0], "执行截止时间"); } catch (err) { error[1](err.message); return; } }
     var patch = {};
     var add = function (n, next, prev) { if (next !== prev) patch[n] = next; };
     add("content", content[0], task.body || "");
@@ -485,7 +500,12 @@ function CronField(props) {
     var next = match ? match.value : (props.value ? "__custom__" : "");
     selectValue[1](next);
   }, [props.value]);
-  var custom = selectValue[0] === "__custom__";
+  function handleInputChange(value) {
+    props.onChange(value);
+    var match = (props.presets || []).find(function (p) { return p.value === value && p.value !== "" && p.value !== "__custom__"; });
+    var next = match ? match.value : (value ? "__custom__" : "");
+    selectValue[1](next);
+  }
   return h("div", null,
     h("span", { className: "block text-sm font-semibold text-aq-ink-2 mb-1.5" }, props.label),
     h("div", { className: "grid grid-cols-[minmax(120px,0.85fr)_minmax(0,1.15fr)] gap-2" },
@@ -502,10 +522,9 @@ function CronField(props) {
       ),
       h("input", {
         value: props.value || "",
-        onChange: function (e) { props.onChange(e.target.value); },
+        onChange: function (e) { handleInputChange(e.target.value); },
         placeholder: props.placeholder,
-        disabled: !custom,
-        className: "h-10 px-3 rounded-lg border border-aq-line-2 bg-aq-paper text-sm text-aq-ink focus:border-aq-blue focus:ring-2 focus:ring-aq-blue/10 outline-none disabled:bg-aq-surface-alt disabled:text-aq-faint"
+        className: "h-10 px-3 rounded-lg border border-aq-line-2 bg-aq-paper text-sm text-aq-ink focus:border-aq-blue focus:ring-2 focus:ring-aq-blue/10 outline-none"
       })
     )
   );
