@@ -187,17 +187,17 @@ export function createFakeServices() {
     goals: {
       async create(agent, { objective, maxGoalRounds }) {
         lastRpcCalls.push({ method: "goals.create", args: [agent.id, { objective, maxGoalRounds }] });
-        return { ref: { id: "goal-1", revision: 1 } };
+        return { id: "goal-1", revision: 1 };
       },
 
       async resume(agent, ref) {
         lastRpcCalls.push({ method: "goals.resume", args: [agent.id, ref] });
-        return { ref: { id: ref?.id ?? "goal-1", revision: (ref?.revision ?? 0) + 1 } };
+        return { id: ref?.id ?? "goal-1", revision: (ref?.revision ?? 0) + 1 };
       },
 
       async pause(agent, ref) {
         lastRpcCalls.push({ method: "goals.pause", args: [agent.id, ref] });
-        return { ref: { id: ref?.id ?? "goal-1", revision: (ref?.revision ?? 0) + 1 } };
+        return { id: ref?.id ?? "goal-1", revision: (ref?.revision ?? 0) + 1 };
       },
 
       async clear(agent, ref) {
@@ -207,7 +207,7 @@ export function createFakeServices() {
 
       async complete(agent, ref) {
         lastRpcCalls.push({ method: "goals.complete", args: [agent.id, ref] });
-        return { ref: { id: ref?.id ?? "goal-1", revision: (ref?.revision ?? 0) + 1 } };
+        return { id: ref?.id ?? "goal-1", revision: (ref?.revision ?? 0) + 1 };
       },
     },
 

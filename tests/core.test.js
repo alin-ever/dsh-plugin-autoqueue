@@ -299,7 +299,7 @@ test("runner isolates launch with cwd and never mutates workspace, model, or pro
     goals: {
       async create(agent, args) {
         goalCreateArgs = { agentId: agent.id, ...args };
-        return { ref: { id: "goal-isolated", revision: 1 } };
+        return { id: "goal-isolated", revision: 1 };
       },
     },
     workspaceRegistry: {
@@ -344,7 +344,7 @@ test("runner inherits source session cwd, provider, and model into launch", asyn
         // 检查 agent.session 中是否有 model/selection 事件
         const evt = agent.session.events.find(e => e.type === "model/selection");
         if (evt) modelSelectionEvent = evt.data;
-        return { ref: { id: "goal-inherited", revision: 1 } };
+        return { id: "goal-inherited", revision: 1 };
       },
     },
   }));
@@ -396,7 +396,7 @@ test("runner resolves model from sourceSessionId when entry lacks provider/model
       async create(agent) {
         const evt = agent.session.events.find(e => e.type === "model/selection");
         if (evt) modelSelectionEvent = evt.data;
-        return { ref: { id: "goal-inherit-source", revision: 1 } };
+        return { id: "goal-inherit-source", revision: 1 };
       },
     },
   }));
@@ -430,7 +430,7 @@ test("runner falls back to default model when no source session or entry model",
     },
     goals: {
       async create() {
-        return { ref: { id: "goal-default", revision: 1 } };
+        return { id: "goal-default", revision: 1 };
       },
     },
   }));
@@ -494,7 +494,7 @@ test("runner prepares the owned session before goal admission and cancels on pre
     goals: {
       async create() {
         goalCalls += 1;
-        return { ref: { id: "must-not-exist", revision: 1 } };
+        return { id: "must-not-exist", revision: 1 };
       },
     },
   }), {
@@ -542,7 +542,7 @@ test("runner re-prepares restored sessions before every continuation admission",
     goals: {
       async resume() {
         mutationCalls += 1;
-        return { ref };
+        return ref;
       },
     },
   }), {
@@ -577,7 +577,7 @@ test("runner coalesces only concurrent preparation and revalidates sequential co
     goals: {
       async resume() {
         resumeCalls += 1;
-        return { ref };
+        return ref;
       },
     },
   }), {

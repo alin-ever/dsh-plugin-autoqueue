@@ -15,7 +15,7 @@ function randomUUID() {
   }
 }
 
-function requestAt(url, init) {
+function requestAt(url, init, apiToken) {
   var start = Date.now();
   var method = (init && init.method) || "GET";
   if (typeof console !== "undefined" && console.log) console.log("[autoqueue] " + method + " " + url + " 开始");
@@ -24,6 +24,7 @@ function requestAt(url, init) {
     var xhr = new XMLHttpRequest();
     xhr.open(method, url, true);
     xhr.setRequestHeader("Accept", "application/json");
+    if (apiToken) xhr.setRequestHeader("Authorization", "Bearer " + apiToken);
     if (init && init.headers) {
       for (var key in init.headers) {
         if (init.headers.hasOwnProperty(key)) {
@@ -70,22 +71,22 @@ function requestAt(url, init) {
   });
 }
 
-function request(url, init) {
-  return requestAt(API_PREFIX + url, init);
+function request(url, init, apiToken) {
+  return requestAt(API_PREFIX + url, init, apiToken);
 }
 
-export function createTransport() {
+export function createTransport(apiToken) {
   return {
-    state: function () { return request("/state?archived=1"); },
-    detail: function (key) { return request("/detail?key=" + encodeURIComponent(key)); },
-    options: function () { return request("/options"); },
-    capabilities: function () { return requestAt("/api/autoqueue/capabilities"); },
-    getConfig: function () { return request("/config"); },
+    state: function () { return request("/state?archived=1", null, apiToken); },
+    detail: function (key) { return request("/detail?key=" + encodeURIComponent(key), null, apiToken); },
+    options: function () { return request("/options", null, apiToken); },
+    capabilities: function () { return requestAt("/api/autoqueue/capabilities", null, apiToken); },
+    getConfig: function () { return request("/config", null, apiToken); },
     setConfig: function (patch) {
-      return request("/config", { method: "POST", headers: { "content-type": "application/json; charset=utf-8" }, body: JSON.stringify(patch) });
+      return request("/config", { method: "POST", headers: { "content-type": "application/json; charset=utf-8" }, body: JSON.stringify(patch) }, apiToken);
     },
     createTask: function (data) {
-      return request("/task", { method: "POST", headers: { "content-type": "application/json; charset=utf-8" }, body: JSON.stringify(data) });
+      return request("/task", { method: "POST", headers: { "content-type": "application/json; charset=utf-8" }, body: JSON.stringify(data) }, apiToken);
     },
     action: function (kind, key, opts) {
       var action = Object.assign({}, opts || {}, { kind: kind });
@@ -94,24 +95,26 @@ export function createTransport() {
         method: "POST",
         headers: { "content-type": "application/json; charset=utf-8" },
         body: JSON.stringify({ requestId: randomUUID(), action: action })
-      });
+      }, apiToken);
     },
-    listTemplates: function () { return request("/templates"); },
-    getTemplate: function (name) { return request("/templates?name=" + encodeURIComponent(name)); },
+    listTemplates: function () { return request("/templates", null, apiToken); },
+    getTemplate: function (name) { return request("/templates?name=" + encodeURIComponent(name), null, apiToken); },
     createTemplate: function (data) {
-      return request("/templates", { method: "POST", headers: { "content-type": "application/json; charset=utf-8" }, body: JSON.stringify(data) });
+      return request("/templates", { method: "POST", headers: { "content-type": "application/json; charset=utf-8" }, body: JSON.stringify(data) }, apiToken);
     },
     updateTemplate: function (name, data) {
-      return request("/templates?name=" + encodeURIComponent(name), { method: "PUT", headers: { "content-type": "application/json; charset=utf-8" }, body: JSON.stringify(data) });
+      return request("/templates?name=" + encodeURIComponent(name), { method: "PUT", headers: { "content-type": "application/json; charset=utf-8" }, body: JSON.stringify(data) }, apiToken);
     },
     deleteTemplate: function (name) {
-      return request("/templates?name=" + encodeURIComponent(name), { method: "DELETE" });
+      return request("/templates?name=" + encodeURIComponent(name), { method: "DELETE" }, apiToken);
     },
     markRead: function (key, read) {
-      return request("/mark-read", { method: "POST", headers: { "content-type": "application/json; charset=utf-8" }, body: JSON.stringify({ key: key, read: read !== false }) });
+      return request("/mark-read", { method: "POST", headers: { "content-type": "application/json; charset=utf-8" }, body: JSON.stringify({ key: key, read: read !== false }) }, apiToken);
     },
     subscribe: function (listener, healthListener) {
-      var events = new EventSource(API_PREFIX + "/events?archived=1");
+      var sseUrl = API_PREFIX + "/events?archived=1";
+      if (apiToken) sseUrl += "&aq_token=" + encodeURIComponent(apiToken);
+      var events = new EventSource(sseUrl);
       var health = {
         status: "connecting", connected: false, reconnecting: false,
         lastEventAt: null, revision: null
@@ -154,7 +157,9 @@ export function createTransport() {
         reportHealth({ status: "reconnecting", connected: false, reconnecting: true });
         setTimeout(function () {
           if (closed) return;
-          events = new EventSource(API_PREFIX + "/events?archived=1");
+          var reconnectUrl = API_PREFIX + "/events?archived=1";
+          if (apiToken) reconnectUrl += "&aq_token=" + encodeURIComponent(apiToken);
+          events = new EventSource(reconnectUrl);
           events.onopen = onopen;
           events.onmessage = onmessage;
           events.onerror = onerror;

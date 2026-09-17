@@ -37,7 +37,18 @@ window.__ModuleLoader__.load({
     return {
       dispose: function () {},
       apply: function (ctx) {
-        var transport = createTransport();
+        // Resolve API token for remote deployments. Loopback installations
+        // without a configured token leave this undefined and rely on direct
+        // loopback admission instead.
+        var apiToken = null;
+        if (typeof window !== "undefined") {
+          apiToken = window.__AUTOQUEUE_API_TOKEN__ || null;
+          if (!apiToken && window.location && window.location.search) {
+            var match = window.location.search.match(/[?&]aq_token=([^&]+)/);
+            if (match) apiToken = decodeURIComponent(match[1]);
+          }
+        }
+        var transport = createTransport(apiToken);
         var controller = createController(transport);
 
         // 注入 Tailwind CSS

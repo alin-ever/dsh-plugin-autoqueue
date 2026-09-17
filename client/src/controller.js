@@ -250,7 +250,7 @@ export function createController(transport) {
         priority: data.priority, cron: data.cron, schedule: data.schedule, deadline: data.deadline,
         maxGoalRounds: data.maxGoalRounds, maxBlockedResumes: data.maxBlockedResumes,
         timeoutMs: data.timeoutMs, maxAttempts: data.maxAttempts, webhook: data.webhook,
-        provider: data.provider, model: data.model,
+        provider: data.provider, model: data.model, cwd: data.cwd, sandbox: data.sandbox,
       });
       if (!result.ok) throw new Error(result.error || "创建失败");
       showNewTask = false;
