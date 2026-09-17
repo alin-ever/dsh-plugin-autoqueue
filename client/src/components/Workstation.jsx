@@ -105,7 +105,21 @@ export function Workstation(props) {
       onConfig: function () { controller.openConfig(); },
       onTemplates: function () { controller.openTemplates(); },
       onClose: function () { controller.closeBoard(); },
-      onScan: function () { runAction("force-scan"); }
+      onScan: function () { runAction("force-scan"); },
+      onRestart: function () {
+        confirm[1]({
+          title: "重启 DSH",
+          message: "确认重启 DSH 进程？当前所有运行中的任务会被安全结束，插件将重新加载。",
+          confirmLabel: "重启",
+          tone: "danger",
+          onConfirm: function () {
+            confirm[1](null);
+            controller.restartDsh().then(function () {
+              flash("DSH 重启已安排，请稍后刷新页面");
+            }).catch(function () {});
+          }
+        });
+      }
     }),
     h(NavCategories, { snap: snap, onNav: function (v) { controller.setNavGroup(v); }, onNewTask: function () { controller.openNewTask(); } }),
     h(ConcurrencyBanner, { snap: snap }),
@@ -185,6 +199,7 @@ function CompactHeader(props) {
     h("button", { className: "aq-btn aq-btn-ghost h-7 text-xs", onClick: props.onScan, title: "立即扫描收件箱", dangerouslySetInnerHTML: { __html: iconHtml("scan") + " 扫描" } }),
     h("button", { className: "aq-btn aq-btn-ghost h-7 text-xs", onClick: props.onTemplates, title: "模板管理", dangerouslySetInnerHTML: { __html: iconHtml("doc") } }),
     h("button", { className: "aq-btn aq-btn-ghost h-7 text-xs", onClick: props.onConfig, title: "运行设置", dangerouslySetInnerHTML: { __html: iconHtml("gear") } }),
+    h("button", { className: "aq-btn aq-btn-ghost h-7 text-xs", onClick: props.onRestart, title: "重启 DSH", dangerouslySetInnerHTML: { __html: iconHtml("restart") } }),
     h("button", { className: "aq-btn aq-btn-ghost h-7 text-xs", onClick: props.onClose, dangerouslySetInnerHTML: { __html: iconHtml("close") + " 关闭" } })
   );
 }

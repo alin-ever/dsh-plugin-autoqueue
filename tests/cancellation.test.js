@@ -167,8 +167,8 @@ test("settle stop 返回 stopped", () => {
   const cancellation = createCancellation(runner, stateMachine);
 
   const result = cancellation.settle({}, "stop");
-  assert.equal(result.status, "stopped");
-  assert.equal(result.patch.status, "stopped");
+  assert.equal(result.result, "stopped");
+  assert.equal(result.patch.result, "stopped");
 });
 
 test("settle retry 返回 retry", () => {
@@ -177,7 +177,7 @@ test("settle retry 返回 retry", () => {
   const cancellation = createCancellation(runner, stateMachine);
 
   const result = cancellation.settle({}, "retry");
-  assert.equal(result.status, "retry");
+  assert.equal(result.result, "retry");
   assert.equal(result.patch.phase.cancellation, null);
 });
 

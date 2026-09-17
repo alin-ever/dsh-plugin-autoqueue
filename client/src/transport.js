@@ -111,6 +111,9 @@ export function createTransport(apiToken) {
     markRead: function (key, read) {
       return request("/mark-read", { method: "POST", headers: { "content-type": "application/json; charset=utf-8" }, body: JSON.stringify({ key: key, read: read !== false }) }, apiToken);
     },
+    restart: function () {
+      return request("/restart", { method: "POST" }, apiToken);
+    },
     subscribe: function (listener, healthListener) {
       var sseUrl = API_PREFIX + "/events?archived=1";
       if (apiToken) sseUrl += "&aq_token=" + encodeURIComponent(apiToken);

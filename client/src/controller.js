@@ -311,6 +311,13 @@ export function createController(transport) {
       return result;
     } catch (err) { error = err.message; notif(); throw err; }
   }
+  async function restartDsh() {
+    try {
+      var result = await transport.restart();
+      error = null;
+      return result;
+    } catch (err) { error = err.message; notif(); throw err; }
+  }
   function clearError() { error = null; notif(); }
 
   function dispose() { disposed = true; lifecycle++; stopSSE(); listeners = []; initPromise = null; }
@@ -325,7 +332,7 @@ export function createController(transport) {
     openConfig: openConfig, closeConfig: closeConfig,
     openTemplates: openTemplates, closeTemplates: closeTemplates,
     createTask: createTask, doAction: doAction, updateTask: updateTask, markRead: markRead,
-    setConcurrency: setConcurrency, updateConfig: updateConfig, clearError: clearError,
+    setConcurrency: setConcurrency, updateConfig: updateConfig, restartDsh: restartDsh, clearError: clearError,
     loadState: loadState
   };
 }

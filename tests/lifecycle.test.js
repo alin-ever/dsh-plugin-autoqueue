@@ -75,7 +75,7 @@ test("settle done 返回 stopped 状态", async () => {
 
   const entry = { key: "test", workDir: "/tmp", cron: null, phase: { execution: "active", cancellation: null } };
   const result = await lifecycle.settle(entry, "done");
-  assert.equal(result.patch.status, "done");
+  assert.equal(result.patch.result, "done");
   assert.equal(result.patch.sessionId, null);
   assert.equal(result.patch.goalRef, null);
 });
@@ -92,7 +92,7 @@ test("settle 循环任务重新调度", async () => {
 
   const entry = { key: "test-cron", workDir: "/tmp", cron: "0 8 * * *", phase: { execution: "active", cancellation: null } };
   const result = await lifecycle.settle(entry, "done", undefined, {});
-  assert.equal(result.patch.status, "pending");
+  assert.equal(result.patch.result, null);
   assert.ok(result.patch.nextRunAt > 0);
 });
 
@@ -105,7 +105,7 @@ test("settle 循环任务 taskComplete 不再调度", async () => {
 
   const entry = { key: "test-done", workDir: "/tmp", cron: "0 8 * * *", phase: { execution: "active", cancellation: null } };
   const result = await lifecycle.settle(entry, "done", undefined, { taskComplete: true });
-  assert.equal(result.patch.status, "done");
+  assert.equal(result.patch.result, "done");
   assert.equal(result.patch.cron, null);
   assert.equal(result.patch.nextRunAt, null);
 });
@@ -125,7 +125,7 @@ test("settle 循环任务更新正文", async () => {
     phase: { execution: "active", cancellation: null },
   };
   const result = await lifecycle.settle(entry, "done", undefined, { output: "处理了文件 a.pdf" });
-  assert.equal(result.patch.status, "pending");
+  assert.equal(result.patch.result, null);
   assert.ok(result.patch.raw.includes("处理了文件 a.pdf"));
   assert.ok(result.patch.raw.includes("已处理：无")); // 追加而非覆盖
 });
@@ -137,7 +137,7 @@ test("retry 未达到上限返回 pending", () => {
   const entry = { key: "test-retry", attempts: 1, phase: { execution: "active", cancellation: null } };
   const result = lifecycle.retry(entry, "timeout");
   assert.equal(result.shouldRetry, true);
-  assert.equal(result.patch.status, "pending");
+  assert.equal(result.patch.result, null);
   assert.ok(result.patch.nextRetryAt > Date.now());
 });
 
@@ -146,7 +146,7 @@ test("retry 达到上限返回 failed", () => {
   const entry = { key: "test-retry-limit", attempts: 3, phase: { execution: "active", cancellation: null } };
   const result = lifecycle.retry(entry, "timeout");
   assert.equal(result.shouldRetry, false);
-  assert.equal(result.patch.status, "failed");
+  assert.equal(result.patch.result, "failed");
 });
 
 // ─── handleUnreachable ─────────────────────────────────
@@ -164,7 +164,7 @@ test("handleUnreachable 达到阈值触发重试", () => {
   const entry = { key: "test-unknown-limit", consecutiveUnknowns: 2, attempts: 1, phase: { execution: "active", cancellation: null } };
   const result = lifecycle.handleUnreachable(entry, "unknown");
   assert.equal(result.shouldRetry, true);
-  assert.equal(result.patch.status, "pending");
+  assert.equal(result.patch.result, null);
 });
 
 // ─── isTimeout ─────────────────────────────────────────

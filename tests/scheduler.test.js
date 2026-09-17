@@ -196,7 +196,7 @@ test("getCronIntervalMs 空表达式返回 0", () => {
 
 test("markRunComplete 非循环任务 → done", () => {
   const result = markRunComplete({ cron: null });
-  assert.equal(result.status, "done");
+  assert.equal(result.result, "done");
   assert.equal(result.nextRunAt, null);
 });
 
@@ -204,13 +204,13 @@ test("markRunComplete 循环任务未完成 → 重新调度", () => {
   freshQueue();
   const result = markRunComplete({ cron: "0 8 * * *" }, false);
   // 下次执行时间应在未来
-  assert.equal(result.status, "pending");
+  assert.equal(result.result, null);
   assert.ok(result.nextRunAt == null || typeof result.nextRunAt === "number");
 });
 
 test("markRunComplete 循环任务 taskComplete → done", () => {
   const result = markRunComplete({ cron: "0 8 * * *" }, true);
-  assert.equal(result.status, "done");
+  assert.equal(result.result, "done");
   assert.equal(result.nextRunAt, null);
 });
 
@@ -218,14 +218,14 @@ test("markRunComplete 循环任务 taskComplete → done", () => {
 
 test("markRunFailed 非循环任务 → failed", () => {
   const result = markRunFailed({ cron: null });
-  assert.equal(result.status, "failed");
+  assert.equal(result.result, "failed");
   assert.equal(result.nextRunAt, null);
 });
 
 test("markRunFailed 循环任务 → 重新调度", () => {
   freshQueue();
   const result = markRunFailed({ cron: "0 8 * * *" });
-  assert.equal(result.status, "pending");
+  assert.equal(result.result, null);
 });
 
 // ─── isRecurring ───────────────────────────────────────
