@@ -127,7 +127,8 @@ export function NewTaskModal(props) {
     }).finally(function () { submitting[1](false); });
   }
 
-  return h(DialogShell, { open: true, onClose: props.onClose, title: "新建无人值守任务", variant: "drawer" },
+  var isSchedulerMode = !!(cron[0] || schedule[0]);
+  return h(DialogShell, { open: true, onClose: props.onClose, title: isSchedulerMode ? "新建调度器" : "新建无人值守任务", variant: "drawer" },
     h("form", { className: "flex flex-col flex-1 min-h-0 px-6 pb-6", onSubmit: handleSubmit },
       showTemplates[0] && h(TemplatePickerInline, {
         templates: templates[0], loading: templatesLoading[0],
@@ -204,11 +205,13 @@ export function NewTaskModal(props) {
 
 export function EditTaskModal(props) {
   var task = props.task;
+  var isScheduler = task.kind === "scheduler";
   var content = React.useState(task.body || "");
   var cron = React.useState(task.cron || "");
   var schedule = React.useState(isoToDatetimeLocal(task.schedule) || "");
   var deadline = React.useState(task.deadline || "");
   var priority = React.useState(String(task.priority || 5));
+  var enabled = React.useState(task.enabled !== false);
   var maxGoalRounds = React.useState(task.maxGoalRounds == null ? "" : String(task.maxGoalRounds));
   var maxBlockedResumes = React.useState(task.maxBlockedResumes == null ? "" : String(task.maxBlockedResumes));
   var timeoutMinutes = React.useState(task.timeoutMs ? String(Math.round(task.timeoutMs / 60000)) : "");
@@ -226,7 +229,7 @@ export function EditTaskModal(props) {
 
   function handleSubmit(e) {
     e.preventDefault();
-    if (!content[0].trim()) { error[1]("任务内容不能为空"); return; }
+    if (!content[0].trim()) { error[1]("内容不能为空"); return; }
     if (cron[0]) { try { validateCronExpression(cron[0], "定时调度"); } catch (err) { error[1](err.message); return; } }
     if (deadline[0]) { try { validateCronExpression(deadline[0], "执行截止时间"); } catch (err) { error[1](err.message); return; } }
     var patch = {};
@@ -236,6 +239,7 @@ export function EditTaskModal(props) {
     add("schedule", schedule[0] || null, task.schedule || null);
     add("deadline", deadline[0], task.deadline || "");
     add("priority", parseInt(priority[0], 10), task.priority || 5);
+    if (isScheduler) add("enabled", enabled[0], task.enabled !== false);
     add("maxGoalRounds", numberOrUndefined(maxGoalRounds[0]) ?? null, task.maxGoalRounds ?? null);
     add("maxBlockedResumes", numberOrUndefined(maxBlockedResumes[0]) ?? null, task.maxBlockedResumes ?? null);
     add("timeoutMs", timeoutMinutes[0] ? parseInt(timeoutMinutes[0], 10) * 60000 : null, task.timeoutMs ?? null);
@@ -250,13 +254,13 @@ export function EditTaskModal(props) {
     props.onUpdate(task.key, patch).catch(function (e) { error[1](e.message || "保存失败"); }).finally(function () { submitting[1](false); });
   }
 
-  return h(DialogShell, { open: true, onClose: props.onClose, title: "编辑任务 · " + task.key, variant: "drawer" },
+  return h(DialogShell, { open: true, onClose: props.onClose, title: (isScheduler ? "编辑调度器" : "编辑任务") + " · " + task.key, variant: "drawer" },
     h("form", { className: "flex flex-col flex-1 min-h-0 px-6 pb-6", onSubmit: handleSubmit },
       h("div", { className: "flex-1 min-h-0 overflow-y-auto py-4", style: { overscrollBehaviorY: "contain" } },
-        h("p", { className: "text-sm text-aq-muted pb-3" }, "仅待执行任务可编辑；运行中的任务请先停止。"),
+        h("p", { className: "text-sm text-aq-muted pb-3" }, isScheduler ? "调度器设置，修改后即时生效。" : "运行中的任务请先停止后再编辑。"),
         error[0] && h("div", { className: "p-3 mb-4 rounded-lg bg-aq-red-soft text-sm text-aq-red" }, error[0]),
 
-        h("label", { className: "block text-sm font-semibold text-aq-ink-2 mb-1.5" }, "任务内容（Markdown）"),
+        h("label", { className: "block text-sm font-semibold text-aq-ink-2 mb-1.5" }, "内容（Markdown）"),
         h("textarea", { value: content[0], onChange: function (e) { content[1](e.target.value); }, className: "w-full h-36 p-3 rounded-xl border border-aq-line-2 bg-aq-paper text-sm text-aq-ink resize-y focus:border-aq-blue focus:ring-2 focus:ring-aq-blue/10 outline-none" }),
 
         h("div", { className: "grid grid-cols-2 gap-3 mt-4" },
@@ -267,6 +271,11 @@ export function EditTaskModal(props) {
           h(Field, { label: "一次性定时", help: "选择本地时间，留空立即执行。同时配置 cron 时 cron 优先" },
             h("input", { type: "datetime-local", value: schedule[0], onChange: function (e) { schedule[1](e.target.value); }, className: "aq-input" })),
           h(CronField, { label: "执行截止时间", value: deadline[0], onChange: deadline[1], presets: DEADLINE_PRESETS, placeholder: "0 21 * * *" })
+        ),
+
+        isScheduler && h("div", { className: "mt-4 flex items-center gap-2" },
+          h("input", { type: "checkbox", id: "enabled", checked: enabled[0], onChange: function (e) { enabled[1](e.target.checked); }, className: "w-4 h-4" }),
+          h("label", { htmlFor: "enabled", className: "text-sm font-semibold text-aq-ink-2" }, "启用调度器")
         ),
 
         h("div", { className: "mt-4 pt-3 border-t border-aq-line" },
@@ -318,9 +327,11 @@ export function ConfigPanel(props) {
   var priority = React.useState(String(v(config.priority, 5)));
   var backoffBaseSec = React.useState(String(Math.round(v(config.retryBackoffBaseMs, 30000) / 1000)));
   var backoffMaxSec = React.useState(String(Math.round(v(config.retryBackoffMaxMs, 300000) / 1000)));
+  var defaultProvider = React.useState(config.defaultProvider || "");
   var defaultModel = React.useState(config.defaultModel || "");
   var defaultCwd = React.useState(config.defaultCwd || "");
   var defaultSandbox = React.useState(config.defaultSandbox || "");
+  var modelOptions = (props.options && props.options.models) || [];
   var saving = React.useState(false);
   var saveError = React.useState("");
   var saveSuccess = React.useState(false);
@@ -339,7 +350,16 @@ export function ConfigPanel(props) {
     add("priority", parseInt(priority[0], 10), v(config.priority, 5));
     add("retryBackoffBaseMs", parseInt(backoffBaseSec[0], 10) * 1000, v(config.retryBackoffBaseMs, 30000));
     add("retryBackoffMaxMs", parseInt(backoffMaxSec[0], 10) * 1000, v(config.retryBackoffMaxMs, 300000));
-    add("defaultModel", defaultModel[0].trim() || null, config.defaultModel || null);
+    // provider/model 必须成对设置，否则清除
+    var nextDefaultProvider = defaultProvider[0].trim() || null;
+    var nextDefaultModel = defaultModel[0].trim() || null;
+    if (nextDefaultProvider && nextDefaultModel) {
+      add("defaultProvider", nextDefaultProvider, config.defaultProvider || null);
+      add("defaultModel", nextDefaultModel, config.defaultModel || null);
+    } else {
+      add("defaultProvider", null, config.defaultProvider || null);
+      add("defaultModel", null, config.defaultModel || null);
+    }
     add("defaultCwd", defaultCwd[0].trim() || null, config.defaultCwd || null);
     add("defaultSandbox", defaultSandbox[0].trim() || null, config.defaultSandbox || null);
     var ops = [];
@@ -387,7 +407,7 @@ export function ConfigPanel(props) {
           h(Field, { label: "默认截止时间（cron）" }, h("input", { value: defaultDeadline[0], onChange: function (e) { defaultDeadline[1](e.target.value); }, placeholder: "0 21 * * *", className: "aq-input" }))
         ),
         h("div", { className: "mt-3" },
-          h(Field, { label: "默认 Model" }, h("input", { value: defaultModel[0], onChange: function (e) { defaultModel[1](e.target.value); }, placeholder: "继承自当前会话", className: "aq-input" }))
+          h(Field, { label: "默认 Model", help: "留空继承全局默认" }, h(ModelSelect, { options: modelOptions, provider: defaultProvider[0], model: defaultModel[0], onChange: function (p, m) { defaultProvider[1](p); defaultModel[1](m); } }))
         ),
         h("div", { className: "grid grid-cols-2 gap-3 mt-3" },
           h(Field, { label: "默认工作目录" }, h("input", { value: defaultCwd[0], onChange: function (e) { defaultCwd[1](e.target.value); }, placeholder: "继承自当前会话", className: "aq-input" })),

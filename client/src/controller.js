@@ -1,4 +1,4 @@
-import { STATUS_CONFIG, isUnread } from "./utils.js";
+import { STATUS_CONFIG, isUnread, taskSummary } from "./utils.js";
 
 function countUnread(tasks) {
   return tasks.filter(function (t) { return isUnread(t); }).length;
@@ -6,6 +6,7 @@ function countUnread(tasks) {
 
 export function createController(transport) {
   var tasks = [];
+  var schedulers = [];
   var boardOpen = false;
   var filter = "all";
   var navGroup = "all";
@@ -40,6 +41,10 @@ export function createController(transport) {
     for (var i = 0; i < listeners.length; i++) listeners[i]();
   }
 
+  function allEntries() {
+    return tasks.concat(schedulers);
+  }
+
   function getSnapshot() {
     var counts = {};
     var activeTasks = tasks.filter(function (t) { return !t.archivedAt; });
@@ -47,24 +52,41 @@ export function createController(transport) {
       var s = activeTasks[i].status;
       counts[s] = (counts[s] || 0) + 1;
     }
-    var scoped = tasks;
-    if (navGroup === "archived") {
-      scoped = scoped.filter(function (t) { return !!t.archivedAt; });
+    var scoped;
+    if (navGroup === "schedulers") {
+      scoped = schedulers.filter(function (s) { return !s.archivedAt; });
     } else {
-      scoped = scoped.filter(function (t) { return !t.archivedAt; });
-      if (navGroup === "cron") scoped = scoped.filter(function (t) { return !!t.cron; });
-      else if (navGroup === "schedule") scoped = scoped.filter(function (t) { return !!t.schedule && !t.cron; });
-      else if (navGroup === "manual") scoped = scoped.filter(function (t) { return !t.cron && !t.schedule; });
+      scoped = tasks;
+      if (navGroup === "archived") {
+        scoped = scoped.filter(function (t) { return !!t.archivedAt; });
+      } else {
+        scoped = scoped.filter(function (t) { return !t.archivedAt; });
+      }
     }
     var scopeCounts = {};
-    for (var s = 0; s < scoped.length; s++) scopeCounts[scoped[s].status] = (scopeCounts[scoped[s].status] || 0) + 1;
-    var filtered = filter === "all" ? scoped : scoped.filter(function (t) { return t.status === filter; });
-    var detailTask = showDetail ? tasks.find(function (t) { return t.key === showDetail; }) : null;
+    if (navGroup === "schedulers") {
+      for (var s = 0; s < scoped.length; s++) {
+        var en = scoped[s].enabled !== false ? "enabled" : "disabled";
+        scopeCounts[en] = (scopeCounts[en] || 0) + 1;
+      }
+    } else {
+      for (var s = 0; s < scoped.length; s++) {
+        var st = scoped[s].status;
+        if (st) scopeCounts[st] = (scopeCounts[st] || 0) + 1;
+      }
+    }
+    var filtered;
+    if (navGroup === "schedulers") {
+      filtered = filter === "all" ? scoped : scoped.filter(function (t) { return filter === "enabled" ? t.enabled !== false : t.enabled === false; });
+    } else {
+      filtered = filter === "all" ? scoped : scoped.filter(function (t) { return t.status === filter; });
+    }
+    var detailTask = showDetail ? allEntries().find(function (t) { return t.key === showDetail; }) : null;
     var editTask = showEdit
-      ? (editTaskData && editTaskData.key === showEdit ? editTaskData : tasks.find(function (t) { return t.key === showEdit; }))
+      ? (editTaskData && editTaskData.key === showEdit ? editTaskData : allEntries().find(function (t) { return t.key === showEdit; }))
       : null;
     return {
-      tasks: tasks, scoped: scoped, filtered: filtered, counts: counts, scopeCounts: scopeCounts,
+      tasks: tasks, schedulers: schedulers, scoped: scoped, filtered: filtered, counts: counts, scopeCounts: scopeCounts,
       scopeMetrics: deriveMetrics(scoped.map(function (task) { return Object.assign({}, task, { archivedAt: null }); })), metrics: metrics,
       boardOpen: boardOpen, filter: filter, navGroup: navGroup,
       showDetail: showDetail, showNewTask: showNewTask, showEdit: showEdit, showConfig: showConfig, showTemplates: showTemplates,
@@ -103,6 +125,7 @@ export function createController(transport) {
     var incomingRevision = Number(data.revision);
     if (Number.isFinite(incomingRevision) && incomingRevision < revision) return false;
     var newTasks = data.tasks || [];
+    var newSchedulers = data.schedulers || [];
     var effectiveConfig = Object.assign({}, config, data.config || {});
     if (notifyTransitions) {
       for (var i = 0; i < newTasks.length; i++) {
@@ -115,7 +138,8 @@ export function createController(transport) {
         var notifyFirstTime = !statusChanged && TERMINAL[t.status] && prevState.enableNotifications !== true;
         if (terminalTransition || notifyFirstTime) {
           var label = (STATUS_CONFIG[t.status] || {}).label || t.status;
-          try { if (typeof Notification !== "undefined" && Notification.permission === "granted") new Notification("autoqueue", { body: t.key + " \u2192 " + label, tag: t.key }); } catch (e) {}
+          var notifyTitle = taskSummary(t.body) || t.title || t.key;
+          try { if (typeof Notification !== "undefined" && Notification.permission === "granted") new Notification("autoqueue", { body: notifyTitle + " \u2192 " + label, tag: t.key }); } catch (e) {}
         }
       }
     }
@@ -124,14 +148,15 @@ export function createController(transport) {
       prevStates[newTasks[j].key] = { status: newTasks[j].status, enableNotifications: newTasks[j].enableNotifications };
     }
     tasks = newTasks;
+    schedulers = newSchedulers;
     if (Number.isFinite(incomingRevision)) revision = incomingRevision;
     runtimeHealth = Object.assign({}, runtimeHealth, { revision: revision });
     if (data.runtime && typeof data.runtime === "object") runtimeObservation = data.runtime;
     mergeConfig(data.config);
     metrics = Object.assign(deriveMetrics(newTasks), data.metrics || {});
     error = null;
-    if (showDetail && !tasks.find(function (t) { return t.key === showDetail; })) { error = "任务 \"" + showDetail + "\" 已被删除或移除"; showDetail = null; }
-    if (showEdit && !tasks.find(function (t) { return t.key === showEdit; })) { error = "任务 \"" + showEdit + "\" 已被删除或移除"; showEdit = null; editTaskData = null; }
+    if (showDetail && !allEntries().find(function (t) { return t.key === showDetail; })) { error = "任务 \"" + showDetail + "\" 已被删除或移除"; showDetail = null; }
+    if (showEdit && !allEntries().find(function (t) { return t.key === showEdit; })) { error = "任务 \"" + showEdit + "\" 已被删除或移除"; showEdit = null; editTaskData = null; }
     return true;
   }
 
@@ -223,7 +248,7 @@ export function createController(transport) {
 
   function toggleBoard() { if (boardOpen) closeBoard(); else openBoard(); }
   function setFilter(f) { filter = f; notif(); }
-  function setNavGroup(g) { navGroup = g; notif(); }
+  function setNavGroup(g) { navGroup = g; filter = "all"; notif(); }
   function openDetail(key) { showDetail = key; var t = tasks.find(function (x) { return x.key === key; }); if (t && isUnread(t)) markRead(key); notif(); }
   function closeDetail() { showDetail = null; notif(); }
   async function openEdit(key) {

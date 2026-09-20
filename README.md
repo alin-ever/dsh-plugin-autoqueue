@@ -1,6 +1,12 @@
 # autoqueue — DSH 无人值守任务队列
 
-把一个 Markdown 任务交给队列，插件会在 DSH 后台自动派发、反阻塞、重试、结算并归档。设计目标只有两个：正常任务不打扰用户；队列任务不改变 DSH 普通前台会话的运行状态。
+把 Markdown 任务交给队列，插件在 DSH 后台自动派发、反阻塞、重试、结算并归档。
+
+**核心设计**：调度器（Scheduler）与任务（Task）分离。
+- **调度器**：带 `cron` 或 `schedule` 的条目，到点时自动创建即时任务，自身不执行、不进入状态机。可独立启用/禁用。
+- **任务**：即时执行的一次性条目，有完整的 `status`、`phase`、`executions` 生命周期，受并发控制与状态机管理。
+
+两个设计目标始终不变：正常任务不打扰用户；队列任务不改变 DSH 普通前台会话的运行状态。
 
 ## 兼容基线
 
@@ -17,11 +23,11 @@ autoqueue 不是普通会话的全局自动化开关。每次执行都遵守以�
 3. 执行模式只由引擎在插件自有、带版本号的 preset 中选择：`autoqueue-unattended-v2`。v1 内容保留且绝不覆盖，但不再被新执行选择。v2 要求 `[autoqueue:unattended-discipline:v2]` 完整匹配，并禁用提问、jobs、subagent/fork/control/list、workflow、Ralph；bash/pwsh 强制 `enableRunInBackground:false`，禁止 detached/daemon/background 工作逃离 owned session。已有 v2 若 marker 缺失或内容被改动，插件启动失败，不覆盖外部内容。
 4. 会话创建后、`goals.create` 前，插件把该专属会话的 `approvalPolicy` 固化为 `never`，持久化并回读验证。失败时不投递 goal，并尝试取消该会话。
 5. 任务正文只通过一次完整的 `goals.create.objective` 入场。不会调用 `workspace.create`、不会调用 `session.selectModel`，也不会再发送一条重复的初始 queue prompt。
-6. DSH 原生 `agent/status`、owned `goal/changed` 与 `session/disposed` 事件只负责唤醒权威对账；每轮仍读取 `sessions.list` / history。存在活跃普通会话或列表不可信时拒绝新派发，运行中的 owned goal 先持久 pause、再暂停并协作取消 turn；连续两次可信空闲后才无 prompt 恢复。
+6. DSH 原生 `agent/status`、owned `goal/changed` 与 `session/disposed` 事件只负责唤醒权威对账；每轮仍读取 `sessions.list` / history。存在活跃普通会话或列表不可信时拒绝新派发，运行中的 owned goal 先持久化 pause、再暂停并协作取消 turn；连续两次可信空闲后才无 prompt 恢复。
 7. 手动停止、deadline、超时和清理先持久化取消意图。`sessions.cancel` 成功只代表 DSH 受理请求；ownership 会一直保留到受理之后连续两次权威 idle/缺席观察，再结算或重试。
 8. 默认最大并发为 `1`、终态自动归档关闭、浏览器通知关闭。插件加载后会向普通 Host 会话自动注册 19 个 `autoqueue_*` 工具；它们不会自行执行或改变普通会话状态，且在 `autoqueue-session-*` 自有任务 Agent 中被隐藏并由执行 guard 拒绝。
 
-DSH rc.2 的公开选择接口会持久化 Host 默认路由，因此任务和运行时配置都不能覆盖模型、工作区或任意 Agent preset。`GET /api/queue/options` 会明确返回三类空数组和隔离锁，而不是枚举 Host 状态。
+DSH rc.2 的公开选择接口会持久化 Host 默认路由，因此任务和运行时配置都不能覆盖工作区或任意 Agent preset。`GET /api/queue/options` 会明确返回三类空数组和隔离锁，而不是枚举 Host 状态。
 
 这里的“不影响主进程”是会话、选择状态、审批和调度边界：插件不修改或取消普通会话，并在前台活动时让行。插件仍加载在同一个 DSH Host 进程内，不是 cgroup/容器级资源隔离；若要求对 CPU、内存或插件崩溃做内核级硬隔离，应把队列运行时部署到独立 DSH Host。
 
@@ -39,7 +45,7 @@ dsh plugin --profile web add -w @alintever/dsh-plugin-autoqueue@latest
 dsh plugin --profile web add -w "link:$PWD"
 ```
 
-### 创建任务
+### 创建即时任务
 
 ```bash
 curl -X POST http://127.0.0.1:3080/api/queue/task \
@@ -54,7 +60,23 @@ curl -X POST http://127.0.0.1:3080/api/queue/task \
   }'
 ```
 
-任务可写策略仅包括正文、调度、优先级、轮数、反阻塞次数、超时、派发尝试、Webhook、自动归档和浏览器通知。完整字段见 [`docs/api.md`](./docs/api.md)。
+### 创建调度器
+
+带 `cron` 或 `schedule` 即创建调度器：
+
+```bash
+curl -X POST http://127.0.0.1:3080/api/queue/task \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "requestId": "my-002",
+    "key": "weekly-insight",
+    "content": "# 生成周报\n\n汇总本周代码提交与 issue 进展",
+    "cron": "0 9 * * 1",
+    "priority": 5
+  }'
+```
+
+调度器在到点时自动创建即时任务，即时任务继承调度器的配置，并通过 `schedulerKey` 关联回源调度器。
 
 ### 丢文件
 
@@ -73,6 +95,8 @@ echo "# 生成日报" > ~/.dsh/queue/tasks/daily-report.md
 
 `schedule` 与 `cron` 二选一；`deadline` 可以和任一方式共存。
 
+带 `schedule` 或 `cron` 的文件会被识别为**调度器**，自身不直接执行；不带则为**即时任务**。看板中「任务」和「调度」是独立的两栏。
+
 ### 打开看板
 
 安装后，在 DSH Web 侧边栏点击「任务工作台」。看板关闭时不会预加载队列数据，也不会维持 SSE 连接；只有用户主动打开后才初始化状态、配置和事件订阅。
@@ -81,12 +105,14 @@ echo "# 生成日报" > ~/.dsh/queue/tasks/daily-report.md
 
 React 看板已暴露安全业务能力的完整操作面：
 
-- 导航：任务队列、正在推进、循环调度、定时执行、归档记录是五个独立范围工作区，各自拥有标题、说明、范围统计、状态计数、空态和上下文动作；范围内仍可按状态与关键词二次筛选。
+- 导航：**任务**、**调度**、**归档**三个独立标签页。任务页按状态筛选（全部/运行中/待执行/失败/已完成）；调度页按启用状态筛选（全部/启用中/已禁用）；归档页展示已归档任务。
+- 列表展示：以 body 中的 `# 标题` 作为主标题（直观可读），`key` 作为副标题灰色展示；调度器额外展示 `cron/schedule` 摘要。
 - 运行态：紧凑展示隔离状态、前台优先和并发占用；完整的原生事件、权威对账、扫描时间和兜底检查按需展开。
-- 原生监控：正在推进工作区显示 DSH runtime 原生事件、权威 session 对账、收件箱扫描、foreground gate 与 10 秒 watchdog；SSE 连接状态单独展示，不拿网络在线冒充核心隔离健康。
-- 任务列表：摘要、任务类型、状态/隔离告警、计划、优先级、轮次进度、尝试次数；支持多选批量归档。
-- 任务动作：新建、编辑 pending 任务、停止、重跑、归档、恢复、删除 pending 任务、标记未读、跳转插件自有 DSH 会话、立即检查任务。
-- 任务详情：概览、执行记录、结果和最终报告、调度与恢复设置；打开终态详情会标记已读。
+- 原生监控：显示 DSH runtime 原生事件、权威 session 对账、收件箱扫描、foreground gate 与 10 秒 watchdog；SSE 连接状态单独展示，不拿网络在线冒充核心隔离健康。
+- 任务操作：新建、编辑（非 running）、停止、重跑、归档、恢复、删除 pending、标记未读、跳转插件自有 DSH 会话、立即检查任务。
+- 调度器操作：启用、禁用、编辑、删除。调度器不进入状态机，因此没有停止/归档/重跑。
+- 任务详情：概览、执行记录、结果和最终报告、调度与恢复设置；打开终态详情会标记已读。由调度器创建的任务会显示「来源调度器」。
+- 调度器详情：概览、策略；展示启用状态、下次运行时间、最近创建的任务。
 - 运行设置：并发、任务超时、Goal 轮数、反阻塞次数、派发尝试、不可达阈值、退避、默认优先级、默认截止、Webhook、自动归档和浏览器通知；队列目录只读。
 - 外部接入：独立的「AI / API 接入」抽屉实时读取 Capabilities，展示正式名称/别称、19 个工具、中文资源与限制、隔离状态、OpenAPI 3.1 和 compact 查询示例；本机可直连，远程必须携带 token，页面从不回显 token。
 - 交互与可访问性：统一字号和颜色层级，支持响应式导航、抽屉/弹窗、危险操作确认、键盘焦点锁定与恢复、ESC 关闭和实时错误提示。
@@ -106,7 +132,7 @@ curl http://127.0.0.1:3080/api/autoqueue/capabilities
 # 2. 读取 OpenAPI 接口描述
 curl http://127.0.0.1:3080/api/autoqueue/openapi.json
 
-# 3. 用紧凑投影列任务，避免把正文和 executions 放进 LLM 上下文
+# 3. 用紧凑投影列任务和调度器，避免把正文和 executions 放进 LLM 上下文
 curl 'http://127.0.0.1:3080/api/queue/state?archived=1&compact=1'
 ```
 
@@ -116,10 +142,10 @@ curl 'http://127.0.0.1:3080/api/queue/state?archived=1&compact=1'
 |---|---|---|
 | `GET` | `/api/autoqueue/capabilities` | 能力、限制、资源地址和 Host AI 工具启用策略 |
 | `GET` | `/api/autoqueue/openapi.json` | OpenAPI 3.1 接口描述 |
-| `GET` | `/api/queue/state` | 快照；支持 `archived=1`、`compact=1` |
-| `POST` | `/api/queue/task` | 创建任务 |
+| `GET` | `/api/queue/state` | 快照；返回 `tasks` + `schedulers`；支持 `archived=1`、`compact=1` |
+| `POST` | `/api/queue/task` | 创建任务或调度器（含 `cron/schedule` 时创建调度器） |
 | `POST` | `/api/queue/action` | stop/archive/restore/delete/rerun/update/force-scan/set-concurrency |
-| `GET` | `/api/queue/detail?key=` | 正文、执行记录和报告 |
+| `GET` | `/api/queue/detail?key=` | 正文、执行记录和报告（任务或调度器） |
 | `GET` | `/api/queue/options` | 三类空数组与严格隔离锁 |
 | `GET\|POST` | `/api/queue/config` | 安全运行时配置 |
 | `POST` | `/api/queue/mark-read` | 标记已读/未读 |
@@ -152,16 +178,25 @@ Capabilities、OpenAPI、业务 API 和 SSE 使用相同鉴权；任何响应都
 
 ## 调度与生命周期
 
-| 字段 | 格式 | 语义 |
-|---|---|---|
-| `schedule` | ISO 8601 | 到点执行一次 |
-| `cron` | 5 字段 cron | 每个匹配分钟触发 |
-| `timeoutMs` | 毫秒 | 从本次 attempt 启动起计算 |
-| `deadline` | 5 字段 cron | 墙上时钟截止，运行中任务到点收口 |
+### 调度器与任务类型
 
-状态机包含六个值：`pending`、`running`、`done`、`failed`、`stopped`、`interrupted`。其中 `done` / `failed` / `stopped` / `interrupted` 都属于 terminal；`archivedAt` 是独立归档标志，不是状态。
+| 类型 | 触发方式 | 生命周期 | 可执行 |
+|---|---|---|---|
+| 即时任务 | 立即派发 或 `schedule` 一次性到点 | 完整状态机：`pending` → `running` → terminal | 是 |
+| 循环调度器 | `cron` 匹配分钟触发 | 不进入状态机；到点时创建即时任务 | 否（自身不执行） |
+
+### 任务状态机
+
+包含六个值：`pending`、`running`、`done`、`failed`、`stopped`、`interrupted`。其中 `done` / `failed` / `stopped` / `interrupted` 都属于 terminal；`archivedAt` 是独立归档标志，不是状态。
 
 goal 报告 `blocked` 时，引擎先注入 steering 指令，再 `goals.resume`，最多执行 `maxBlockedResumes` 次。前台忙碌时，运行中的 goal 使用持久化 pause-before-cancel 流程让行；恢复前做两次可信空闲确认，不注入重复任务正文。会话不可达、超时、截止、限流和启动不确定性采用不同的恢复/隔离路径；关键 mutation 在远端调用前先持久化 ownership/admission marker，避免自动创建第二个 Agent。
+
+### 调度器行为
+
+- 启用中的调度器每分钟检查是否到点；到点时创建即时任务并记录 `lastTaskKey`。
+- `schedule` 类型调度器在任务完成后自动禁用（一次性）。
+- 调度器可独立启用/禁用；禁用后不再创建新任务，但已创建的任务继续执行。
+- 调度器不支持归档和重跑；不需要时直接删除。
 
 ## 默认配置
 
@@ -193,10 +228,11 @@ config:
 ```text
 lib/
 ├── index.js     插件入口、鉴权、HTTP、SSE、preset 和 approvalPolicy 固化
-├── engine-v2.js 派发、前台让行、轮询、反阻塞、重试、admission containment
+├── engine-v2.js 派发、前台让行、轮询、反阻塞、重试、调度器管理、admission containment
 ├── runner.js    所有 apiProxy 会话/goal 调用和 session ownership 守卫
 ├── ledger.js    原子账本、CAS generation、requestId 去重、并发和恢复
 ├── files.js     收件箱、调度解析、运行目录和安全报告读取
+├── scheduler.js cron 解析、nextRunAt 计算、catch-up
 ├── ai-tool.js   默认自动注册的 19 个 Host AI 工具 HTTP 薄客户端
 └── client.js    由 client/src/ 构建的浏览器 bundle
 ```

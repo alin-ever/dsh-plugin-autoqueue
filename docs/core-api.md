@@ -156,11 +156,13 @@ const engine = {
 | `autoArchive` | boolean | 覆盖全局自动归档 |
 | `enableNotifications` | boolean | 覆盖全局浏览器通知 |
 
+若 `opts` 包含 `cron` 或 `schedule`，则创建**调度器**（`kind: "scheduler"`），否则创建**即时任务**（`kind: "task"`）。调度器自身不进入状态机，只在到点时创建即时任务。
+
 创建顺序：校验/预留 requestId → 生成唯一 key → 原子写收件箱 → 原子写账本 → 完成 requestId → 触发一次 `scanPending()`。若账本事务失败，会回滚本次创建的收件箱文件。
 
 ### `engine.updateTask(key, patch)`
 
-只允许更新未归档的 `pending` 任务。字段范围与 HTTP update 相同：正文、调度、优先级、轮数、反阻塞、超时、尝试、Webhook、自动归档和通知；`maxGoalRounds`、`maxBlockedResumes`、`timeoutMs`、`maxAttempts` 传 `null` 可恢复全局默认。收件箱文件先原子更新，账本事务若失败会恢复旧文件。
+允许更新未归档、非运行中的**任务**或**调度器**。调度器没有 `phase`，因此跳过运行中检查。字段范围与 HTTP update 相同：正文、调度、优先级、轮数、反阻塞、超时、尝试、Webhook、自动归档和通知；调度器额外支持 `enabled`。`maxGoalRounds`、`maxBlockedResumes`、`timeoutMs`、`maxAttempts` 传 `null` 可恢复全局默认。收件箱文件先原子更新，账本事务若失败会恢复旧文件。
 
 ## 5. 动作层
 
@@ -168,12 +170,12 @@ const engine = {
 
 | action | 前置条件 | 核心行为 |
 |---|---|---|
-| `stop` | running | 持久化 stop intent，提交 owned cancel；双重权威 idle 后 finalize stopped |
-| `archive` | 非 running | archive owned sessions，设置 `archivedAt` |
-| `restore` | 已归档 | 清除 `archivedAt` |
-| `delete` | pending | 删除收件箱与账本项 |
-| `rerun` | 非 running、未归档 | 回到 pending 并重新创建收件箱源 |
-| `update` | pending、未归档 | 调用 `updateTask` |
+| `stop` | running 任务 | 持久化 stop intent，提交 owned cancel；双重权威 idle 后 finalize stopped |
+| `archive` | 非 running 任务 | archive owned sessions，设置 `archivedAt`（调度器不支持归档） |
+| `restore` | 已归档任务 | 清除 `archivedAt` |
+| `delete` | pending 任务或调度器 | 删除收件箱与账本项 |
+| `rerun` | 非 running、未归档任务 | 回到 pending 并重新创建收件箱源 |
+| `update` | 非 running、未归档任务或调度器 | 调用 `updateTask` |
 | `force-scan` | 无 | 立即 `scanPending` |
 | `set-concurrency` | 1-8 | 调用 ledger `setConcurrency` |
 
@@ -191,6 +193,7 @@ const engine = {
 {
   revision,
   tasks,
+  schedulers,
   runtime: {
     monitorMode: "native-events+authoritative-reconcile",
     foregroundGate,
@@ -208,15 +211,14 @@ const engine = {
 
 任务按 `updatedAt` 倒序。投影会删除 `raw` 和所有下划线内部字段，并派生 `taskType`、`nextRunAt`、`startedAt`、`currentRound`、`goalPhase`、`lastActivityTime`、`lastSessionId`、`lastError`、`readAt`、`foregroundPaused` 与 `stopPending`。
 
+`schedulers` 数组包含所有 `kind: "scheduler"` 的条目，派生 `nextRunAt`，不返回 execution 和内部字段。
+
 ### `engine.getTaskDetail(key)`
 
-返回任务正文、公开策略、execution 历史，以及安全读取的：
+返回**任务**或**调度器**详情。
 
-- `.目标.md`
-- `.结果.md`
-- `执行报告.md`
-
-报告路径必须仍位于当前 attempt 的 workDir 内，文件必须是普通文件且大小不超过 2 MiB。
+- **任务**：返回正文、公开策略、execution 历史，以及安全读取的 `.目标.md`、`.结果.md`、`执行报告.md`。报告路径必须仍位于当前 attempt 的 workDir 内，文件必须是普通文件且大小不超过 2 MiB。
+- **调度器**：返回 `kind: "scheduler"`、`enabled`、`cron`/`schedule`、`nextRunAt`、`lastTaskKey` 等字段；不返回 `status`、`executions`、`reports`、`sessionId`、`goalRef`。
 
 ### `engine.getConfig()` / `engine.setConfig(patch)`
 

@@ -91,12 +91,10 @@ Capabilities 与 OpenAPI 使用和业务接口相同的鉴权。Capabilities 中
   "revision": 42,
   "tasks": [
     {
-      "key": "daily-report",
+      "key": "instant-analysis",
       "status": "running",
-      "summary": "每日工作报告",
+      "summary": "即时分析任务",
       "lastSessionId": "autoqueue-session-017c9c4f-a5d0-4fe5-9558-98a805dd485e",
-      "taskType": "cron",
-      "cron": "0 8 * * 1-5",
       "priority": 5,
       "attempts": 1,
       "blockedResumes": 0,
@@ -107,6 +105,18 @@ Capabilities 与 OpenAPI 使用和业务接口相同的鉴权。Capabilities 中
       "enableNotifications": false,
       "createdAt": "2026-08-31T08:00:00.000Z",
       "updatedAt": "2026-08-31T08:01:00.000Z"
+    }
+  ],
+  "schedulers": [
+    {
+      "key": "daily-report",
+      "kind": "scheduler",
+      "cron": "0 8 * * 1-5",
+      "enabled": true,
+      "nextRunAt": "2026-09-01T08:00:00.000Z",
+      "priority": 5,
+      "createdAt": "2026-08-31T08:00:00.000Z",
+      "updatedAt": "2026-08-31T08:00:00.000Z"
     }
   ],
   "unreadCount": 0,
@@ -152,9 +162,18 @@ Capabilities 与 OpenAPI 使用和业务接口相同的鉴权。Capabilities 中
 
 运行任务还可能带 `stopPending=true`：停止或 deadline 意图已经持久化，但 owned session 尚未完成 DSH 受理后的双重 idle 收口，因此仍保留 `status=running` 和并发占位。
 
+### 调度器与任务
+
+- **调度器**（`kind: "scheduler"`）：带有 `cron` 或 `schedule` 的条目，只负责在到点时创建即时任务，自身不进入状态机。调度器有 `enabled`（启用/禁用）和 `nextRunAt` 字段，放在响应的 `schedulers` 数组中。
+- **任务**（`kind: "task"`）：即时执行的一次性条目，有完整的 `status`、`phase`、`executions` 生命周期，放在响应的 `tasks` 数组中。
+
+调度器创建的即时任务会继承调度器的配置（内容、优先级、截止等），并通过 `schedulerKey` 字段关联回源调度器。
+
 ## 5. `POST /api/queue/task`
 
-创建任务。`requestId` 用于幂等去重，长度为 1-128 个字符；同一 ID 不能用于不同请求。
+创建任务或调度器。`requestId` 用于幂等去重，长度为 1-128 个字符；同一 ID 不能用于不同请求。
+
+若请求包含 `cron` 或 `schedule`，则创建**调度器**（`kind: "scheduler"`），否则创建**即时任务**（`kind: "task"`）。
 
 ### 请求字段
 
@@ -226,13 +245,13 @@ Capabilities 与 OpenAPI 使用和业务接口相同的鉴权。Capabilities 中
 
 | `kind` | 关键字段 | 前置条件/效果 |
 |---|---|---|
-| `stop` | `key` | 仅 running；持久化异步停止意图并取消 owned session，pending 请用 delete |
-| `archive` | `key` | 非 running；隐藏任务并归档其插件自有 sessions |
-| `archive` | `keys` | 1-100 个唯一 key，逐项返回结果 |
+| `stop` | `key` | running 任务：持久化异步停止意图并取消 owned session；调度器：禁用调度器 |
+| `archive` | `key` | 非 running 任务；隐藏任务并归档其插件自有 sessions（调度器不支持） |
+| `archive` | `keys` | 1-100 个唯一 key，逐项返回结果（调度器不支持） |
 | `restore` | `key` | 清除 `archivedAt` |
-| `delete` | `key` | pending / failed / stopped；删除收件箱文件和账本项 |
-| `rerun` | `key` | 非 running 且未归档；terminal 与 pending 均可重新入队 |
-| `update` | `key` + patch | 仅 pending 且未归档 |
+| `delete` | `key` | pending / failed / stopped 任务，或任意调度器；删除收件箱文件和账本项 |
+| `rerun` | `key` | 非 running 且未归档任务；terminal 与 pending 均可重新入队 |
+| `update` | `key` + patch | 非 running 且未归档的任务或调度器 |
 | `force-scan` | 无 | 立即检查 Markdown 收件箱 |
 | `set-concurrency` | `maxConcurrent` | 设置 1-8，持久化到账本 |
 

@@ -1,5 +1,5 @@
 ﻿import { Tab, TabGroup, TabList, TabPanel, TabPanels } from "@headlessui/react";
-import { iconHtml, cronToHuman, formatIso, STATUS_CONFIG, isUnread } from "../utils.js";
+import { iconHtml, cronToHuman, formatIso, STATUS_CONFIG, isUnread, taskSummary } from "../utils.js";
 import { DialogShell } from "./DialogShell.jsx";
 import { renderMarkdown } from "./MarkdownRenderer.jsx";
 
@@ -22,7 +22,7 @@ export function TaskDetailPanel(props) {
       detail[1](data); loading[1](false);
     }).catch(function (err) {
       if (!cancelled) {
-        detailError[1](err && err.message ? err.message : "无法读取任务详情");
+        detailError[1](err && err.message ? err.message : "无法读取详情");
         loading[1](false);
       }
     });
@@ -31,9 +31,10 @@ export function TaskDetailPanel(props) {
 
   var current = detail[0] && detail[0].task && detail[0].task.key === task.key ? detail[0] : null;
   var value = current ? current.task : task;
+  var isScheduler = value.kind === "scheduler";
   var status = STATUS_CONFIG[value.status] || { label: value.status, color: "#596579" };
-  var sessionId = value.sessionId || value.lastSessionId || (value.executions && value.executions.length ? value.executions[value.executions.length - 1].sessionId : null);
-  var attention = needsAttention(value);
+  var sessionId = !isScheduler ? (value.sessionId || value.lastSessionId || (value.executions && value.executions.length ? value.executions[value.executions.length - 1].sessionId : null)) : null;
+  var attention = !isScheduler && needsAttention(value);
   var reports = current && current.task.reports ? current.task.reports : (value.reports || {});
 
   function doAction(kind) {
@@ -46,18 +47,29 @@ export function TaskDetailPanel(props) {
     else doAction(kind);
   }
 
+  var statusColor, statusLabel;
+  if (isScheduler) {
+    statusColor = value.enabled !== false ? "#067647" : "#667085";
+    statusLabel = value.enabled !== false ? "启用中" : "已禁用";
+  } else {
+    statusColor = attention || value.stopPending ? "#9a6700" : (value.foregroundPaused ? "#27776e" : status.color);
+    statusLabel = attention ? "需关注" : (value.stopPending ? "正在停止" : (value.foregroundPaused ? "已暂停" : status.label));
+  }
+
+  var tabs = isScheduler ? ["概览", "策略"] : ["概览", "执行轨迹", "报告", "策略"];
+
   return h(DialogShell, {
-    variant: "drawer", open: true, onClose: props.onClose, title: value.key,
+    variant: "drawer", open: true, onClose: props.onClose, title: taskSummary(value.body) || value.key,
     className: "w-[min(840px,94vw)]"
   },
     h("div", { className: "flex flex-col h-full" },
       // 状态条
       h("div", { className: "flex items-center gap-3 px-6 py-3 bg-aq-surface-alt border-b border-aq-line" },
         h("span", { className: "inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-bold",
-          style: { backgroundColor: (attention || value.stopPending ? "#9a6700" : (value.foregroundPaused ? "#27776e" : status.color)) + "15", color: attention || value.stopPending ? "#9a6700" : (value.foregroundPaused ? "#27776e" : status.color) }
+          style: { backgroundColor: statusColor + "15", color: statusColor }
         },
           h("span", { className: "w-1.5 h-1.5 rounded-full", style: { backgroundColor: "currentColor" } }),
-          attention ? "需关注" : (value.stopPending ? "正在停止" : (value.foregroundPaused ? "已暂停" : status.label))
+          statusLabel
         ),
         value.updatedAt && h("span", { className: "text-xs text-aq-faint" }, "更新于 ", formatIso(value.updatedAt))
       ),
@@ -65,7 +77,7 @@ export function TaskDetailPanel(props) {
       // Tabs
       h(TabGroup, { className: "flex flex-col flex-1 min-h-0" },
         h(TabList, { className: "flex flex-shrink-0 gap-0 px-6 border-b border-aq-line" },
-          ["概览", "执行轨迹", "报告", "策略"].map(function (name) {
+          tabs.map(function (name) {
             return h(Tab, {
               key: name,
               className: "px-4 py-2.5 text-sm font-semibold text-aq-muted border-b-2 border-transparent transition data-[selected]:text-aq-blue data-[selected]:border-aq-blue outline-none"
@@ -78,12 +90,12 @@ export function TaskDetailPanel(props) {
             detailError[0] ? h(ErrorView, { error: detailError[0], onRetry: function () { retry[1](retry[0] + 1); } }) :
             h(OverviewTab, { task: value, attention: attention, sessionId: sessionId })
           ),
-          h(TabPanel, null,
+          !isScheduler && h(TabPanel, null,
             loading[0] ? h(LoadingView) :
             detailError[0] ? h(ErrorView, { error: detailError[0], onRetry: function () { retry[1](retry[0] + 1); } }) :
             h(TraceTab, { task: value })
           ),
-          h(TabPanel, null,
+          !isScheduler && h(TabPanel, null,
             loading[0] ? h(LoadingView) :
             detailError[0] ? h(ErrorView, { error: detailError[0], onRetry: function () { retry[1](retry[0] + 1); } }) :
             h(ReportTab, { reports: reports })
@@ -98,14 +110,18 @@ export function TaskDetailPanel(props) {
 
       // 底部操作栏
       h("div", { className: "flex-shrink-0 flex flex-wrap gap-2 px-6 py-3 border-t border-aq-line bg-aq-paper" },
-        ["pending", "stopped"].indexOf(value.status) >= 0 && h("button", { className: "aq-btn aq-btn-ghost text-sm", onClick: function () { props.onClose(); controller.openEdit(value.key); } }, "编辑"),
-        (value.status === "running" || (value.status === "pending" && (value.cron || value.schedule))) && value.stopPending !== true && h("button", { className: "aq-btn aq-btn-ghost text-sm text-aq-red", onClick: function () { requestAction("stop"); }, disabled: value.stopPending === true }, "停止"),
-        ["pending", "failed", "stopped", "interrupted"].indexOf(value.status) >= 0 && h("button", { className: "aq-btn aq-btn-ghost text-sm text-aq-red", onClick: function () { requestAction("delete"); } }, "删除"),
-        ["done", "failed", "stopped", "interrupted"].indexOf(value.status) >= 0 && !value.archivedAt && h("button", { className: "aq-btn aq-btn-ghost text-sm text-aq-green", onClick: function () { requestAction("rerun"); } }, "重新执行"),
-        ["done", "failed", "stopped", "interrupted"].indexOf(value.status) >= 0 && !value.archivedAt && h("button", { className: "aq-btn aq-btn-ghost text-sm", onClick: function () { doAction("archive"); } }, "归档"),
+        !isScheduler && value.status !== "running" && !value.archivedAt && h("button", { className: "aq-btn aq-btn-ghost text-sm", onClick: function () { props.onClose(); controller.openEdit(value.key); } }, "编辑"),
+        isScheduler && !value.archivedAt && h("button", { className: "aq-btn aq-btn-ghost text-sm", onClick: function () { props.onClose(); controller.openEdit(value.key); } }, "编辑"),
+        !isScheduler && (value.status === "running" || (value.status === "pending" && (value.cron || value.schedule))) && value.stopPending !== true && h("button", { className: "aq-btn aq-btn-ghost text-sm text-aq-red", onClick: function () { requestAction("stop"); }, disabled: value.stopPending === true }, "停止"),
+        isScheduler && !value.archivedAt && value.enabled !== false && h("button", { className: "aq-btn aq-btn-ghost text-sm text-aq-red", onClick: function () { requestAction("stop"); } }, "停止"),
+        isScheduler && !value.archivedAt && value.enabled === false && h("button", { className: "aq-btn aq-btn-ghost text-sm text-aq-green", onClick: function () { requestAction("enable"); } }, "启用"),
+        !isScheduler && ["pending", "failed", "stopped", "interrupted"].indexOf(value.status) >= 0 && h("button", { className: "aq-btn aq-btn-ghost text-sm text-aq-red", onClick: function () { requestAction("delete"); } }, "删除"),
+        isScheduler && !value.archivedAt && h("button", { className: "aq-btn aq-btn-ghost text-sm text-aq-red", onClick: function () { requestAction("delete"); } }, "删除"),
+        !isScheduler && ["done", "failed", "stopped", "interrupted"].indexOf(value.status) >= 0 && !value.archivedAt && h("button", { className: "aq-btn aq-btn-ghost text-sm text-aq-green", onClick: function () { requestAction("rerun"); } }, "重新执行"),
+        !isScheduler && ["done", "failed", "stopped", "interrupted"].indexOf(value.status) >= 0 && !value.archivedAt && h("button", { className: "aq-btn aq-btn-ghost text-sm", onClick: function () { doAction("archive"); } }, "归档"),
         value.archivedAt && h("button", { className: "aq-btn aq-btn-ghost text-sm", onClick: function () { doAction("restore"); } }, "恢复"),
         h("span", { className: "flex-1" }),
-        sessionId && !value.archivedAt && h("button", { className: "aq-btn aq-btn-primary text-sm", onClick: function () { props.onClose(); controller.closeBoard(); if (props.sessions && props.sessions.open) props.sessions.open(sessionId); }, dangerouslySetInnerHTML: { __html: iconHtml("external") + " 跳转会话" } })
+        !isScheduler && sessionId && !value.archivedAt && h("button", { className: "aq-btn aq-btn-primary text-sm", onClick: function () { props.onClose(); controller.closeBoard(); if (props.sessions && props.sessions.open) props.sessions.open(sessionId); }, dangerouslySetInnerHTML: { __html: iconHtml("external") + " 跳转会话" } })
       )
     )
   );
@@ -149,7 +165,8 @@ function OverviewTab(props) {
         h(Fact, { label: "创建时间", value: task.createdAt ? formatIso(task.createdAt) : "-" }),
         h(Fact, { label: "下次运行", value: task.nextRunAt ? formatIso(task.nextRunAt) : "-" }),
         h(Fact, { label: "任务会话", value: props.sessionId ? "已创建" : "尚未创建" }),
-        h(Fact, { label: "当前阶段", value: taskPhaseLabel(task.goalPhase, task.status) })
+        h(Fact, { label: "当前阶段", value: taskPhaseLabel(task.goalPhase, task.status) }),
+        task.schedulerKey && h(Fact, { label: "来源调度器", value: task.schedulerKey })
       )
     ),
 

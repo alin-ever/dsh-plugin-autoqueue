@@ -27,6 +27,7 @@ export function FloatingDock(props) {
   var boardOpen = snap.boardOpen;
   var runningCount = snap.metrics.running || 0;
   var hasAttention = snap.tasks.some(function (t) {
+    if (t.archivedAt) return false;
     return t.status === "failed" || t.status === "interrupted" ||
       (t.goalPhase && (t.goalPhase.indexOf("uncertain") >= 0 || t.goalPhase.indexOf("containment") >= 0));
   });

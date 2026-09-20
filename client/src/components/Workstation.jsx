@@ -1,5 +1,5 @@
 ﻿import { Checkbox, Field, Input } from "@headlessui/react";
-import { iconHtml, isUnread, taskSummary, cronToHuman, STATUS_CONFIG, formatLocalDateTime } from "../utils.js";
+import { iconHtml, isUnread, cronToHuman, STATUS_CONFIG, formatLocalDateTime } from "../utils.js";
 import { TaskDetailPanel } from "./TaskDetail.jsx";
 import { NewTaskModal, EditTaskModal, ConfigPanel, ConfirmModal, TemplateManager } from "./Modals.jsx";
 import { DialogShell } from "./DialogShell.jsx";
@@ -51,14 +51,18 @@ export function Workstation(props) {
   }
 
   function handleAction(kind, key) {
+    if (kind === "enable") { runAction("update", key, { enabled: true }); return; }
     if (kind === "delete" || kind === "stop" || kind === "rerun") {
+      var all = (snap.tasks || []).concat(snap.schedulers || []);
+      var task = all.find(function (t) { return t.key === key; });
+      var isScheduler = task && task.kind === "scheduler";
       var prompt = kind === "delete" ? "确认删除这个待执行任务？此操作不可恢复。"
-        : (kind === "stop" ? "确认停止运行中的任务？当前会话会安全结束。"
+        : (kind === "stop" ? (isScheduler ? "确认禁用该调度器？禁用后不再自动创建任务。" : "确认停止运行中的任务？当前会话会安全结束。")
         : "确认重新执行这个任务？这会创建新的独立会话，并再次消耗模型与工具资源。");
       confirm[1]({
-        title: kind === "delete" ? "删除任务" : (kind === "stop" ? "停止任务" : "重新执行任务"),
+        title: kind === "delete" ? "删除任务" : (kind === "stop" ? (isScheduler ? "禁用调度器" : "停止任务") : "重新执行任务"),
         message: prompt,
-        confirmLabel: kind === "delete" ? "删除" : (kind === "stop" ? "停止" : "重新执行"),
+        confirmLabel: kind === "delete" ? "删除" : (kind === "stop" ? (isScheduler ? "禁用" : "停止") : "重新执行"),
         tone: kind === "rerun" ? "warn" : "danger",
         onConfirm: function () { confirm[1](null); runAction(kind, key); }
       });
@@ -156,7 +160,7 @@ export function Workstation(props) {
             else if (ts.status === "running") phase = "已开始执行";
             else if (ts.status === "done") phase = "已完成";
             else if (ts.status === "failed") phase = "执行失败，请查看详情";
-            else if (ts.status === "pending") phase = data.cron ? "已启用循环调度" : (data.schedule ? `已安排定时执行（${data.schedule}）` : "等待执行");
+            else if (ts.status === "pending") phase = data.cron ? "已创建循环调度器" : (data.schedule ? `已创建定时调度器（${data.schedule}）` : "等待执行");
           }
           flash("已入队：" + key + " · " + (result.stateRefreshed === false ? "页面刷新失败" : phase));
           return result;
@@ -225,15 +229,12 @@ function NavCategories(props) {
   var all = snap.tasks || [];
   var active = all.filter(function (t) { return !t.archivedAt; });
   var archived = all.filter(function (t) { return !!t.archivedAt; });
-  var cronTasks = active.filter(function (t) { return t.cron; });
-  var scheduleTasks = active.filter(function (t) { return t.schedule && !t.cron; });
-  var manualTasks = active.filter(function (t) { return !t.cron && !t.schedule; });
+  var schedulerList = snap.schedulers || [];
+  var activeSchedulers = schedulerList.filter(function (s) { return !s.archivedAt; });
   var done24h = snap.metrics.done24h || 0;
   var cats = [
-    ["all", "全部", active.length],
-    ["cron", "循环任务", cronTasks.length],
-    ["schedule", "定时任务", scheduleTasks.length],
-    ["manual", "即时任务", manualTasks.length],
+    ["all", "任务", active.length],
+    ["schedulers", "调度", activeSchedulers.length],
     ["archived", "归档", archived.length],
   ];
 
@@ -268,7 +269,12 @@ function NavCategories(props) {
 function CompactFilters(props) {
   var snap = props.snap;
   var sc = snap.scopeCounts || {};
-  var tabs = [
+  var isSchedulerView = snap.navGroup === "schedulers";
+  var tabs = isSchedulerView ? [
+    ["all", "全部", (snap.scoped || []).length],
+    ["enabled", "启用中", sc.enabled || 0],
+    ["disabled", "已禁用", sc.disabled || 0]
+  ] : [
     ["all", "全部", (snap.scoped || []).length],
     ["running", "运行中", sc.running || 0],
     ["pending", "待执行", sc.pending || 0],
@@ -281,7 +287,7 @@ function CompactFilters(props) {
       h(Field, null,
         h(Input, {
           type: "search", value: props.query, onChange: function (e) { props.onQuery(e.target.value); },
-          placeholder: "搜索任务…",
+          placeholder: isSchedulerView ? "搜索调度器…" : "搜索任务…",
           className: "w-full h-8 px-3 rounded-lg border border-aq-line bg-aq-surface-alt text-sm text-aq-ink outline-none focus:border-aq-blue focus:ring-2 focus:ring-aq-blue/10 placeholder:text-aq-faint"
         })
       )
@@ -302,32 +308,34 @@ function CompactFilters(props) {
 // ─── Compact Task List ───────────────────────────────────
 
 function CompactTaskList(props) {
+  var isSchedulerView = props.snap.navGroup === "schedulers";
   if (props.snap.loading) {
     return h("div", { className: "flex flex-col items-center justify-center flex-1 gap-3 py-12" },
       h("div", { className: "w-5 h-5 border-2 border-aq-line-2 border-t-aq-blue rounded-full animate-spin" }),
-      h("span", { className: "text-sm text-aq-muted" }, "正在读取任务账本…")
+      h("span", { className: "text-sm text-aq-muted" }, isSchedulerView ? "正在读取调度器账本…" : "正在读取任务账本…")
     );
   }
   if (!props.tasks.length) {
     return h("div", { className: "flex flex-col items-center justify-center flex-1 py-12 gap-2" },
-      h("p", { className: "text-sm text-aq-muted" }, "还没有任务"),
-      h("button", { className: "aq-btn aq-btn-primary text-xs", onClick: function () { props.controller.openNewTask(); } }, "创建第一个任务")
+      h("p", { className: "text-sm text-aq-muted" }, isSchedulerView ? "还没有调度器" : "还没有任务"),
+      h("button", { className: "aq-btn aq-btn-primary text-xs", onClick: function () { props.controller.openNewTask(); } }, isSchedulerView ? "创建第一个调度器" : "创建第一个任务")
     );
   }
   var isArchivedView = props.snap.navGroup === "archived";
+  var isSchedulerView = props.snap.navGroup === "schedulers";
   var selectableCount = props.tasks.filter(function (t) { return t.status !== "running" && !t.archivedAt; }).length;
   return h("div", { className: "flex-1 overflow-y-auto overflow-x-hidden" },
     h("table", { className: "w-full table-fixed", style: { borderSpacing: "0" } },
       h("colgroup", null,
-        !isArchivedView && h("col", { style: { width: "40px" } }),
+        !isArchivedView && !isSchedulerView && h("col", { style: { width: "40px" } }),
         h("col", null),
-        h("col", { style: { width: "120px" } }),
-        h("col", { style: { width: "76px" } }),
+        isSchedulerView && h("col", { style: { width: "140px" } }),
+        h("col", { style: { width: "80px" } }),
         h("col", { style: { width: "168px" } })
       ),
       h("thead", null,
         h("tr", { className: "border-b border-aq-line bg-aq-surface-alt" },
-          !isArchivedView && h("th", { className: "pl-4 pr-2 py-1" },
+          !isArchivedView && !isSchedulerView && h("th", { className: "pl-4 pr-2 py-1" },
             h(Checkbox, {
               checked: selectableCount > 0 && props.selected.length === selectableCount,
               indeterminate: props.selected.length > 0 && props.selected.length < selectableCount,
@@ -343,8 +351,8 @@ function CompactTaskList(props) {
               )
             )
           ),
-          h("th", { className: "text-left py-1 " + (isArchivedView ? "pl-4" : "pl-0") + " text-xs font-semibold text-aq-faint uppercase tracking-wide" }, "任务"),
-          h("th", { className: "py-1 text-xs font-semibold text-aq-faint uppercase tracking-wide text-center" }, "调度"),
+          h("th", { className: "text-left py-1 " + (isArchivedView || isSchedulerView ? "pl-4" : "pl-0") + " text-xs font-semibold text-aq-faint uppercase tracking-wide" }, isSchedulerView ? "调度器" : "任务"),
+          isSchedulerView && h("th", { className: "py-1 text-xs font-semibold text-aq-faint uppercase tracking-wide text-center" }, "调度"),
           h("th", { className: "pr-4 py-1 text-xs font-semibold text-aq-faint uppercase tracking-wide text-right" }, "状态"),
           h("th", { className: "pr-4 py-1 text-xs font-semibold text-aq-faint uppercase tracking-wide text-center" }, "操作")
         )
@@ -358,7 +366,8 @@ function CompactTaskList(props) {
             onDetail: function (k) { props.controller.openDetail(k); },
             onEdit: function (k) { props.controller.openEdit(k); },
             onSession: function (sid) { props.controller.closeBoard(); props.sessions.open(sid); },
-            hideCheckbox: isArchivedView
+            hideCheckbox: isArchivedView || isSchedulerView,
+            hideSchedule: !isSchedulerView
           });
         })
       )
@@ -377,21 +386,29 @@ var actionBtnStyle = {
 
 function TaskRow(props) {
   var task = props.task;
+  var isScheduler = task.kind === "scheduler";
   var cfg = STATUS_CONFIG[task.status] || { label: task.status, color: "#596579" };
-  var summary = task.title || task.summary || taskSummary(task.body);
-  var attention = taskNeedsAttention(task);
-  var selectable = task.status !== "running" && !task.archivedAt;
-  var unread = isUnread(task);
-  var sessionId = task.sessionId || task.lastSessionId || (task.executions && task.executions.length ? task.executions[task.executions.length - 1].sessionId : null);
+  var summary = task.summary || task.key;
+  var attention = !isScheduler && taskNeedsAttention(task);
+  var selectable = !isScheduler && task.status !== "running" && !task.archivedAt;
+  var unread = !isScheduler && isUnread(task);
+  var sessionId = !isScheduler ? (task.sessionId || task.lastSessionId || (task.executions && task.executions.length ? task.executions[task.executions.length - 1].sessionId : null)) : null;
 
   var plan = task.cron ? cronToHuman(task.cron) : (task.schedule ? formatLocalDateTime(task.schedule) : "即时");
-  if (task.cron && task.attempts > 1) plan = plan + " · 第" + task.attempts + "次";
-  var statusColor = task.stopPending ? "#9a6700" : (task.foregroundPaused ? "#27776e" : cfg.color);
-  var statusLabel = task.stopPending ? "停止中" : (task.foregroundPaused ? "已暂停" : cfg.label);
-  var maxConcurrent = (props.snap.config && props.snap.config.maxConcurrent) || 1;
-  var running = (props.snap.metrics && props.snap.metrics.running) || 0;
-  if (task.status === "pending" && running >= maxConcurrent) {
-    statusLabel = statusLabel + " · 排队中";
+  if (!isScheduler && task.cron && task.attempts > 1) plan = plan + " · 第" + task.attempts + "次";
+
+  var statusColor, statusLabel;
+  if (isScheduler) {
+    statusColor = task.enabled !== false ? "#067647" : "#667085";
+    statusLabel = task.enabled !== false ? "启用中" : "已禁用";
+  } else {
+    statusColor = task.stopPending ? "#9a6700" : (task.foregroundPaused ? "#27776e" : cfg.color);
+    statusLabel = task.stopPending ? "停止中" : (task.foregroundPaused ? "已暂停" : cfg.label);
+    var maxConcurrent = (props.snap.config && props.snap.config.maxConcurrent) || 1;
+    var running = (props.snap.metrics && props.snap.metrics.running) || 0;
+    if (task.status === "pending" && running >= maxConcurrent) {
+      statusLabel = statusLabel + " · 排队中";
+    }
   }
 
   function openRow() { props.onDetail(task.key); }
@@ -417,13 +434,15 @@ function TaskRow(props) {
         )
       )),
     h("td", { className: "py-2.5 " + (props.hideCheckbox ? "pl-4" : "") + " align-middle overflow-hidden", style: { fontSize: "13px", minWidth: "120px" } },
-      h("div", { className: "flex items-center gap-1.5 min-w-0" },
-        h("span", { className: "flex-shrink-0 w-1.5 h-1.5 rounded-full " + (unread ? "bg-aq-blue" : "bg-transparent"), title: unread ? "未读" : undefined }),
-        h("span", { className: "font-semibold text-aq-ink leading-snug flex-shrink-0", style: { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "160px" } }, attention ? "! " + task.key : task.key),
-        summary && h("span", { className: "text-aq-muted leading-snug flex-1 min-w-0", style: { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, "· " + summary)
+      h("div", { className: "flex flex-col min-w-0" },
+        h("div", { className: "flex items-center gap-1.5 min-w-0" },
+          h("span", { className: "flex-shrink-0 w-1.5 h-1.5 rounded-full " + (unread ? "bg-aq-blue" : "bg-transparent"), title: unread ? "未读" : undefined }),
+          h("span", { className: "font-semibold text-aq-ink leading-snug flex-1 min-w-0", style: { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, (attention ? "! " : "") + (summary || task.key))
+        ),
+        summary && task.schedulerKey && h("span", { className: "text-aq-muted leading-snug min-w-0 pl-2.5", style: { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontSize: "12px" } }, "来源: " + task.schedulerKey)
       )
     ),
-    h("td", { className: "py-2.5 text-center align-middle", style: { fontSize: "12px" } },
+    !props.hideSchedule && h("td", { className: "py-2.5 text-center align-middle", style: { fontSize: "12px" } },
       h("span", { className: "inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-aq-surface-alt text-aq-faint border border-aq-line whitespace-nowrap" }, plan)
     ),
     h("td", { className: "py-2.5 pr-4 text-right align-middle", style: { fontSize: "12px" } },
@@ -437,12 +456,16 @@ function TaskRow(props) {
     ),
     h("td", { className: "py-2.5 pr-4 align-middle", style: { fontSize: "12px" } },
       h("div", { className: "flex items-center gap-1 flex-wrap justify-center w-full" },
-        (task.status === "running" || (task.status === "pending" && (task.cron || task.schedule))) && task.stopPending !== true && !task.archivedAt && h("button", { style: actionBtnStyle, className: "hover:bg-aq-red-soft", onClick: function (e) { e.stopPropagation(); props.onAction("stop", task.key); } }, "停止"),
-        ["pending", "stopped"].indexOf(task.status) >= 0 && !task.archivedAt && h("button", { style: actionBtnStyle, className: "hover:bg-aq-surface-alt", onClick: function (e) { e.stopPropagation(); props.onEdit(task.key); } }, "编辑"),
-        ["done", "failed", "stopped", "interrupted"].indexOf(task.status) >= 0 && !task.archivedAt && h("button", { style: Object.assign({}, actionBtnStyle, { color: "var(--aq-green, #067647)" }), className: "hover:bg-aq-green-soft", onClick: function (e) { e.stopPropagation(); props.onAction("rerun", task.key); } }, "重跑"),
-        ["done", "failed", "stopped", "interrupted"].indexOf(task.status) >= 0 && !task.archivedAt && h("button", { style: actionBtnStyle, className: "hover:bg-aq-surface-alt", onClick: function (e) { e.stopPropagation(); props.onAction("archive", task.key); } }, "归档"),
+        !isScheduler && (task.status === "running" || (task.status === "pending" && (task.cron || task.schedule))) && task.stopPending !== true && !task.archivedAt && h("button", { style: actionBtnStyle, className: "hover:bg-aq-red-soft", onClick: function (e) { e.stopPropagation(); props.onAction("stop", task.key); } }, "停止"),
+        isScheduler && !task.archivedAt && task.enabled !== false && h("button", { style: actionBtnStyle, className: "hover:bg-aq-red-soft", onClick: function (e) { e.stopPropagation(); props.onAction("stop", task.key); } }, "停止"),
+        isScheduler && !task.archivedAt && task.enabled === false && h("button", { style: Object.assign({}, actionBtnStyle, { color: "var(--aq-green, #067647)" }), className: "hover:bg-aq-green-soft", onClick: function (e) { e.stopPropagation(); props.onAction("enable", task.key); } }, "启用"),
+        !isScheduler && task.status !== "running" && !task.archivedAt && h("button", { style: actionBtnStyle, className: "hover:bg-aq-surface-alt", onClick: function (e) { e.stopPropagation(); props.onEdit(task.key); } }, "编辑"),
+        isScheduler && !task.archivedAt && h("button", { style: actionBtnStyle, className: "hover:bg-aq-surface-alt", onClick: function (e) { e.stopPropagation(); props.onEdit(task.key); } }, "编辑"),
+        !isScheduler && ["done", "failed", "stopped", "interrupted"].indexOf(task.status) >= 0 && !task.archivedAt && h("button", { style: Object.assign({}, actionBtnStyle, { color: "var(--aq-green, #067647)" }), className: "hover:bg-aq-green-soft", onClick: function (e) { e.stopPropagation(); props.onAction("rerun", task.key); } }, "重跑"),
+        !isScheduler && ["done", "failed", "stopped", "interrupted"].indexOf(task.status) >= 0 && !task.archivedAt && h("button", { style: actionBtnStyle, className: "hover:bg-aq-surface-alt", onClick: function (e) { e.stopPropagation(); props.onAction("archive", task.key); } }, "归档"),
+        isScheduler && !task.archivedAt && h("button", { style: Object.assign({}, actionBtnStyle, { color: "var(--aq-red, #b42318)" }), className: "hover:bg-aq-red-soft", onClick: function (e) { e.stopPropagation(); props.onAction("delete", task.key); } }, "删除"),
         task.archivedAt && h("button", { style: actionBtnStyle, className: "hover:bg-aq-surface-alt", onClick: function (e) { e.stopPropagation(); props.onAction("restore", task.key); } }, "还原"),
-        sessionId && !task.archivedAt && h("button", { style: actionBtnStyle, className: "hover:bg-aq-surface-alt", onClick: function (e) { e.stopPropagation(); if (props.onSession) props.onSession(sessionId); } }, "会话")
+        !isScheduler && task.status === "running" && sessionId && !task.archivedAt && h("button", { style: actionBtnStyle, className: "hover:bg-aq-surface-alt", onClick: function (e) { e.stopPropagation(); if (props.onSession) props.onSession(sessionId); } }, "会话")
       )
     )
   );

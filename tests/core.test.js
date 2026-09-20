@@ -529,7 +529,7 @@ test("runner prepares the owned session before goal admission and cancels on pre
   assert.equal(cancelledAgentId, sessionId);
   assert.equal(beforeGoalCalls, 0);
   assert.equal(goalCalls, 0);
-  assert.deepEqual(order, ["agents.create", "append:session/title", "prepare", "cancel"]);
+  assert.deepEqual(order, ["agents.create", "append:session/title", "append:model/selection", "prepare", "cancel"]);
 });
 
 test("runner re-prepares restored sessions before every continuation admission", async () => {
@@ -1021,6 +1021,13 @@ test("overlapping create scan replays after the active inbox snapshot", async ()
   engine._dispatch = async task => {
     dispatched.push(task.key);
     rmSync(task.path);
+    // 模拟真实 _dispatch 将 ledger entry 置为 dispatching，随后完成
+    const { upsertEntry: upsert, flushLedger: flush } = await import("../lib/ledger.js");
+    upsert(task.key, { phase: { execution: "dispatching", cancellation: null } });
+    flush();
+    await new Promise(r => setImmediate(r));
+    upsert(task.key, { phase: { execution: "idle", cancellation: null }, result: "done" });
+    flush();
   };
 
   await engine.scanPending();
