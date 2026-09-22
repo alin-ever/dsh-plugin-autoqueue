@@ -110,12 +110,12 @@ export function TaskDetailPanel(props) {
 
       // 底部操作栏
       h("div", { className: "flex-shrink-0 flex flex-wrap gap-2 px-6 py-3 border-t border-aq-line bg-aq-paper" },
-        !isScheduler && value.status !== "running" && !value.archivedAt && h("button", { className: "aq-btn aq-btn-ghost text-sm", onClick: function () { props.onClose(); controller.openEdit(value.key); } }, "编辑"),
-        isScheduler && !value.archivedAt && h("button", { className: "aq-btn aq-btn-ghost text-sm", onClick: function () { props.onClose(); controller.openEdit(value.key); } }, "编辑"),
-        !isScheduler && (value.status === "running" || (value.status === "pending" && (value.cron || value.schedule))) && value.stopPending !== true && h("button", { className: "aq-btn aq-btn-ghost text-sm text-aq-red", onClick: function () { requestAction("stop"); }, disabled: value.stopPending === true }, "停止"),
+        !isScheduler && (value.status === "running" || value.status === "pending") && value.stopPending !== true && h("button", { className: "aq-btn aq-btn-ghost text-sm text-aq-red", onClick: function () { requestAction("stop"); }, disabled: value.stopPending === true }, "停止"),
         isScheduler && !value.archivedAt && value.enabled !== false && h("button", { className: "aq-btn aq-btn-ghost text-sm text-aq-red", onClick: function () { requestAction("stop"); } }, "停止"),
         isScheduler && !value.archivedAt && value.enabled === false && h("button", { className: "aq-btn aq-btn-ghost text-sm text-aq-green", onClick: function () { requestAction("enable"); } }, "启用"),
-        !isScheduler && ["pending", "failed", "stopped", "interrupted"].indexOf(value.status) >= 0 && h("button", { className: "aq-btn aq-btn-ghost text-sm text-aq-red", onClick: function () { requestAction("delete"); } }, "删除"),
+        !isScheduler && value.status !== "running" && !value.archivedAt && h("button", { className: "aq-btn aq-btn-ghost text-sm", onClick: function () { props.onClose(); controller.openEdit(value.key); } }, "编辑"),
+        isScheduler && !value.archivedAt && h("button", { className: "aq-btn aq-btn-ghost text-sm", onClick: function () { props.onClose(); controller.openEdit(value.key); } }, "编辑"),
+        !isScheduler && ["failed", "stopped", "interrupted"].indexOf(value.status) >= 0 && h("button", { className: "aq-btn aq-btn-ghost text-sm text-aq-red", onClick: function () { requestAction("delete"); } }, "删除"),
         isScheduler && !value.archivedAt && h("button", { className: "aq-btn aq-btn-ghost text-sm text-aq-red", onClick: function () { requestAction("delete"); } }, "删除"),
         !isScheduler && ["done", "failed", "stopped", "interrupted"].indexOf(value.status) >= 0 && !value.archivedAt && h("button", { className: "aq-btn aq-btn-ghost text-sm text-aq-green", onClick: function () { requestAction("rerun"); } }, "重新执行"),
         !isScheduler && ["done", "failed", "stopped", "interrupted"].indexOf(value.status) >= 0 && !value.archivedAt && h("button", { className: "aq-btn aq-btn-ghost text-sm", onClick: function () { doAction("archive"); } }, "归档"),

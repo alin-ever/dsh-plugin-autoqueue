@@ -81,6 +81,7 @@ export function createController(transport) {
     } else {
       filtered = filter === "all" ? scoped : scoped.filter(function (t) { return t.status === filter; });
     }
+    filtered.sort(function (a, b) { return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(); });
     var detailTask = showDetail ? allEntries().find(function (t) { return t.key === showDetail; }) : null;
     var editTask = showEdit
       ? (editTaskData && editTaskData.key === showEdit ? editTaskData : allEntries().find(function (t) { return t.key === showEdit; }))

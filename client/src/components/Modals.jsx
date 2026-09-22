@@ -152,7 +152,7 @@ export function NewTaskModal(props) {
         h("div", { className: "grid grid-cols-2 gap-3 mt-4" },
           h(Field, { label: "任务标识（可选）", help: "留空将自动生成" },
             h("input", { value: key[0], onChange: function (e) { key[1](e.target.value); }, placeholder: "weekly-insight", className: "aq-input" })),
-          h(Field, { label: "优先级（1-10）" },
+          h(Field, { label: "优先级（1-10）", help: "1 最高，10 最低" },
             h("input", { type: "number", min: "1", max: "10", value: priority[0], onChange: function (e) { priority[1](e.target.value); }, className: "aq-input" }))
         ),
 
@@ -264,7 +264,7 @@ export function EditTaskModal(props) {
         h("textarea", { value: content[0], onChange: function (e) { content[1](e.target.value); }, className: "w-full h-36 p-3 rounded-xl border border-aq-line-2 bg-aq-paper text-sm text-aq-ink resize-y focus:border-aq-blue focus:ring-2 focus:ring-aq-blue/10 outline-none" }),
 
         h("div", { className: "grid grid-cols-2 gap-3 mt-4" },
-          h(Field, { label: "优先级（1-10）" }, h("input", { type: "number", min: "1", max: "10", value: priority[0], onChange: function (e) { priority[1](e.target.value); }, className: "aq-input" })),
+          h(Field, { label: "优先级（1-10）", help: "1 最高，10 最低" }, h("input", { type: "number", min: "1", max: "10", value: priority[0], onChange: function (e) { priority[1](e.target.value); }, className: "aq-input" })),
           h(CronField, { label: "定时调度（循环）", value: cron[0], onChange: cron[1], presets: CRON_PRESETS, placeholder: "0 8 * * *" })
         ),
         h("div", { className: "mt-4 space-y-4" },
@@ -404,7 +404,7 @@ export function ConfigPanel(props) {
 
       h(Section, { title: "任务默认值" },
         h("div", { className: "grid grid-cols-2 gap-3" },
-          h(Field, { label: "默认优先级" }, h("input", { type: "number", min: "1", max: "10", value: priority[0], onChange: function (e) { priority[1](e.target.value); }, className: "aq-input" })),
+          h(Field, { label: "默认优先级", help: "1 最高，10 最低" }, h("input", { type: "number", min: "1", max: "10", value: priority[0], onChange: function (e) { priority[1](e.target.value); }, className: "aq-input" })),
           h(Field, { label: "默认截止时间（cron）" }, h("input", { value: defaultDeadline[0], onChange: function (e) { defaultDeadline[1](e.target.value); }, placeholder: "0 21 * * *", className: "aq-input" }))
         ),
         h("div", { className: "mt-3" },

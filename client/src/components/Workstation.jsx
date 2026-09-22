@@ -345,6 +345,7 @@ function CompactTaskList(props) {
         !isArchivedView && !isSchedulerView && h("col", { style: { width: "40px" } }),
         h("col", null),
         isSchedulerView && h("col", { style: { width: "140px" } }),
+        h("col", { style: { width: "110px" } }),
         h("col", { style: { width: "108px" } }),
         h("col", { style: { width: "168px" } })
       ),
@@ -368,6 +369,7 @@ function CompactTaskList(props) {
           ),
           h("th", { className: "text-left py-1 " + (isArchivedView || isSchedulerView ? "pl-4" : "pl-0") + " text-xs font-semibold text-aq-faint uppercase tracking-wide" }, isSchedulerView ? "调度器" : "任务"),
           isSchedulerView && h("th", { className: "py-1 text-xs font-semibold text-aq-faint uppercase tracking-wide text-center" }, "调度"),
+          h("th", { className: "py-1 text-xs font-semibold text-aq-faint uppercase tracking-wide text-center" }, "创建时间"),
           h("th", { className: "pr-4 py-1 text-xs font-semibold text-aq-faint uppercase tracking-wide text-right" }, "状态"),
           h("th", { className: "pr-4 py-1 text-xs font-semibold text-aq-faint uppercase tracking-wide text-center" }, "操作")
         )
@@ -460,6 +462,7 @@ function TaskRow(props) {
     !props.hideSchedule && h("td", { className: "py-2.5 text-center align-middle", style: { fontSize: "12px" } },
       h("span", { className: "inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-aq-surface-alt text-aq-faint border border-aq-line whitespace-nowrap" }, plan)
     ),
+    h("td", { className: "py-2.5 text-center align-middle text-aq-faint", style: { fontSize: "12px" } }, formatLocalDateTime(task.createdAt)),
     h("td", { className: "py-2.5 pr-4 text-right align-middle", style: { fontSize: "12px" } },
       h("span", {
         className: "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium flex-shrink-0 whitespace-nowrap",
@@ -471,7 +474,7 @@ function TaskRow(props) {
     ),
     h("td", { className: "py-2.5 pr-4 align-middle", style: { fontSize: "12px" } },
       h("div", { className: "flex items-center gap-1 flex-wrap justify-center w-full" },
-        !isScheduler && (task.status === "running" || (task.status === "pending" && (task.cron || task.schedule))) && task.stopPending !== true && !task.archivedAt && h("button", { style: actionBtnStyle, className: "hover:bg-aq-red-soft", onClick: function (e) { e.stopPropagation(); props.onAction("stop", task.key); } }, "停止"),
+        !isScheduler && (task.status === "running" || task.status === "pending") && task.stopPending !== true && !task.archivedAt && h("button", { style: actionBtnStyle, className: "hover:bg-aq-red-soft", onClick: function (e) { e.stopPropagation(); props.onAction("stop", task.key); } }, "停止"),
         isScheduler && !task.archivedAt && task.enabled !== false && h("button", { style: actionBtnStyle, className: "hover:bg-aq-red-soft", onClick: function (e) { e.stopPropagation(); props.onAction("stop", task.key); } }, "停止"),
         isScheduler && !task.archivedAt && task.enabled === false && h("button", { style: Object.assign({}, actionBtnStyle, { color: "var(--aq-green, #067647)" }), className: "hover:bg-aq-green-soft", onClick: function (e) { e.stopPropagation(); props.onAction("enable", task.key); } }, "启用"),
         !isScheduler && task.status !== "running" && !task.archivedAt && h("button", { style: actionBtnStyle, className: "hover:bg-aq-surface-alt", onClick: function (e) { e.stopPropagation(); props.onEdit(task.key); } }, "编辑"),
