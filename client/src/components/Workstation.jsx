@@ -345,7 +345,7 @@ function CompactTaskList(props) {
         !isArchivedView && !isSchedulerView && h("col", { style: { width: "40px" } }),
         h("col", null),
         isSchedulerView && h("col", { style: { width: "140px" } }),
-        h("col", { style: { width: "80px" } }),
+        h("col", { style: { width: "108px" } }),
         h("col", { style: { width: "168px" } })
       ),
       h("thead", null,
@@ -422,7 +422,7 @@ function TaskRow(props) {
     var maxConcurrent = (props.snap.config && props.snap.config.maxConcurrent) || 1;
     var running = (props.snap.metrics && props.snap.metrics.running) || 0;
     if (task.status === "pending" && running >= maxConcurrent) {
-      statusLabel = statusLabel + " · 排队中";
+      statusLabel = "排队中";
     }
   }
 
@@ -462,7 +462,7 @@ function TaskRow(props) {
     ),
     h("td", { className: "py-2.5 pr-4 text-right align-middle", style: { fontSize: "12px" } },
       h("span", {
-        className: "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium flex-shrink-0",
+        className: "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium flex-shrink-0 whitespace-nowrap",
         style: { backgroundColor: statusColor + "15", color: statusColor }
       },
         h("span", { className: "w-1 h-1 rounded-full", style: { backgroundColor: statusColor } }),

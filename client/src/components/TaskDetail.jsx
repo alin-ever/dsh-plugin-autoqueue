@@ -59,7 +59,7 @@ export function TaskDetailPanel(props) {
   var tabs = isScheduler ? ["概览", "策略"] : ["概览", "执行轨迹", "报告", "策略"];
 
   return h(DialogShell, {
-    variant: "drawer", open: true, onClose: props.onClose, title: taskSummary(value.body) || value.key,
+    variant: "drawer", open: true, onClose: props.onClose, title: value.summary || value.title || taskSummary(value.body) || value.key,
     className: "w-[min(840px,94vw)]"
   },
     h("div", { className: "flex flex-col h-full" },

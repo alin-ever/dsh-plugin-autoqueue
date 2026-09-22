@@ -138,7 +138,7 @@ export function createController(transport) {
         var notifyFirstTime = !statusChanged && TERMINAL[t.status] && prevState.enableNotifications !== true;
         if (terminalTransition || notifyFirstTime) {
           var label = (STATUS_CONFIG[t.status] || {}).label || t.status;
-          var notifyTitle = taskSummary(t.body) || t.title || t.key;
+          var notifyTitle = t.title || taskSummary(t.body) || t.key;
           try { if (typeof Notification !== "undefined" && Notification.permission === "granted") new Notification("autoqueue", { body: notifyTitle + " \u2192 " + label, tag: t.key }); } catch (e) {}
         }
       }
