@@ -123,6 +123,20 @@ export function Workstation(props) {
             }).catch(function () {});
           }
         });
+      },
+      onShutdown: function () {
+        confirm[1]({
+          title: "关闭 DSH",
+          message: "确认关闭 DSH 进程？当前所有运行中的任务会被安全结束，watchdog 不会自动重启。",
+          confirmLabel: "关闭",
+          tone: "danger",
+          onConfirm: function () {
+            confirm[1](null);
+            controller.shutdownDsh().then(function () {
+              flash("DSH 正在关闭...");
+            }).catch(function () {});
+          }
+        });
       }
     }),
     h(NavCategories, { snap: snap, onNav: function (v) { controller.setNavGroup(v); }, onNewTask: function () { controller.openNewTask(); } }),
@@ -204,6 +218,7 @@ function CompactHeader(props) {
     h("button", { className: "aq-btn aq-btn-ghost h-7 text-xs", onClick: props.onTemplates, title: "模板管理", dangerouslySetInnerHTML: { __html: iconHtml("doc") } }),
     h("button", { className: "aq-btn aq-btn-ghost h-7 text-xs", onClick: props.onConfig, title: "运行设置", dangerouslySetInnerHTML: { __html: iconHtml("gear") } }),
     h("button", { className: "aq-btn aq-btn-ghost h-7 text-xs", onClick: props.onRestart, title: "重启 DSH", dangerouslySetInnerHTML: { __html: iconHtml("restart") } }),
+    h("button", { className: "aq-btn aq-btn-ghost h-7 text-xs", onClick: props.onShutdown, title: "关闭 DSH", dangerouslySetInnerHTML: { __html: iconHtml("power") } }),
     h("button", { className: "aq-btn aq-btn-ghost h-7 text-xs", onClick: props.onClose, dangerouslySetInnerHTML: { __html: iconHtml("close") + " 关闭" } })
   );
 }

@@ -331,6 +331,7 @@ export function ConfigPanel(props) {
   var defaultModel = React.useState(config.defaultModel || "");
   var defaultCwd = React.useState(config.defaultCwd || "");
   var defaultSandbox = React.useState(config.defaultSandbox || "");
+  var watchdogEnabled = React.useState(!!config.watchdogEnabled);
   var modelOptions = (props.options && props.options.models) || [];
   var saving = React.useState(false);
   var saveError = React.useState("");
@@ -362,22 +363,22 @@ export function ConfigPanel(props) {
     }
     add("defaultCwd", defaultCwd[0].trim() || null, config.defaultCwd || null);
     add("defaultSandbox", defaultSandbox[0].trim() || null, config.defaultSandbox || null);
+    add("watchdogEnabled", !!watchdogEnabled[0], !!config.watchdogEnabled);
     var ops = [];
     var concurrency = parseInt(maxConcurrent[0], 10);
     if (concurrency !== v(config.maxConcurrent, 1)) ops.push(props.onSetConcurrency(concurrency));
     if (Object.keys(patch).length) ops.push(props.onUpdate(patch));
-    if (!ops.length) { props.onClose(); return; }
     saving[1](true); saveError[1](""); saveSuccess[1](false);
-    Promise.all(ops).then(function () {
+    Promise.all(ops.length ? ops : [Promise.resolve()]).then(function () {
       saveSuccess[1](true);
-      setTimeout(function () { props.onClose(); }, 900);
+      setTimeout(function () { props.onClose(); }, 800);
     }).catch(function (e) { saveError[1](e.message || "保存失败"); }).finally(function () { saving[1](false); });
   }
 
   return h(DialogShell, { open: true, onClose: props.onClose, title: "运行设置", variant: "drawer" },
     h("form", { className: "flex-1 min-h-0 px-6 pt-4 pb-0 overflow-y-auto", style: { overscrollBehaviorY: "contain" }, onSubmit: handleSave },
       saveError[0] && h("div", { className: "p-3 mb-4 rounded-lg bg-aq-red-soft text-sm text-aq-red" }, saveError[0]),
-      saveSuccess[0] && h("div", { className: "p-3 mb-4 rounded-lg bg-aq-green-soft text-sm text-aq-green" }, "设置已保存"),
+      saveSuccess[0] && h("div", { className: "p-3 mb-4 rounded-lg bg-aq-green-soft text-sm text-aq-green font-medium" }, "保存完成"),
 
       h(Section, { title: "执行限制" },
         h("div", { className: "grid grid-cols-2 gap-3" },
@@ -417,6 +418,23 @@ export function ConfigPanel(props) {
           h(Field, { label: "Webhook URL" }, h("input", { type: "url", value: webhook[0], onChange: function (e) { webhook[1](e.target.value); }, placeholder: "https://example.com/hook", className: "aq-input" }))
         ),
 
+      ),
+
+      h(Section, { title: "守护进程" },
+        h("label", { className: "flex items-center gap-3 cursor-pointer select-none" },
+          h("input", {
+            type: "checkbox",
+            checked: watchdogEnabled[0],
+            onChange: function (e) { watchdogEnabled[1](e.target.checked); },
+            className: "w-4 h-4 accent-aq-primary cursor-pointer"
+          }),
+          h("span", { className: "text-sm" }, "DSH 进程守护（异常关闭后自动拉起，手动退出不处理）")
+        ),
+        h("p", { className: "mt-2 text-xs text-aq-faint" },
+          watchdogEnabled[0]
+            ? "开启后，DSH 异常崩溃会自动重启；手动正常退出不会触发重启。保存后生效。"
+            : "开启后，DSH 异常崩溃会自动重启。默认关闭。"
+        )
       ),
 
       h(Section, { title: "存储" },

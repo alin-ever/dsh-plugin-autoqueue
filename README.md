@@ -113,7 +113,8 @@ React 看板已暴露安全业务能力的完整操作面：
 - 调度器操作：启用、禁用、编辑、删除。调度器不进入状态机，因此没有停止/归档/重跑。
 - 任务详情：概览、执行记录、结果和最终报告、调度与恢复设置；打开终态详情会标记已读。由调度器创建的任务会显示「来源调度器」。
 - 调度器详情：概览、策略；展示启用状态、下次运行时间、最近创建的任务。
-- 运行设置：并发、任务超时、Goal 轮数、反阻塞次数、派发尝试、不可达阈值、退避、默认优先级、默认截止、Webhook、自动归档和浏览器通知；队列目录只读。
+- 运行设置：并发、任务超时、Goal 轮数、反阻塞次数、派发尝试、不可达阈值、退避、默认优先级、默认截止、Webhook、自动归档、浏览器通知和进程守护（watchdog）；队列目录只读。
+- 进程控制：看板右上角提供**重启 DSH** 和**关闭 DSH** 按钮（均仅限 loopback），并展示 watchdog 守护状态。关闭前需确认。
 - 外部接入：独立的「AI / API 接入」抽屉实时读取 Capabilities，展示正式名称/别称、19 个工具、中文资源与限制、隔离状态、OpenAPI 3.1 和 compact 查询示例；本机可直连，远程必须携带 token，页面从不回显 token。
 - 交互与可访问性：统一字号和颜色层级，支持响应式导航、抽屉/弹窗、危险操作确认、键盘焦点锁定与恢复、ESC 关闭和实时错误提示。
 
@@ -148,6 +149,9 @@ curl 'http://127.0.0.1:3080/api/queue/state?archived=1&compact=1'
 | `GET` | `/api/queue/detail?key=` | 正文、执行记录和报告（任务或调度器） |
 | `GET` | `/api/queue/options` | 三类空数组与严格隔离锁 |
 | `GET\|POST` | `/api/queue/config` | 安全运行时配置 |
+| `POST` | `/api/queue/restart` | 重启 DSH（仅限 loopback） |
+| `POST` | `/api/queue/shutdown` | 关闭 DSH（仅限 loopback） |
+| `GET` | `/api/queue/watchdog` | 查询 watchdog 守护状态 |
 | `POST` | `/api/queue/mark-read` | 标记已读/未读 |
 | `GET` | `/api/queue/events` | compact SSE 快照 |
 
@@ -212,6 +216,7 @@ config:
   taskTimeoutMs: 10800000
   enableNotifications: false
   enableHostAiTools: true
+  watchdogEnabled: false
   priority: 5
   scanIntervalMs: 15000
   maxConcurrent: 1
@@ -219,6 +224,7 @@ config:
 
 - `maxConcurrent` 持久化到账本，范围 `1-8`；插件启动时仅在账本当前值为 `1` 时应用非空启动值。
 - `queueDir`、`allowedHosts`、`apiToken`、`baseUrl`、`enableHostAiTools` 属于启动边界；`queueDir` 不能运行时热切换。
+- `watchdogEnabled` 默认是 `false`。设为 `true` 后，插件会启动独立的 watchdog 进程守护 DSH；DSH 异常退出（被 kill、崩溃、非 0 退出码）时自动清理残留子进程并重启。正常重启（restart API）和关闭（shutdown API）不会触发自动重启。
 - `enableHostAiTools` 默认是 `true`：插件加载后自动把 19 个 `autoqueue_*` 工具和一段精简发现提示注入普通 Host 会话。设为 `false` 可关闭注入；外部 AI 的 HTTP/OpenAPI 接入不受影响。
 - 工具默认请求 `http://127.0.0.1:3080`；若 DSH Web 使用其他地址或端口，必须在启动配置中把 `baseUrl` 设为该实例可访问的 HTTP 基地址。
 - 自动注入本身不会给队列任务增加递归控制入口：`autoqueue-session-*` Agent 看不到这些 Host 工具，执行层 guard 也会拒绝绕过可见性的工具调用。直接 HTTP 访问仍遵循前述本机/远程鉴权边界。
@@ -234,6 +240,7 @@ lib/
 ├── files.js     收件箱、调度解析、运行目录和安全报告读取
 ├── scheduler.js cron 解析、nextRunAt 计算、catch-up
 ├── ai-tool.js   默认自动注册的 19 个 Host AI 工具 HTTP 薄客户端
+├── watchdog.js  DSH 进程守护：异常退出自动重启、端口残留清理、PID 回收防护
 └── client.js    由 client/src/ 构建的浏览器 bundle
 ```
 

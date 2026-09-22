@@ -64,6 +64,9 @@ Capabilities 与 OpenAPI 使用和业务接口相同的鉴权。Capabilities 中
 | `GET` | `/api/queue/detail?key=` | 获取完整任务、执行记录和报告 |
 | `GET` | `/api/queue/options` | 读取严格隔离锁 |
 | `GET\|POST` | `/api/queue/config` | 读取/更新安全运行时配置 |
+| `POST` | `/api/queue/restart` | 重启 DSH 进程（仅限 loopback） |
+| `POST` | `/api/queue/shutdown` | 关闭 DSH 进程（仅限 loopback） |
+| `GET` | `/api/queue/watchdog` | 查询 watchdog 守护状态 |
 | `POST` | `/api/queue/mark-read` | 标记已读或未读 |
 | `GET` | `/api/queue/events` | compact SSE 快照 |
 | `GET` | `/api/queue/templates` | 列出模板库 / 获取单个模板 |
@@ -419,6 +422,7 @@ Capabilities 与 OpenAPI 使用和业务接口相同的鉴权。Capabilities 中
 | `defaultCwd` | string/null；默认任务工作目录 |
 | `defaultSandbox` | string/null；默认 sandbox 模式 |
 | `enableNotifications` | boolean；默认 false |
+| `watchdogEnabled` | boolean；默认 false；控制进程守护是否启用 |
 | `priority` | 1-10 |
 | `defaultDeadline` | 5 字段 cron；空字符串或 null 清除 |
 | `retryBackoffBaseMs` | 5000-600000 |
@@ -435,7 +439,80 @@ Capabilities 与 OpenAPI 使用和业务接口相同的鉴权。Capabilities 中
 
 `queueDir` 只允许作为启动参数；POST 携带该字段返回 `409`。`allowedHosts`、token、`baseUrl` 与 `enableHostAiTools` 也是启动边界，不在运行时配置 API 中。
 
-## 10. `POST /api/queue/mark-read`
+## 10. `POST /api/queue/restart` 与 `POST /api/queue/shutdown`
+
+这两个端点仅限 **本机 loopback** 访问（`127.0.0.1`、`::1` 或 `::ffff:127.0.0.1`），用于进程级生命周期管理。
+
+### `POST /api/queue/restart`
+
+优雅重启 DSH：
+1. 写入 graceful 标志，通知 watchdog 这是正常退出（watchdog 不会自动重启）。
+2. 旧进程在 500ms 内终止。
+3. helper 进程等待 3080 端口释放后，自动拉起新的 DSH 进程。
+
+```bash
+curl -X POST http://127.0.0.1:3080/api/queue/restart
+```
+
+```json
+{
+  "ok": true,
+  "pid": 12345,
+  "helperPid": 12346
+}
+```
+
+### `POST /api/queue/shutdown`
+
+优雅关闭 DSH：
+1. 停止 watchdog（写入 graceful 标志，防止其重启 DSH）。
+2. 旧进程在 500ms 内终止。
+3. **不会**自动拉起新进程。
+
+```bash
+curl -X POST http://127.0.0.1:3080/api/queue/shutdown
+```
+
+```json
+{
+  "ok": true,
+  "message": "DSH 正在关闭"
+}
+```
+
+## 11. `GET /api/queue/watchdog`
+
+查询 DSH 进程守护（watchdog）状态。
+
+```bash
+curl http://127.0.0.1:3080/api/queue/watchdog
+```
+
+```json
+{
+  "running": true,
+  "session": {
+    "pid": 67890,
+    "startTime": 1789983605720,
+    "stopRequested": false
+  },
+  "failure": null
+}
+```
+
+| 字段 | 说明 |
+|---|---|
+| `running` | watchdog 进程是否存活 |
+| `session` | 当前 DSH 子进程信息（PID、启动时间、是否请求停止）；监控模式下可能为 `null` |
+| `failure` | 上次 watchdog 失败记录；`null` 表示无失败 |
+
+**watchdog 行为**：
+- DSH 异常退出（非 0 退出码、被 kill、崩溃）→ watchdog 自动清理残留子进程并重启 DSH。
+- DSH 正常退出（`restart` / `shutdown` API）→ watchdog 检测到 graceful 标志后停止守护，不重启。
+- watchdog 启动时若 DSH 已在运行 → 进入**监控模式**，定期检查 DSH 存活，不尝试重启。
+- 端口被占用且 DSH 不存活 → 自动 kill 占用 3080 的残留进程，然后启动新 DSH。
+
+## 12. `POST /api/queue/mark-read`
 
 ```json
 {
@@ -456,7 +533,7 @@ Capabilities 与 OpenAPI 使用和业务接口相同的鉴权。Capabilities 中
 }
 ```
 
-## 11. `GET /api/queue/events`
+## 13. `GET /api/queue/events`
 
 SSE 查询支持 `archived=0|1`，快照始终是 compact 投影：
 
@@ -472,7 +549,7 @@ data: {"revision":42,"tasks":[...],"config":{...},"runtime":{...}}
 - 写端持续背压达到 30 秒后，巡检会主动断开。
 - SSE 不包含 `body` / `executions`；需要完整内容时调用 detail。
 
-## 12. 模板库
+## 14. 模板库
 
 ### `GET /api/queue/templates`
 
@@ -518,7 +595,7 @@ data: {"revision":42,"tasks":[...],"config":{...},"runtime":{...}}
 
 模板为即用型纯文案，不带参数占位符。`suggestedCron`、`suggestedDeadline`、`suggestedPriority` 是可选的推荐调度配置，供创建任务时参考。模板文件位于项目 `templates/` 目录，随插件发布。
 
-## 13. Host AI 工具（自动注入）
+## 15. Host AI 工具（自动注入）
 
 启动配置 `enableHostAiTools` 默认是 `true`。插件加载后向普通 DSH 会话注册以下 19 个 HTTP 薄客户端工具；需要保持原始 tool catalog 的部署可显式设置为 `false`。`autoqueue-session-*` 自有任务 Agent 会隐藏这些工具，执行 guard 也会拒绝其通过 Host 工具递归控制队列：
 
@@ -550,7 +627,7 @@ data: {"revision":42,"tasks":[...],"config":{...},"runtime":{...}}
 
 工具全部通过 HTTP API，不绕过 HTTP 校验直接访问 engine/ledger，也不会暴露 token。外部 AI 不依赖这组 Host 工具；即使关闭自动注入，HTTP API 仍保持可用。
 
-## 14. UI 与 API 能力对应
+## 16. UI 与 API 能力对应
 
 | UI 区域 | 使用的能力 |
 |---|---|

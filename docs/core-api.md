@@ -11,8 +11,11 @@
 | runner | `lib/runner.js` | 唯一的 `apiProxy` 调用层；专属 session/goal 生命周期和 ownership 守卫 |
 | engine | `lib/engine-v2.js` | 扫描、派发、前台让行、轮询、反阻塞、重试、动作、配置和结算 |
 | Host 入口 | `lib/index.js` | DSH 服务装配、approval policy、owned presets、HTTP/SSE、鉴权和 AI 工具自动注入 |
+| watchdog | `lib/watchdog.js` | DSH 进程守护：异常退出自动重启、端口残留清理、PID 回收假阳性防护 |
 
 依赖方向是 `index/UI/AI → HTTP → engine → runner/ledger/files`。Host AI 工具是 HTTP 薄客户端，不能绕过 HTTP 校验直接调用 engine 或 ledger。
+
+watchdog 以独立 detached 进程运行，通过 PID 文件和 HTTP 健康检查监控 DSH 存活。它不依赖 DSH 内部状态，只操作 3080 端口和文件系统标志。
 
 ## 2. 不可破坏的隔离不变量
 
@@ -407,7 +410,45 @@ $QUEUE_DIR/
 
 cron 是 5 字段本地时间表达式，支持 `*`、数字、`*/step`、范围和逗号；日与周同时受限时采用标准 OR 语义。
 
-## 11. 上层能力面
+## 11. watchdog
+
+### 进程守护模型
+
+watchdog 是一个独立于 DSH 的 Node.js 子进程，通过 `spawn(node, ["-e", source], { detached: true })` 启动。
+
+| 场景 | 行为 |
+|---|---|
+| DSH 异常退出（code≠0 或被 kill） | 清理占用 3080 的残留子进程，然后重启 DSH |
+| DSH 正常退出（restart/shutdown API） | 检测到 graceful 标志，停止守护，不重启 |
+| watchdog 启动时 DSH 已在运行 | 进入**监控模式**：每 5 秒 HTTP 探测 DSH 存活 |
+| 端口被占用但 DSH 不存活 | `killPortOccupier(3080)` 清理残留，然后启动 DSH |
+| 连续 5 次重启失败 | 放弃并写入 failure 记录，供下次 DSH 启动时提示 |
+
+### 启动信息捕获
+
+`buildWatchdogSource()` 通过 `JSON.stringify([...process.argv.slice(2)])` 硬编码原始启动参数到内嵌脚本；内嵌脚本无法访问外部进程的 `process.argv`。
+
+### PID 回收防护
+
+`isWatchdogRunning()` 读取 PID 文件中的 `{pid, startTime}`，并通过 OS 查询该 PID 的实际启动时间。两者偏差超过 10 秒即判定为假阳性（PID 已被操作系统回收并分配给新进程）。兼容旧格式纯数字 PID。
+
+### 公开 API
+
+```js
+startWatchdog({ maxRetries, backoffSeconds })   // 启动守护进程
+stopWatchdog()                                   // 写入 graceful 标志
+isWatchdogRunning()                              // 检查存活（含启动时间验证）
+readWatchdogFailure()                            // 读取上次失败记录
+clearWatchdogFailure()                           // 清除失败记录
+getWatchdogStatus()                              // 返回 { running, session, failure }
+```
+
+### 与 restart/shutdown 的协作
+
+- `POST /api/queue/restart` → `stopWatchdog()` 写 graceful 标志 → 旧 DSH 退出 → helper 等待端口释放 → 新 DSH 启动 → 新 DSH 若 `watchdogEnabled=true` 启动新 watchdog。
+- `POST /api/queue/shutdown` → `stopWatchdog()` 写 graceful 标志 → 旧 DSH 退出 → 不拉起新进程。
+
+## 12. 上层能力面
 
 - HTTP：完整接口说明见 `docs/api.md`。
 - 外部 AI：Capabilities → OpenAPI → compact state → detail。
