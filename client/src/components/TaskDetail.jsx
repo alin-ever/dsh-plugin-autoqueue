@@ -121,7 +121,14 @@ export function TaskDetailPanel(props) {
         !isScheduler && ["done", "failed", "stopped", "interrupted"].indexOf(value.status) >= 0 && !value.archivedAt && h("button", { className: "aq-btn aq-btn-ghost text-sm", onClick: function () { doAction("archive"); } }, "归档"),
         value.archivedAt && h("button", { className: "aq-btn aq-btn-ghost text-sm", onClick: function () { doAction("restore"); } }, "恢复"),
         h("span", { className: "flex-1" }),
-        !isScheduler && sessionId && !value.archivedAt && h("button", { className: "aq-btn aq-btn-primary text-sm", onClick: function () { props.onClose(); controller.closeBoard(); if (props.sessions && props.sessions.open) props.sessions.open(sessionId); }, dangerouslySetInnerHTML: { __html: iconHtml("external") + " 跳转会话" } })
+        !isScheduler && sessionId && !value.archivedAt && h("button", { className: "aq-btn aq-btn-primary text-sm", onClick: function () {
+          props.onClose(); controller.closeBoard();
+          if (props.uiWorkspace && props.uiWorkspace.openSession) {
+            props.uiWorkspace.openSession(sessionId);
+          } else if (props.sessions && props.sessions.open) {
+            props.sessions.open(sessionId);
+          }
+        }, dangerouslySetInnerHTML: { __html: iconHtml("external") + " 跳转会话" } })
       )
     )
   );

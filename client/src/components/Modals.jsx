@@ -630,7 +630,7 @@ export function TemplateManager(props) {
   React.useEffect(load, []);
 
   function startEdit(tpl) {
-    editing[1](tpl ? tpl.name : null);
+    editing[1](tpl ? tpl.name : "");
     form[1](tpl ? { name: tpl.name, description: tpl.description || "", category: tpl.category || "", suggestedCron: tpl.suggestedCron || "", suggestedDeadline: tpl.suggestedDeadline || "", suggestedPriority: tpl.suggestedPriority || "", body: tpl.body || "" } : { name: "", description: "", category: "", suggestedCron: "", suggestedDeadline: "", suggestedPriority: "", body: "" });
   }
 

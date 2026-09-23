@@ -11,6 +11,7 @@ export function Workstation(props) {
   var transport = props.transport;
   var ctx = props.ctx;
   var sessions = ctx ? ctx.get("sessions") : null;
+  var uiWorkspace = ctx ? ctx.get("uiWorkspace") : null;
   var state = React.useState(function () { return controller.getSnapshot(); });
   var confirm = React.useState(null);
   var message = React.useState(null);
@@ -151,11 +152,11 @@ export function Workstation(props) {
       h("button", { className: "aq-btn aq-btn-primary text-xs h-7 px-3", onClick: archiveSelected }, "批量归档")
     ),
     h(CompactTaskList, {
-      snap: snap, tasks: visibleTasks, controller: controller, sessions: sessions,
+      snap: snap, tasks: visibleTasks, controller: controller, sessions: sessions, uiWorkspace: uiWorkspace,
       selected: selected[0], onSelect: toggleSelected, onSelectAll: toggleAll, onAction: handleAction
     }),
     snap.showDetail && snap.detailTask && h(TaskDetailPanel, {
-      key: snap.detailTask.key, task: snap.detailTask, transport: transport, controller: controller, sessions: sessions,
+      key: snap.detailTask.key, task: snap.detailTask, transport: transport, controller: controller, sessions: sessions, uiWorkspace: uiWorkspace,
       config: snap.config,
       onClose: function () { controller.closeDetail(); },
       onActionRequest: function (kind, key) { controller.closeDetail(); handleAction(kind, key); },
@@ -382,7 +383,14 @@ function CompactTaskList(props) {
             onSelect: props.onSelect, onAction: props.onAction,
             onDetail: function (k) { props.controller.openDetail(k); },
             onEdit: function (k) { props.controller.openEdit(k); },
-            onSession: function (sid) { props.controller.closeBoard(); props.sessions.open(sid); },
+            onSession: function (sid) {
+              props.controller.closeBoard();
+              if (props.uiWorkspace && props.uiWorkspace.openSession) {
+                props.uiWorkspace.openSession(sid);
+              } else if (props.sessions && props.sessions.open) {
+                props.sessions.open(sid);
+              }
+            },
             hideCheckbox: isArchivedView || isSchedulerView,
             hideSchedule: !isSchedulerView
           });

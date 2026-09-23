@@ -34,6 +34,11 @@ export function createController(transport) {
   var TERMINAL = { done: 1, failed: 1, stopped: 1, interrupted: 1 };
   var lifecycle = 0;
   var initPromise = null;
+  var notifiedKeys = new Set();
+  try {
+    var stored = sessionStorage.getItem('aq_notified');
+    if (stored) JSON.parse(stored).forEach(function(k) { notifiedKeys.add(k); });
+  } catch (e) {}
 
   var listeners = [];
 
@@ -133,11 +138,19 @@ export function createController(transport) {
         var t = newTasks[i];
         var prevState = prevStates[t.key];
         var notificationsEnabled = t.enableNotifications === true;
-        if (!notificationsEnabled || !prevState) continue;
-        var statusChanged = prevState.status !== t.status;
-        var terminalTransition = statusChanged && (TERMINAL[t.status] || prevState.status === "running" && t.status === "todo");
-        var notifyFirstTime = !statusChanged && TERMINAL[t.status] && prevState.enableNotifications !== true;
+        // 任务从终端状态恢复为非终端状态时，清除去重标记以便下次通知
+        if (prevState && TERMINAL[prevState.status] && !TERMINAL[t.status]) {
+          notifiedKeys.delete(t.key);
+          try { sessionStorage.setItem('aq_notified', JSON.stringify(Array.from(notifiedKeys))); } catch (e) {}
+        }
+        if (!notificationsEnabled) continue;
+        var statusChanged = prevState ? prevState.status !== t.status : false;
+        var terminalTransition = (statusChanged || !prevState) && (TERMINAL[t.status] || (prevState && prevState.status === "running" && t.status === "todo"));
+        var notifyFirstTime = prevState && !statusChanged && TERMINAL[t.status] && prevState.enableNotifications !== true;
         if (terminalTransition || notifyFirstTime) {
+          if (notifiedKeys.has(t.key)) continue;
+          notifiedKeys.add(t.key);
+          try { sessionStorage.setItem('aq_notified', JSON.stringify(Array.from(notifiedKeys))); } catch (e) {}
           var label = (STATUS_CONFIG[t.status] || {}).label || t.status;
           var notifyTitle = t.title || taskSummary(t.body) || t.key;
           try { if (typeof Notification !== "undefined" && Notification.permission === "granted") new Notification("autoqueue", { body: notifyTitle + " \u2192 " + label, tag: t.key }); } catch (e) {}
