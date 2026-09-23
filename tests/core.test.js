@@ -316,7 +316,8 @@ test("runner isolates launch with cwd and never mutates workspace, model, or pro
   });
 
   assert.equal(isAutoqueueSessionId(result.sessionId), true);
-  assert.equal(agentCreateMeta.cwd, getQueueDir());
+  // workDir  provided and cwd not set → sessionCwd defaults to workDir
+  assert.equal(agentCreateMeta.cwd, workDir);
   assert.equal(agentCreateMeta.agentPreset, "autoqueue-unattended-v2");
   assert.equal(archiveCalls, 0);
   assert.equal(goalCreateArgs.agentId, result.sessionId);
