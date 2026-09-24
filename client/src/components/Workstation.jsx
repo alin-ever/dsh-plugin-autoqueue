@@ -31,13 +31,17 @@ export function Workstation(props) {
     });
   });
 
+  var isArchivedView = snap.navGroup === "archived";
+
   React.useEffect(function () {
     selected[1](function (keys) {
       return keys.filter(function (k) {
-        return snap.tasks.some(function (t) { return t.key === k && !t.archivedAt && t.status !== "running"; });
+        return snap.tasks.some(function (t) {
+          return t.key === k && (isArchivedView ? !!t.archivedAt : !t.archivedAt && t.status !== "running");
+        });
       });
     });
-  }, [snap.revision]);
+  }, [snap.revision, snap.navGroup]);
 
   function flash(text) {
     message[1](text);
@@ -51,13 +55,22 @@ export function Workstation(props) {
     }).catch(function () {});
   }
 
+  function runBatchAction(kind, keys) {
+    var promises = keys.map(function (k) { return controller.doAction(kind, k).catch(function () { return { ok: false, key: k }; }); });
+    return Promise.all(promises).then(function (results) {
+      var failed = results.filter(function (x) { return !x.ok; });
+      var succeeded = results.length - failed.length;
+      return { succeeded: succeeded, failed: failed.map(function (x) { return x.key; }) };
+    });
+  }
+
   function handleAction(kind, key) {
     if (kind === "enable") { runAction("update", key, { enabled: true }); return; }
     if (kind === "delete" || kind === "stop" || kind === "rerun") {
       var all = (snap.tasks || []).concat(snap.schedulers || []);
       var task = all.find(function (t) { return t.key === key; });
       var isScheduler = task && task.kind === "scheduler";
-      var prompt = kind === "delete" ? "确认删除这个待执行任务？此操作不可恢复。"
+      var prompt = kind === "delete" ? "确认删除这个任务？此操作不可恢复。"
         : (kind === "stop" ? (isScheduler ? "确认禁用该调度器？禁用后不再自动创建任务。" : "确认停止运行中的任务？当前会话会安全结束。")
         : "确认重新执行这个任务？这会创建新的独立会话，并再次消耗模型与工具资源。");
       confirm[1]({
@@ -79,7 +92,9 @@ export function Workstation(props) {
   }
 
   function toggleAll() {
-    var selectable = visibleTasks.filter(function (t) { return t.status !== "running" && !t.archivedAt; });
+    var selectable = isArchivedView
+      ? visibleTasks.filter(function (t) { return !!t.archivedAt; })
+      : visibleTasks.filter(function (t) { return t.status !== "running" && !t.archivedAt; });
     var allSelected = selectable.every(function (t) { return selected[0].indexOf(t.key) >= 0; });
     selected[1](allSelected ? [] : selectable.map(function (t) { return t.key; }));
   }
@@ -99,6 +114,41 @@ export function Workstation(props) {
           var succeeded = results.length ? results.length - failed.length : keys.length;
           selected[1](failed.map(function (x) { return x.key; }));
           flash(failed.length ? "已归档 " + succeeded + " 个，" + failed.length + " 个未归档" : "已归档 " + succeeded + " 个任务");
+        }).catch(function () {});
+      }
+    });
+  }
+
+  function restoreSelected() {
+    var keys = selected[0].slice();
+    if (!keys.length) return;
+    confirm[1]({
+      title: "批量还原",
+      message: "确认还原已选择的 " + keys.length + " 个任务？",
+      confirmLabel: "还原",
+      onConfirm: function () {
+        confirm[1](null);
+        runBatchAction("restore", keys).then(function (result) {
+          selected[1](result.failed);
+          flash(result.failed.length ? "已还原 " + result.succeeded + " 个，" + result.failed.length + " 个失败" : "已还原 " + result.succeeded + " 个任务");
+        }).catch(function () {});
+      }
+    });
+  }
+
+  function deleteSelected() {
+    var keys = selected[0].slice();
+    if (!keys.length) return;
+    confirm[1]({
+      title: "批量删除",
+      message: "确认删除已选择的 " + keys.length + " 个任务？此操作不可恢复，关联的会话文件也会被清理。",
+      confirmLabel: "删除",
+      tone: "danger",
+      onConfirm: function () {
+        confirm[1](null);
+        runBatchAction("delete", keys).then(function (result) {
+          selected[1](result.failed);
+          flash(result.failed.length ? "已删除 " + result.succeeded + " 个，" + result.failed.length + " 个失败" : "已删除 " + result.succeeded + " 个任务");
         }).catch(function () {});
       }
     });
@@ -149,7 +199,12 @@ export function Workstation(props) {
     selected[0].length > 0 && h("div", { className: "flex items-center gap-2 px-4 py-2 bg-aq-blue-soft border-b border-aq-blue/20" },
       h("span", { className: "text-xs font-semibold text-aq-blue mr-auto" }, "已选择 ", selected[0].length, " 个"),
       h("button", { className: "text-xs font-semibold text-aq-blue hover:underline", onClick: function () { selected[1]([]); } }, "取消"),
-      h("button", { className: "aq-btn aq-btn-primary text-xs h-7 px-3", onClick: archiveSelected }, "批量归档")
+      isArchivedView
+        ? h(React.Fragment, null,
+            h("button", { className: "aq-btn aq-btn-ghost text-xs h-7 px-3", onClick: restoreSelected }, "批量还原"),
+            h("button", { className: "aq-btn aq-btn-danger text-xs h-7 px-3", onClick: deleteSelected }, "批量删除")
+          )
+        : h("button", { className: "aq-btn aq-btn-primary text-xs h-7 px-3", onClick: archiveSelected }, "批量归档")
     ),
     h(CompactTaskList, {
       snap: snap, tasks: visibleTasks, controller: controller, sessions: sessions, uiWorkspace: uiWorkspace,
@@ -339,20 +394,22 @@ function CompactTaskList(props) {
   }
   var isArchivedView = props.snap.navGroup === "archived";
   var isSchedulerView = props.snap.navGroup === "schedulers";
-  var selectableCount = props.tasks.filter(function (t) { return t.status !== "running" && !t.archivedAt; }).length;
+  var selectableCount = isArchivedView
+    ? props.tasks.filter(function (t) { return !!t.archivedAt; }).length
+    : props.tasks.filter(function (t) { return t.status !== "running" && !t.archivedAt; }).length;
   return h("div", { className: "flex-1 overflow-y-auto overflow-x-hidden" },
     h("table", { className: "w-full table-fixed", style: { borderSpacing: "0" } },
       h("colgroup", null,
-        !isArchivedView && !isSchedulerView && h("col", { style: { width: "40px" } }),
+        !isSchedulerView && h("col", { style: { width: "40px" } }),
         h("col", null),
         isSchedulerView && h("col", { style: { width: "140px" } }),
         h("col", { style: { width: "110px" } }),
-        h("col", { style: { width: "108px" } }),
-        h("col", { style: { width: "168px" } })
+        !isArchivedView && h("col", { style: { width: "108px" } }),
+        h("col", { style: { width: isArchivedView ? "200px" : "168px" } })
       ),
       h("thead", null,
         h("tr", { className: "border-b border-aq-line bg-aq-surface-alt" },
-          !isArchivedView && !isSchedulerView && h("th", { className: "pl-4 pr-2 py-1" },
+          !isSchedulerView && h("th", { className: "pl-4 pr-2 py-1" },
             h(Checkbox, {
               checked: selectableCount > 0 && props.selected.length === selectableCount,
               indeterminate: props.selected.length > 0 && props.selected.length < selectableCount,
@@ -368,10 +425,10 @@ function CompactTaskList(props) {
               )
             )
           ),
-          h("th", { className: "text-left py-1 " + (isArchivedView || isSchedulerView ? "pl-4" : "pl-0") + " text-xs font-semibold text-aq-faint uppercase tracking-wide" }, isSchedulerView ? "调度器" : "任务"),
+          h("th", { className: "text-left py-1 " + (isSchedulerView ? "pl-4" : "pl-0") + " text-xs font-semibold text-aq-faint uppercase tracking-wide" }, isSchedulerView ? "调度器" : "任务"),
           isSchedulerView && h("th", { className: "py-1 text-xs font-semibold text-aq-faint uppercase tracking-wide text-center" }, "调度"),
           h("th", { className: "py-1 text-xs font-semibold text-aq-faint uppercase tracking-wide text-center" }, "创建时间"),
-          h("th", { className: "pr-4 py-1 text-xs font-semibold text-aq-faint uppercase tracking-wide text-right" }, "状态"),
+          !isArchivedView && h("th", { className: "pr-4 py-1 text-xs font-semibold text-aq-faint uppercase tracking-wide text-right" }, "状态"),
           h("th", { className: "pr-4 py-1 text-xs font-semibold text-aq-faint uppercase tracking-wide text-center" }, "操作")
         )
       ),
@@ -391,8 +448,9 @@ function CompactTaskList(props) {
                 props.sessions.open(sid);
               }
             },
-            hideCheckbox: isArchivedView || isSchedulerView,
-            hideSchedule: !isSchedulerView
+            hideCheckbox: isSchedulerView,
+            hideSchedule: !isSchedulerView,
+            hideStatus: isArchivedView
           });
         })
       )
@@ -415,7 +473,7 @@ function TaskRow(props) {
   var cfg = STATUS_CONFIG[task.status] || { label: task.status, color: "#596579" };
   var summary = task.summary || task.key;
   var attention = !isScheduler && taskNeedsAttention(task);
-  var selectable = !isScheduler && task.status !== "running" && !task.archivedAt;
+  var selectable = !isScheduler && (task.archivedAt || task.status !== "running");
   var unread = !isScheduler && isUnread(task);
   var sessionId = !isScheduler ? (task.sessionId || task.lastSessionId || (task.executions && task.executions.length ? task.executions[task.executions.length - 1].sessionId : null)) : null;
 
@@ -444,20 +502,18 @@ function TaskRow(props) {
       (unread ? " border-l-2 border-l-aq-blue" : ""),
     onClick: openRow
   },
-    !props.hideCheckbox && (task.archivedAt
-      ? h("td", { className: "pl-4 pr-2 py-2.5 align-middle" })
-      : h("td", { className: "pl-4 pr-2 py-2.5 align-middle", onClick: function (e) { e.stopPropagation(); } },
-        h(Checkbox, { checked: props.selected, disabled: !selectable, onChange: function () { props.onSelect(task.key); },
-          className: "group/box flex items-center" },
-          h("span", { className: "flex h-4 w-4 items-center justify-center rounded border transition " +
-            (props.selected ? "border-aq-blue bg-aq-blue" : "border-aq-line-2 bg-white") +
-            (!selectable ? " opacity-40" : " cursor-pointer group-hover/box:border-aq-blue") },
-            props.selected && h("svg", { className: "h-3 w-3 text-white", viewBox: "0 0 12 12", fill: "none" },
-              h("path", { d: "M2.5 6l2.5 2.5 4.5-4.5", stroke: "currentColor", strokeWidth: "1.5", strokeLinecap: "round", strokeLinejoin: "round" })
-            )
+    !props.hideCheckbox && h("td", { className: "pl-4 pr-2 py-2.5 align-middle", onClick: function (e) { e.stopPropagation(); } },
+      h(Checkbox, { checked: props.selected, disabled: !selectable, onChange: function () { props.onSelect(task.key); },
+        className: "group/box flex items-center" },
+        h("span", { className: "flex h-4 w-4 items-center justify-center rounded border transition " +
+          (props.selected ? "border-aq-blue bg-aq-blue" : "border-aq-line-2 bg-white") +
+          (!selectable ? " opacity-40" : " cursor-pointer group-hover/box:border-aq-blue") },
+          props.selected && h("svg", { className: "h-3 w-3 text-white", viewBox: "0 0 12 12", fill: "none" },
+            h("path", { d: "M2.5 6l2.5 2.5 4.5-4.5", stroke: "currentColor", strokeWidth: "1.5", strokeLinecap: "round", strokeLinejoin: "round" })
           )
         )
-      )),
+      )
+    ),
     h("td", { className: "py-2.5 " + (props.hideCheckbox ? "pl-4" : "") + " align-middle overflow-hidden", style: { fontSize: "13px", minWidth: "120px" } },
       h("div", { className: "flex flex-col min-w-0" },
         h("div", { className: "flex items-center gap-1.5 min-w-0" },
@@ -471,7 +527,7 @@ function TaskRow(props) {
       h("span", { className: "inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-aq-surface-alt text-aq-faint border border-aq-line whitespace-nowrap" }, plan)
     ),
     h("td", { className: "py-2.5 text-center align-middle text-aq-faint", style: { fontSize: "12px" } }, formatLocalDateTime(task.createdAt)),
-    h("td", { className: "py-2.5 pr-4 text-right align-middle", style: { fontSize: "12px" } },
+    !props.hideStatus && h("td", { className: "py-2.5 pr-4 text-right align-middle", style: { fontSize: "12px" } },
       h("span", {
         className: "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium flex-shrink-0 whitespace-nowrap",
         style: { backgroundColor: statusColor + "15", color: statusColor }
@@ -491,6 +547,7 @@ function TaskRow(props) {
         !isScheduler && ["done", "failed", "stopped", "interrupted"].indexOf(task.status) >= 0 && !task.archivedAt && h("button", { style: actionBtnStyle, className: "hover:bg-aq-surface-alt", onClick: function (e) { e.stopPropagation(); props.onAction("archive", task.key); } }, "归档"),
         isScheduler && !task.archivedAt && h("button", { style: Object.assign({}, actionBtnStyle, { color: "var(--aq-red, #b42318)" }), className: "hover:bg-aq-red-soft", onClick: function (e) { e.stopPropagation(); props.onAction("delete", task.key); } }, "删除"),
         task.archivedAt && h("button", { style: actionBtnStyle, className: "hover:bg-aq-surface-alt", onClick: function (e) { e.stopPropagation(); props.onAction("restore", task.key); } }, "还原"),
+        task.archivedAt && h("button", { style: Object.assign({}, actionBtnStyle, { color: "var(--aq-red, #b42318)" }), className: "hover:bg-aq-red-soft", onClick: function (e) { e.stopPropagation(); props.onAction("delete", task.key); } }, "删除"),
         !isScheduler && task.status === "running" && sessionId && !task.archivedAt && h("button", { style: actionBtnStyle, className: "hover:bg-aq-surface-alt", onClick: function (e) { e.stopPropagation(); if (props.onSession) props.onSession(sessionId); } }, "会话")
       )
     )

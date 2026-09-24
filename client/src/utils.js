@@ -5,7 +5,9 @@ export var STATUS_CONFIG = {
   failed: { label: "已失败", color: "#b42318" },
   stopped: { label: "已停止", color: "#9a6700" },
   interrupted: { label: "已中断", color: "#7a5af8" },
-  archived: { label: "已归档", color: "#667085" }
+  archived: { label: "已归档", color: "#667085" },
+  enabled: { label: "启用中", color: "#067647" },
+  disabled: { label: "已禁用", color: "#667085" }
 };
 
 export var CRON_PRESETS = [

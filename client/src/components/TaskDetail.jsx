@@ -120,6 +120,7 @@ export function TaskDetailPanel(props) {
         !isScheduler && ["done", "failed", "stopped", "interrupted"].indexOf(value.status) >= 0 && !value.archivedAt && h("button", { className: "aq-btn aq-btn-ghost text-sm text-aq-green", onClick: function () { requestAction("rerun"); } }, "重新执行"),
         !isScheduler && ["done", "failed", "stopped", "interrupted"].indexOf(value.status) >= 0 && !value.archivedAt && h("button", { className: "aq-btn aq-btn-ghost text-sm", onClick: function () { doAction("archive"); } }, "归档"),
         value.archivedAt && h("button", { className: "aq-btn aq-btn-ghost text-sm", onClick: function () { doAction("restore"); } }, "恢复"),
+        value.archivedAt && h("button", { className: "aq-btn aq-btn-ghost text-sm text-aq-red", onClick: function () { requestAction("delete"); } }, "删除"),
         h("span", { className: "flex-1" }),
         !isScheduler && sessionId && !value.archivedAt && h("button", { className: "aq-btn aq-btn-primary text-sm", onClick: function () {
           props.onClose(); controller.closeBoard();
