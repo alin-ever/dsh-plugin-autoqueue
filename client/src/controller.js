@@ -97,6 +97,7 @@ export function createController(transport) {
       boardOpen: boardOpen, filter: filter, navGroup: navGroup,
       showDetail: showDetail, showNewTask: showNewTask, showEdit: showEdit, showConfig: showConfig, showTemplates: showTemplates,
       loading: loading, error: error, revision: revision, config: config, options: options,
+      showFloatingDock: config.showFloatingDock !== false,
       optionsStatus: optionsStatus,
       runtimeHealth: runtimeHealth,
       runtimeObservation: runtimeObservation,

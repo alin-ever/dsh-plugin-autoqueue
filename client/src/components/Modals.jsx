@@ -332,6 +332,7 @@ export function ConfigPanel(props) {
   var defaultCwd = React.useState(config.defaultCwd || "");
   var defaultSandbox = React.useState(config.defaultSandbox || "");
   var watchdogEnabled = React.useState(!!config.watchdogEnabled);
+  var showFloatingDock = React.useState(config.showFloatingDock !== false);
   var modelOptions = (props.options && props.options.models) || [];
   var saving = React.useState(false);
   var saveError = React.useState("");
@@ -364,6 +365,7 @@ export function ConfigPanel(props) {
     add("defaultCwd", defaultCwd[0].trim() || null, config.defaultCwd || null);
     add("defaultSandbox", defaultSandbox[0].trim() || null, config.defaultSandbox || null);
     add("watchdogEnabled", !!watchdogEnabled[0], !!config.watchdogEnabled);
+    add("showFloatingDock", !!showFloatingDock[0], config.showFloatingDock !== false);
     var ops = [];
     var concurrency = parseInt(maxConcurrent[0], 10);
     if (concurrency !== v(config.maxConcurrent, 1)) ops.push(props.onSetConcurrency(concurrency));
@@ -418,6 +420,23 @@ export function ConfigPanel(props) {
           h(Field, { label: "Webhook URL" }, h("input", { type: "url", value: webhook[0], onChange: function (e) { webhook[1](e.target.value); }, placeholder: "https://example.com/hook", className: "aq-input" }))
         ),
 
+      ),
+
+      h(Section, { title: "界面" },
+        h("label", { className: "flex items-center gap-3 cursor-pointer select-none" },
+          h("input", {
+            type: "checkbox",
+            checked: showFloatingDock[0],
+            onChange: function (e) { showFloatingDock[1](e.target.checked); },
+            className: "w-4 h-4 accent-aq-primary cursor-pointer"
+          }),
+          h("span", { className: "text-sm" }, "显示浮动入口图标")
+        ),
+        h("p", { className: "mt-2 text-xs text-aq-faint" },
+          showFloatingDock[0]
+            ? "关闭后，页面右下角的任务队列浮动图标将隐藏。"
+            : "图标已隐藏。如需重新展示，直接对 AI 说「打开任务队列图标」即可。"
+        )
       ),
 
       h(Section, { title: "守护进程" },

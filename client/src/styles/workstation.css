@@ -588,10 +588,8 @@
 [data-sidebar-collapsed] .aq-sidebar-entry { width: 36px; height: 36px; justify-content: center; margin: 0 auto 12px; padding: 0; border-radius: 50%; }
 [data-sidebar-collapsed] .aq-sidebar-label { display: none; }
 
-/* Dark host compatibility + prefers-color-scheme fallback */
-[data-theme="dark"] [data-dsh-autoqueue-view],
-[data-color-mode="dark"] [data-dsh-autoqueue-view],
-.dark [data-dsh-autoqueue-view] {
+/* Dark host compatibility: DSH uses body[data-ds-dark-theme] */
+[data-ds-dark-theme] [data-dsh-autoqueue-view] {
   --aq-canvas: #111820;
   --aq-paper: #18212b;
   --aq-surface-alt: #1d2834;
@@ -633,12 +631,8 @@
     --aq-red-soft: #3d2423;
   }
 }
-[data-theme="dark"] .aq-btn.primary,
-[data-color-mode="dark"] .aq-btn.primary,
-.dark .aq-btn.primary { border-color: #528bff; background: #2459b8; color: #ffffff; }
-[data-theme="dark"] .aq-tab.sel,
-[data-color-mode="dark"] .aq-tab.sel,
-.dark .aq-tab.sel { background: #344054; }
+[data-ds-dark-theme] .aq-btn.primary { border-color: #528bff; background: #2459b8; color: #ffffff; }
+[data-ds-dark-theme] .aq-tab.sel { background: #344054; }
 
 /* Responsive */
 @media (max-width: 1180px) {

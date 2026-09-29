@@ -10,11 +10,21 @@ export function FloatingDock(props) {
   var snap = state[0];
   var containerRef = React.useRef(null);
 
-  // 读取保存的位置
+  // 读取保存的位置（用百分比适配窗口大小变化）
   var savedPos = React.useState(function () {
     try {
       var raw = localStorage.getItem("aq-dock-pos");
-      if (raw) return JSON.parse(raw);
+      if (raw) {
+        var p = JSON.parse(raw);
+        if (typeof p.leftRatio === "number" && typeof p.topRatio === "number") return p;
+        // 兼容旧版绝对像素
+        if (typeof p.left === "number" && typeof p.top === "number") {
+          return {
+            leftRatio: Math.max(0, Math.min(1, p.left / window.innerWidth)),
+            topRatio: Math.max(0, Math.min(1, p.top / window.innerHeight))
+          };
+        }
+      }
     } catch (e) {}
     return null;
   });
@@ -58,8 +68,8 @@ export function FloatingDock(props) {
 
       var left = ev.clientX - offsetX;
       var top = ev.clientY - offsetY;
-      left = Math.max(4, Math.min(window.innerWidth - rect.width - 4, left));
-      top = Math.max(4, Math.min(window.innerHeight - rect.height - 4, top));
+      left = Math.max(2, Math.min(window.innerWidth - rect.width - 2, left));
+      top = Math.max(2, Math.min(window.innerHeight - rect.height - 2, top));
       el.style.left = left + "px";
       el.style.top = top + "px";
       el.style.right = "auto";
@@ -75,7 +85,12 @@ export function FloatingDock(props) {
       } else {
         try {
           var r = el.getBoundingClientRect();
-          localStorage.setItem("aq-dock-pos", JSON.stringify({ left: r.left, top: r.top }));
+          var pos = {
+            leftRatio: Math.max(0, Math.min(1, r.left / window.innerWidth)),
+            topRatio: Math.max(0, Math.min(1, r.top / window.innerHeight))
+          };
+          localStorage.setItem("aq-dock-pos", JSON.stringify(pos));
+          savedPos[1](pos);
         } catch (e) {}
       }
     }
@@ -84,13 +99,18 @@ export function FloatingDock(props) {
     window.addEventListener("mouseup", onUp);
   }
 
-  var containerStyle = { position: "fixed", zIndex: boardOpen ? 80 : 90 };
+  var containerStyle = { position: "fixed", zIndex: boardOpen ? 80 : 9999 };
   if (savedPos[0]) {
-    containerStyle.left = savedPos[0].left + "px";
-    containerStyle.top = savedPos[0].top + "px";
+    var btnSize = 40;
+    var left = savedPos[0].leftRatio * window.innerWidth;
+    var top = savedPos[0].topRatio * window.innerHeight;
+    left = Math.max(2, Math.min(window.innerWidth - btnSize - 2, left));
+    top = Math.max(2, Math.min(window.innerHeight - btnSize - 2, top));
+    containerStyle.left = left + "px";
+    containerStyle.top = top + "px";
   } else {
-    containerStyle.right = "20px";
-    containerStyle.bottom = "20px";
+    containerStyle.right = "12px";
+    containerStyle.bottom = "12px";
   }
 
   return h(React.Fragment, null,
@@ -137,7 +157,7 @@ export function FloatingDock(props) {
       )
     ),
     // ─── 可拖拽 Dock 入口按钮 ─────────────────────────────
-    !boardOpen && h("div", { ref: containerRef, style: containerStyle },
+    !boardOpen && snap.showFloatingDock !== false && h("div", { ref: containerRef, style: containerStyle },
       h("button", {
         onMouseDown: onPointerDown,
         title: runningCount > 0 ? "任务队列 · " + runningCount + " 个运行中" : "任务队列",
