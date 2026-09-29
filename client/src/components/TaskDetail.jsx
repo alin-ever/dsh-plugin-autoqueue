@@ -402,6 +402,12 @@ function PolicyTab(props) {
         h(Fact, { label: "Webhook", value: task.webhook || "未设置" })
       )
     ),
+    h(Section, { title: "完成行为" },
+      h(Grid, null,
+        h(Fact, { label: "自动归档", value: task.autoArchive === true ? "开启" : "关闭" }),
+        h(Fact, { label: "浏览器通知", value: task.enableNotifications === true ? "开启" : "关闭" })
+      )
+    ),
     h("div", { className: "p-3 rounded-xl border-l-[3px] border-l-aq-blue bg-aq-blue-soft" },
       h("p", { className: "text-sm font-semibold text-aq-blue" }, "不会修改 DSH 设置"),
       h("p", { className: "text-xs text-aq-blue/70 mt-0.5" }, "任务使用独立工作目录与专属会话；你使用 DSH 时，后台任务仍会持续执行，互不干扰。")

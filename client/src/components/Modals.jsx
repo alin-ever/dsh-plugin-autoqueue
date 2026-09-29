@@ -34,6 +34,7 @@ export function NewTaskModal(props) {
   var templatesLoading = React.useState(false);
   var fromTemplate = React.useState(null);
   var key = React.useState("");
+  var title = React.useState("");
   var content = React.useState("");
   var priority = React.useState(String(v(config.priority, 5)));
   var cron = React.useState("");
@@ -43,6 +44,8 @@ export function NewTaskModal(props) {
   var maxBlockedResumes = React.useState(String(v(config.maxBlockedResumes, 3)));
   var timeoutMinutes = React.useState(String(Math.round(v(config.taskTimeoutMs, 10800000) / 60000)));
   var maxAttempts = React.useState(String(v(config.maxAttempts, 3)));
+  var autoArchive = React.useState(!!config.autoArchive);
+  var enableNotifications = React.useState(!!config.enableNotifications);
   var webhook = React.useState(config.webhook || "");
   var provider = React.useState(config.defaultProvider || "");
   var model = React.useState(config.defaultModel || "");
@@ -108,6 +111,7 @@ export function NewTaskModal(props) {
       content: finalContent, priority: parseInt(priority[0], 10)
     };
     if (key[0].trim()) data.key = key[0].trim();
+    if (title[0].trim()) data.title = title[0].trim();
     if (cron[0]) data.cron = cron[0];
     if (schedule[0]) data.schedule = schedule[0];
     if (deadline[0]) data.deadline = deadline[0];
@@ -120,6 +124,8 @@ export function NewTaskModal(props) {
     if (model[0].trim()) data.model = model[0].trim();
     if (sandbox[0].trim()) data.sandbox = sandbox[0].trim();
     if (cwd[0].trim()) data.cwd = cwd[0].trim();
+    data.autoArchive = autoArchive[0];
+    data.enableNotifications = enableNotifications[0];
 
     submitting[1](true); error[1]("");
     props.onCreate(data).catch(function (e) {
@@ -149,6 +155,10 @@ export function NewTaskModal(props) {
         ),
         h("textarea", { value: content[0], onChange: function (e) { content[1](e.target.value); }, placeholder: "例如：整理本周客户访谈，归纳三条产品机会并输出报告…", required: true,
           className: "w-full h-36 p-3 rounded-xl border border-aq-line-2 bg-aq-paper text-sm text-aq-ink resize-y focus:border-aq-blue focus:ring-2 focus:ring-aq-blue/10 outline-none" }),
+        h("div", { className: "mt-4" },
+          h(Field, { label: "标题（可选）", help: "展示用的人类可读标题，留空将从内容自动提取" },
+            h("input", { value: title[0], onChange: function (e) { title[1](e.target.value); }, placeholder: "例如：生成周报", className: "aq-input" }))
+        ),
         h("div", { className: "grid grid-cols-2 gap-3 mt-4" },
           h(Field, { label: "任务标识（可选）", help: "留空将自动生成" },
             h("input", { value: key[0], onChange: function (e) { key[1](e.target.value); }, placeholder: "weekly-insight", className: "aq-input" })),
@@ -190,6 +200,10 @@ export function NewTaskModal(props) {
           advancedOpen[0] && h("div", { className: "mt-3 space-y-3" },
             h(Field, { label: "Webhook URL" }, h("input", { type: "url", value: webhook[0], onChange: function (e) { webhook[1](e.target.value); }, placeholder: "https://example.com/hook", className: "aq-input" }))
           )
+        ),
+        h("div", { className: "mt-4 pt-3 border-t border-aq-line space-y-3" },
+          h(ToggleField, { checked: autoArchive[0], onChange: function (v) { autoArchive[1](v); }, label: "任务完成后自动归档" }),
+          h(ToggleField, { checked: enableNotifications[0], onChange: function (v) { enableNotifications[1](v); }, label: "完成时浏览器通知" })
         )
       ),
 
@@ -207,6 +221,7 @@ export function EditTaskModal(props) {
   var task = props.task;
   var isScheduler = task.kind === "scheduler";
   var content = React.useState(task.body || "");
+  var title = React.useState(task.title || "");
   var cron = React.useState(task.cron || "");
   var schedule = React.useState(isoToDatetimeLocal(task.schedule) || "");
   var deadline = React.useState(task.deadline || "");
@@ -216,6 +231,8 @@ export function EditTaskModal(props) {
   var maxBlockedResumes = React.useState(task.maxBlockedResumes == null ? "" : String(task.maxBlockedResumes));
   var timeoutMinutes = React.useState(task.timeoutMs ? String(Math.round(task.timeoutMs / 60000)) : "");
   var maxAttempts = React.useState(task.maxAttempts == null ? "" : String(task.maxAttempts));
+  var autoArchive = React.useState(task.autoArchive === true);
+  var enableNotifications = React.useState(task.enableNotifications === true);
   var webhook = React.useState(task.webhook || "");
   var provider = React.useState(task.provider || "");
   var model = React.useState(task.model || "");
@@ -235,6 +252,7 @@ export function EditTaskModal(props) {
     var patch = {};
     var add = function (n, next, prev) { if (next !== prev) patch[n] = next; };
     add("content", content[0], task.body || "");
+    add("title", title[0].trim() || null, task.title ?? null);
     add("cron", cron[0], task.cron || "");
     add("schedule", schedule[0] || null, task.schedule || null);
     add("deadline", deadline[0], task.deadline || "");
@@ -249,6 +267,8 @@ export function EditTaskModal(props) {
     add("model", model[0].trim() || null, task.model || null);
     add("sandbox", sandbox[0].trim() || null, task.sandbox || null);
     add("cwd", cwd[0].trim() || null, task.cwd || null);
+    add("autoArchive", autoArchive[0], task.autoArchive === true);
+    add("enableNotifications", enableNotifications[0], task.enableNotifications === true);
     if (!Object.keys(patch).length) { props.onClose(); return; }
     submitting[1](true); error[1]("");
     props.onUpdate(task.key, patch).catch(function (e) { error[1](e.message || "保存失败"); }).finally(function () { submitting[1](false); });
@@ -262,6 +282,11 @@ export function EditTaskModal(props) {
 
         h("label", { className: "block text-sm font-semibold text-aq-ink-2 mb-1.5" }, "内容（Markdown）"),
         h("textarea", { value: content[0], onChange: function (e) { content[1](e.target.value); }, className: "w-full h-36 p-3 rounded-xl border border-aq-line-2 bg-aq-paper text-sm text-aq-ink resize-y focus:border-aq-blue focus:ring-2 focus:ring-aq-blue/10 outline-none" }),
+
+        h("div", { className: "mt-4" },
+          h(Field, { label: "标题", help: "展示用的人类可读标题，留空将从内容自动提取" },
+            h("input", { value: title[0], onChange: function (e) { title[1](e.target.value); }, placeholder: "例如：生成周报", className: "aq-input" }))
+        ),
 
         h("div", { className: "grid grid-cols-2 gap-3 mt-4" },
           h(Field, { label: "优先级（1-10）", help: "1 最高，10 最低" }, h("input", { type: "number", min: "1", max: "10", value: priority[0], onChange: function (e) { priority[1](e.target.value); }, className: "aq-input" })),
@@ -300,6 +325,10 @@ export function EditTaskModal(props) {
             h(Field, { label: "工作目录", help: "留空使用默认队列目录" }, h("input", { value: cwd[0], onChange: function (e) { cwd[1](e.target.value); }, placeholder: "例如 C:\\Projects\\my-repo", className: "aq-input" }))
           ),
         ),
+        h("div", { className: "mt-4 pt-3 border-t border-aq-line space-y-3" },
+          h(ToggleField, { checked: autoArchive[0], onChange: function (v) { autoArchive[1](v); }, label: "任务完成后自动归档" }),
+          h(ToggleField, { checked: enableNotifications[0], onChange: function (v) { enableNotifications[1](v); }, label: "完成时浏览器通知" })
+        ),
 
       ),
 
@@ -331,6 +360,8 @@ export function ConfigPanel(props) {
   var defaultModel = React.useState(config.defaultModel || "");
   var defaultCwd = React.useState(config.defaultCwd || "");
   var defaultSandbox = React.useState(config.defaultSandbox || "");
+  var autoArchive = React.useState(!!config.autoArchive);
+  var enableNotifications = React.useState(!!config.enableNotifications);
   var watchdogEnabled = React.useState(!!config.watchdogEnabled);
   var showFloatingDock = React.useState(config.showFloatingDock !== false);
   var modelOptions = (props.options && props.options.models) || [];
@@ -364,6 +395,8 @@ export function ConfigPanel(props) {
     }
     add("defaultCwd", defaultCwd[0].trim() || null, config.defaultCwd || null);
     add("defaultSandbox", defaultSandbox[0].trim() || null, config.defaultSandbox || null);
+    add("autoArchive", !!autoArchive[0], !!config.autoArchive);
+    add("enableNotifications", !!enableNotifications[0], !!config.enableNotifications);
     add("watchdogEnabled", !!watchdogEnabled[0], !!config.watchdogEnabled);
     add("showFloatingDock", !!showFloatingDock[0], config.showFloatingDock !== false);
     var ops = [];
@@ -418,6 +451,10 @@ export function ConfigPanel(props) {
         ),
         h("div", { className: "mt-3" },
           h(Field, { label: "Webhook URL" }, h("input", { type: "url", value: webhook[0], onChange: function (e) { webhook[1](e.target.value); }, placeholder: "https://example.com/hook", className: "aq-input" }))
+        ),
+        h("div", { className: "mt-3 space-y-3" },
+          h(ToggleField, { checked: autoArchive[0], onChange: function (v) { autoArchive[1](v); }, label: "任务完成后自动归档" }),
+          h(ToggleField, { checked: enableNotifications[0], onChange: function (v) { enableNotifications[1](v); }, label: "完成时浏览器通知" })
         ),
 
       ),
