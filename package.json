@@ -34,7 +34,8 @@
     "docs/api.md",
     "docs/core-api.md",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "bin"
   ],
   "publishConfig": {
     "access": "public",

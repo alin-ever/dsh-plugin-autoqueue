@@ -35,6 +35,7 @@ export function createController(transport) {
   var lifecycle = 0;
   var initPromise = null;
   var notifiedKeys = new Set();
+  var watchdogStatus = null;
   try {
     var stored = sessionStorage.getItem('aq_notified');
     if (stored) JSON.parse(stored).forEach(function(k) { notifiedKeys.add(k); });
@@ -101,6 +102,7 @@ export function createController(transport) {
       optionsStatus: optionsStatus,
       runtimeHealth: runtimeHealth,
       runtimeObservation: runtimeObservation,
+      watchdogStatus: watchdogStatus,
       detailTask: detailTask, editTask: editTask,
       unreadCount: countUnread(tasks)
     };
@@ -238,11 +240,20 @@ export function createController(transport) {
 
   function stopSSE() { if (sseDisposer) { sseDisposer(); sseDisposer = null; } }
 
+  async function loadWatchdogStatus() {
+    try {
+      watchdogStatus = await transport.watchdogStatus();
+    } catch (err) {
+      watchdogStatus = null;
+    }
+    notif();
+  }
+
   async function init() {
     if (disposed) return;
     if (initPromise) return initPromise;
     var token = ++lifecycle;
-    initPromise = Promise.all([loadState(), loadOptions(), loadConfig()]).then(function () {
+    initPromise = Promise.all([loadState(), loadOptions(), loadConfig(), loadWatchdogStatus()]).then(function () {
       if (!disposed && token === lifecycle) startSSE();
     });
     return initPromise;
@@ -348,6 +359,7 @@ export function createController(transport) {
       mergeConfig(result);
       error = null;
       await loadState();
+      await loadWatchdogStatus();
       return result;
     } catch (err) { error = err.message; notif(); throw err; }
   }

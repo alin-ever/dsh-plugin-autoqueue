@@ -117,6 +117,9 @@ export function createTransport(apiToken) {
     shutdown: function () {
       return request("/shutdown", { method: "POST" }, apiToken);
     },
+    watchdogStatus: function () {
+      return request("/watchdog", null, apiToken);
+    },
     subscribe: function (listener, healthListener) {
       var sseUrl = API_PREFIX + "/events?archived=1";
       if (apiToken) sseUrl += "&aq_token=" + encodeURIComponent(apiToken);

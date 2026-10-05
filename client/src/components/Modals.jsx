@@ -490,11 +490,20 @@ export function ConfigPanel(props) {
           watchdogEnabled[0]
             ? "开启后，DSH 异常崩溃会自动重启；手动正常退出不会触发重启。保存后生效。"
             : "开启后，DSH 异常崩溃会自动重启。默认关闭。"
-        )
+        ),
+        (function () {
+          var ws = props.watchdogStatus;
+          var err = ws && ws.startupInstallError && ws.startupInstallError.error;
+          if (!watchdogEnabled[0] || !err) return null;
+          return h("p", { className: "mt-2 text-xs text-aq-red" }, "守护未装成：重启后不会自动拉起。" + err);
+        })()
       ),
 
       h(Section, { title: "存储" },
         h(Field, { label: "队列根目录", help: "只读，由启动配置决定" }, h("input", { value: config.queueDir || "由启动配置决定", disabled: true, className: "aq-input bg-aq-surface-alt text-aq-faint" })),
+        h("div", { className: "mt-3" },
+          h(Field, { label: "账本文件", help: "只读，持久化路径" }, h("input", { value: config.ledgerPath || "—", disabled: true, className: "aq-input bg-aq-surface-alt text-aq-faint" }))
+        ),
         h("div", { className: "mt-3" },
           h(Field, { label: "AI 直接操作队列", help: "只读，在插件启动配置中设置" }, h("input", { value: config.enableHostAiTools !== false ? "已启用" : "已关闭", disabled: true, className: "aq-input bg-aq-surface-alt text-aq-faint" }))
         )

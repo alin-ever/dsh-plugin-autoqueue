@@ -191,6 +191,7 @@ export function Workstation(props) {
       }
     }),
     h(NavCategories, { snap: snap, onNav: function (v) { controller.setNavGroup(v); }, onNewTask: function () { controller.openNewTask(); } }),
+    h(WatchdogBanner, { snap: snap }),
     h(ConcurrencyBanner, { snap: snap }),
     h(CompactFilters, {
       snap: snap, query: query[0], onQuery: query[1],
@@ -243,7 +244,7 @@ export function Workstation(props) {
       onUpdate: function (key, patch) { return controller.updateTask(key, patch); }
     }),
     snap.showConfig && h(ConfigPanel, {
-      config: snap.config, options: snap.options,
+      config: snap.config, options: snap.options, watchdogStatus: snap.watchdogStatus,
       onClose: function () { controller.closeConfig(); },
       onUpdate: function (patch) { return controller.updateConfig(patch); },
       onSetConcurrency: function (n) { return controller.setConcurrency(n); }
@@ -290,6 +291,20 @@ function ConcurrencyBanner(props) {
   return h("div", { className: "flex-shrink-0 px-4 py-1.5 bg-aq-blue-soft border-b border-aq-blue/20 text-xs text-aq-blue flex items-center gap-1.5" },
     h("span", { className: "w-3.5 h-3.5 flex-shrink-0", dangerouslySetInnerHTML: { __html: iconHtml("clock") } }),
     "并发槽已满（", running, "/", maxConcurrent, "），", pending, " 个任务正在排队等待执行"
+  );
+}
+
+// ─── Watchdog Banner ─────────────────────────────────────
+
+function WatchdogBanner(props) {
+  var snap = props.snap;
+  var ws = snap.watchdogStatus;
+  var enabled = snap.config && snap.config.watchdogEnabled;
+  var err = ws && ws.startupInstallError && ws.startupInstallError.error;
+  if (!enabled || !err) return null;
+  return h("div", { className: "flex-shrink-0 px-4 py-1.5 bg-aq-red-soft border-b border-aq-red/20 text-xs text-aq-red flex items-center gap-1.5" },
+    h("span", { className: "w-3.5 h-3.5 flex-shrink-0", dangerouslySetInnerHTML: { __html: iconHtml("warn") } }),
+    "守护未装成：重启后不会自动拉起。", err
   );
 }
 
