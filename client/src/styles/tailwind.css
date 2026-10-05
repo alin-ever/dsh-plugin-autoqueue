@@ -48,6 +48,13 @@
 #aq-floating-root .aq-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 #aq-floating-root .aq-btn svg { width: 14px; height: 14px; flex-shrink: 0; }
 
+/* 覆盖 aq-btn 固定高度，恢复 h-7 意图的紧凑按钮 */
+#aq-floating-root .aq-btn.h-7 {
+  height: 28px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
 #aq-floating-root .aq-btn-primary { border-color: var(--color-aq-blue); background: var(--color-aq-blue); color: #fff; }
 #aq-floating-root .aq-btn-primary:hover { background: #004eeb; border-color: #004eeb; }
 
