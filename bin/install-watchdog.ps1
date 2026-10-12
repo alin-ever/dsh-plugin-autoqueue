@@ -80,10 +80,10 @@ if ($System) {
   $trigger = New-ScheduledTaskTrigger -AtLogon -User "$env:USERDOMAIN\$env:USERNAME"
 }
 
-# 操作：隐藏窗口运行 PowerShell watchdog
+# 操作：隐藏窗口运行 PowerShell watchdog（Once 模式：只负责首次启动，持续监控由插件内 JS watchdog 负责）
 $action = New-ScheduledTaskAction `
   -Execute "powershell.exe" `
-  -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$WatchdogScript`""
+  -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$WatchdogScript`" -Once"
 
 # 设置：异常退出后自动重启（由 watchdog 脚本自己控制，这里设得宽松一些）
 $settings = New-ScheduledTaskSettingsSet `

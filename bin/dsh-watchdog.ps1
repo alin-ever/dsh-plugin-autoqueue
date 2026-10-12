@@ -17,6 +17,9 @@
 .PARAMETER Stop
   向正在运行的 watchdog 发送停止请求，DSH 退出后不再重启。
 
+.PARAMETER Once
+  只启动一次 DSH，不做持续监控。由插件内 JS watchdog 负责持续守护。
+
 .PARAMETER DshPath
   dsh 可执行文件路径，默认从 PATH 查找。
 
@@ -32,6 +35,7 @@
 [CmdletBinding()]
 param(
   [switch]$Stop,
+  [switch]$Once,
   [string]$DshPath = "",
   [string[]]$DshArgs = @("--no-open"),
   [int]$MaxRetries = 5,
@@ -103,6 +107,34 @@ if ($Stop) {
 Clear-StopFlag
 
 $dshExe = Find-Dsh
+
+# Once 模式：只启动一次 DSH，不做持续监控（由插件内 JS watchdog 负责）
+if ($Once) {
+  Write-Log "Once-mode: starting DSH | dsh=$dshExe"
+  $psi = New-Object System.Diagnostics.ProcessStartInfo
+  $psi.FileName = $dshExe
+  $psi.Arguments = $DshArgs -join " "
+  $psi.WorkingDirectory = $ScriptDir
+  $psi.UseShellExecute = $false
+  $psi.RedirectStandardOutput = $true
+  $psi.RedirectStandardError = $true
+  $psi.CreateNoWindow = $true
+
+  $proc = New-Object System.Diagnostics.Process
+  $proc.StartInfo = $psi
+
+  [void]$proc.Start()
+  $proc.BeginOutputReadLine()
+  $proc.BeginErrorReadLine()
+
+  Write-Log "DSH PID=$($proc.Id) started in once-mode" "INFO"
+  $proc.WaitForExit()
+  $exitCode = if ($proc.HasExited) { $proc.ExitCode } else { -1 }
+  Write-Log "DSH exited with code=$exitCode, once-mode done" "INFO"
+  exit 0
+}
+
+# 持续监控模式（默认，供手动运行使用）
 Write-Log "Watchdog 启动 | dsh=$dshExe | maxRetries=$MaxRetries | backoff=${BackoffSeconds}s"
 
 $retries = 0
