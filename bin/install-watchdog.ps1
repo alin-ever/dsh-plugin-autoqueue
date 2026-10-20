@@ -27,7 +27,9 @@
 param(
   [switch]$Uninstall,
   [switch]$System,
-  [string]$TaskName = "DSH-Watchdog"
+  [switch]$Force,
+  [string]$TaskName = "DSH-Watchdog",
+  [string]$DshPath = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -45,6 +47,41 @@ function Get-ScheduledTaskCompat {
 function Unregister-ScheduledTaskCompat {
   param([string]$Name, [switch]$Confirm)
   try { Unregister-ScheduledTask -TaskName $Name -Confirm:$Confirm -ErrorAction Stop } catch {}
+}
+
+function Find-Dsh {
+  if ($DshPath -and (Test-Path $DshPath)) { return $DshPath }
+
+  # 1) 优先按可执行文件名查找
+  $fromPath = Get-Command "dsh.cmd" -ErrorAction SilentlyContinue
+  if ($fromPath) { return $fromPath.Source }
+
+  $fromPath = Get-Command "dsh.exe" -ErrorAction SilentlyContinue
+  if ($fromPath) { return $fromPath.Source }
+
+  # 2) 遍历 Get-Command dsh -All，过滤出真正可执行的 Application
+  $all = Get-Command "dsh" -All -ErrorAction SilentlyContinue
+  if ($all) {
+    foreach ($cmd in $all) {
+      if ($cmd.CommandType -eq "Application") {
+        $src = $cmd.Source
+        if ($src -match '\.(cmd|bat|exe)$') { return $src }
+        if ($src -match '\.(ps1|sh)$') { continue }
+        if ($src -notmatch '\.') { continue }
+      }
+    }
+  }
+
+  # 3) 常见安装位置回退
+  $candidates = @(
+    "$env:APPDATA\npm\dsh.cmd",
+    "$env:LOCALAPPDATA\pnpm\dsh.cmd",
+    "$env:ProgramFiles\nodejs\dsh.cmd"
+  )
+  foreach ($c in $candidates) {
+    if (Test-Path $c) { return $c }
+  }
+  throw "找不到 dsh 可执行文件。请确保 dsh 在 PATH 中，或显式指定 -DshPath"
 }
 
 # ─── 卸载 ──────────────────────────────────────────────
@@ -65,10 +102,13 @@ if ($Uninstall) {
 
 # ─── 检查是否已存在 ────────────────────────────────────
 $existing = Get-ScheduledTaskCompat $TaskName
-if ($existing) {
-  Write-Host "任务 '$TaskName' 已存在。如需重新安装，请先运行: .\bin\install-watchdog.ps1 -Uninstall" -ForegroundColor Yellow
+if ($existing -and -not $Force) {
+  Write-Host "任务 '$TaskName' 已存在。如需重新安装，请使用 -Force 参数或先运行: .\bin\install-watchdog.ps1 -Uninstall" -ForegroundColor Yellow
   exit 1
 }
+
+# 解析 dsh 路径（注册时写死，避免运行时探测出错）
+$resolvedDshPath = Find-Dsh
 
 # ─── 构建触发器与设置 ──────────────────────────────────
 # 开机启动（系统级用 SYSTEM，用户级用当前用户登录）
@@ -83,7 +123,7 @@ if ($System) {
 # 操作：隐藏窗口运行 PowerShell watchdog（Once 模式：只负责首次启动，持续监控由插件内 JS watchdog 负责）
 $action = New-ScheduledTaskAction `
   -Execute "powershell.exe" `
-  -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$WatchdogScript`" -Once"
+  -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$WatchdogScript`" -Once -DshPath `"$resolvedDshPath`""
 
 # 设置：异常退出后自动重启（由 watchdog 脚本自己控制，这里设得宽松一些）
 $settings = New-ScheduledTaskSettingsSet `
@@ -102,7 +142,7 @@ Register-ScheduledTask `
   -Action $action `
   -Settings $settings `
   -Principal $principal `
-  -Description "DSH 守护进程：异常退出自动重启，手动退出正常停止。`n安装路径: $WatchdogScript" `
+  -Description "DSH 守护进程：异常退出自动重启，手动退出正常停止。`n安装路径: $WatchdogScript`ndsh路径: $resolvedDshPath" `
   -Force | Out-Null
 
 Write-Host ""

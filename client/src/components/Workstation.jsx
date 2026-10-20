@@ -301,10 +301,14 @@ function WatchdogBanner(props) {
   var ws = snap.watchdogStatus;
   var enabled = snap.config && snap.config.watchdogEnabled;
   var err = ws && ws.startupInstallError && ws.startupInstallError.error;
-  if (!enabled || !err) return null;
+  var needsRepair = ws && ws.startupNeedsRepair;
+  if (!enabled || (!err && !needsRepair)) return null;
+  var message = err
+    ? "守护未装成：重启后不会自动拉起。" + err
+    : "守护任务异常：上次启动失败，已尝试自动修复。如仍有问题请检查权限或手动重装。";
   return h("div", { className: "flex-shrink-0 px-4 py-1.5 bg-aq-red-soft border-b border-aq-red/20 text-xs text-aq-red flex items-center gap-1.5" },
     h("span", { className: "w-3.5 h-3.5 flex-shrink-0", dangerouslySetInnerHTML: { __html: iconHtml("warn") } }),
-    "守护未装成：重启后不会自动拉起。", err
+    message
   );
 }
 

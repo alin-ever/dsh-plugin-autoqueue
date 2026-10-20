@@ -63,9 +63,30 @@ function Write-Log {
 
 function Find-Dsh {
   if ($DshPath -and (Test-Path $DshPath)) { return $DshPath }
-  $fromPath = Get-Command "dsh" -ErrorAction SilentlyContinue
+
+  # 1) 优先按可执行文件名查找
+  $fromPath = Get-Command "dsh.cmd" -ErrorAction SilentlyContinue
   if ($fromPath) { return $fromPath.Source }
-  # 常见安装位置回退
+
+  $fromPath = Get-Command "dsh.exe" -ErrorAction SilentlyContinue
+  if ($fromPath) { return $fromPath.Source }
+
+  # 2) 遍历 Get-Command dsh -All，过滤出真正可执行的 Application
+  $all = Get-Command "dsh" -All -ErrorAction SilentlyContinue
+  if ($all) {
+    foreach ($cmd in $all) {
+      if ($cmd.CommandType -eq "Application") {
+        $src = $cmd.Source
+        # 显式接受 .cmd/.bat/.exe
+        if ($src -match '\.(cmd|bat|exe)$') { return $src }
+        # 显式排除 .ps1/.sh 以及无扩展名的 shell 脚本
+        if ($src -match '\.(ps1|sh)$') { continue }
+        if ($src -notmatch '\.') { continue }
+      }
+    }
+  }
+
+  # 3) 常见安装位置回退
   $candidates = @(
     "$env:APPDATA\npm\dsh.cmd",
     "$env:LOCALAPPDATA\pnpm\dsh.cmd",
@@ -75,6 +96,44 @@ function Find-Dsh {
     if (Test-Path $c) { return $c }
   }
   throw "找不到 dsh 可执行文件。请确保 dsh 在 PATH 中，或显式指定 -DshPath"
+}
+
+function Build-DshStartInfo {
+  param(
+    [string]$DshExe,
+    [string[]]$DshArgs,
+    [string]$WorkingDir
+  )
+
+  $ext = [System.IO.Path]::GetExtension($DshExe).ToLower()
+  $psi = New-Object System.Diagnostics.ProcessStartInfo
+
+  switch ($ext) {
+    ".ps1" {
+      $psi.FileName = "powershell.exe"
+      $argList = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$DshExe`"")
+      if ($DshArgs) { $argList += $DshArgs }
+      $psi.Arguments = $argList -join " "
+    }
+    { $_ -in ".cmd", ".bat" } {
+      $psi.FileName = "cmd.exe"
+      $argList = @("/c", "`"$DshExe`"")
+      if ($DshArgs) { $argList += $DshArgs }
+      $psi.Arguments = $argList -join " "
+    }
+    default {
+      $psi.FileName = $DshExe
+      $psi.Arguments = $DshArgs -join " "
+    }
+  }
+
+  $psi.WorkingDirectory = $WorkingDir
+  $psi.UseShellExecute = $false
+  $psi.RedirectStandardOutput = $true
+  $psi.RedirectStandardError = $true
+  $psi.CreateNoWindow = $true
+
+  return $psi
 }
 
 function Request-Stop {
@@ -110,28 +169,29 @@ $dshExe = Find-Dsh
 
 # Once 模式：只启动一次 DSH，不做持续监控（由插件内 JS watchdog 负责）
 if ($Once) {
-  Write-Log "Once-mode: starting DSH | dsh=$dshExe"
-  $psi = New-Object System.Diagnostics.ProcessStartInfo
-  $psi.FileName = $dshExe
-  $psi.Arguments = $DshArgs -join " "
-  $psi.WorkingDirectory = $ScriptDir
-  $psi.UseShellExecute = $false
-  $psi.RedirectStandardOutput = $true
-  $psi.RedirectStandardError = $true
-  $psi.CreateNoWindow = $true
+  try {
+    Write-Log "Once-mode: starting DSH | dsh=$dshExe"
+    $psi = Build-DshStartInfo -DshExe $dshExe -DshArgs $DshArgs -WorkingDir $ScriptDir
+    $proc = New-Object System.Diagnostics.Process
+    $proc.StartInfo = $psi
 
-  $proc = New-Object System.Diagnostics.Process
-  $proc.StartInfo = $psi
+    [void]$proc.Start()
+    $proc.BeginOutputReadLine()
+    $proc.BeginErrorReadLine()
 
-  [void]$proc.Start()
-  $proc.BeginOutputReadLine()
-  $proc.BeginErrorReadLine()
-
-  Write-Log "DSH PID=$($proc.Id) started in once-mode" "INFO"
-  $proc.WaitForExit()
-  $exitCode = if ($proc.HasExited) { $proc.ExitCode } else { -1 }
-  Write-Log "DSH exited with code=$exitCode, once-mode done" "INFO"
-  exit 0
+    Write-Log "DSH PID=$($proc.Id) started in once-mode" "INFO"
+    $proc.WaitForExit()
+    $exitCode = if ($proc.HasExited) { $proc.ExitCode } else { -1 }
+    Write-Log "DSH exited with code=$exitCode, once-mode done" "INFO"
+    if ($exitCode -ne 0) {
+      Write-Log "DSH once-mode exited with non-zero code=$exitCode" "FATAL"
+      exit 1
+    }
+    exit 0
+  } catch {
+    Write-Log "Once-mode failed: $_" "FATAL"
+    exit 1
+  }
 }
 
 # 持续监控模式（默认，供手动运行使用）
@@ -151,15 +211,7 @@ while ($running) {
   try {
     Write-Log "启动 DSH (attempt $retries)" "INFO"
 
-    $psi = New-Object System.Diagnostics.ProcessStartInfo
-    $psi.FileName = $dshExe
-    $psi.Arguments = $DshArgs -join " "
-    $psi.WorkingDirectory = $ScriptDir
-    $psi.UseShellExecute = $false
-    $psi.RedirectStandardOutput = $true
-    $psi.RedirectStandardError = $true
-    $psi.CreateNoWindow = $true
-
+    $psi = Build-DshStartInfo -DshExe $dshExe -DshArgs $DshArgs -WorkingDir $ScriptDir
     $proc = New-Object System.Diagnostics.Process
     $proc.StartInfo = $psi
 

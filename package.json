@@ -1,7 +1,7 @@
 {
   "name": "@alintever/dsh-plugin-autoqueue",
   "description": "无人值守任务队列插件：丢 .md 进收件箱 → AI 自动执行 → 产出报告",
-  "version": "0.4.9",
+  "version": "0.5.2",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -90,5 +90,7 @@
     "react-dom": "^19.2.8",
     "tailwindcss": "^4.3.3"
   },
-  "dependencies": {}
+  "dependencies": {
+    "@deepseek-ai/dsh": "^0.2.0-rc.2"
+  }
 }

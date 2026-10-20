@@ -494,8 +494,12 @@ export function ConfigPanel(props) {
         (function () {
           var ws = props.watchdogStatus;
           var err = ws && ws.startupInstallError && ws.startupInstallError.error;
-          if (!watchdogEnabled[0] || !err) return null;
-          return h("p", { className: "mt-2 text-xs text-aq-red" }, "守护未装成：重启后不会自动拉起。" + err);
+          var needsRepair = ws && ws.startupNeedsRepair;
+          if (!watchdogEnabled[0] || (!err && !needsRepair)) return null;
+          var message = err
+            ? "守护未装成：重启后不会自动拉起。" + err
+            : "守护任务异常：上次启动失败，已尝试自动修复。如仍有问题请检查权限或手动重装。";
+          return h("p", { className: "mt-2 text-xs text-aq-red" }, message);
         })()
       ),
 
