@@ -41,6 +41,14 @@
     "access": "public",
     "registry": "https://registry.npmjs.org/"
   },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@deepseek-ai/dsh-subprocess-local",
+      "@google/genai",
+      "koffi",
+      "protobufjs"
+    ]
+  },
   "dsh": {
     "engines": {
       "dsh": ">=0.1.1-rc.2"
