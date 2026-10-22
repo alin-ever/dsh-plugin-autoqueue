@@ -184,6 +184,7 @@ var ICONS = {
   restart: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 8a6 6 0 0 1 10.2-4.2"/><path d="M14 8a6 6 0 0 1-10.2 4.2"/><polyline points="12 2 14 4 12 6"/><polyline points="4 14 2 12 4 10"/></svg>',
   power: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1.5v6"/><path d="M3.3 4.3a6.5 6.5 0 1 0 9.4 0"/></svg>',
   warn: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2l6.5 11H1.5z"/><line x1="8" y1="6.5" x2="8" y2="9"/><circle cx="8" cy="11.5" r="0.5" fill="currentColor" stroke="none"/></svg>',
+  zap: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 1.5L3.5 9.5H8l-1.5 5 5.5-8H7z"/></svg>',
 };
 
 export function iconHtml(name) { return ICONS[name] || ""; }

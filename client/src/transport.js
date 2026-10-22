@@ -120,6 +120,15 @@ export function createTransport(apiToken) {
     watchdogStatus: function () {
       return request("/watchdog", null, apiToken);
     },
+    getTokenSaver: function () {
+      return request("/token-saver", null, apiToken);
+    },
+    setTokenSaver: function (patch) {
+      return request("/token-saver", { method: "POST", headers: { "content-type": "application/json; charset=utf-8" }, body: JSON.stringify(patch) }, apiToken);
+    },
+    compressTokenSaver: function (text) {
+      return request("/token-saver/compress", { method: "POST", headers: { "content-type": "application/json; charset=utf-8" }, body: JSON.stringify({ text: text }) }, apiToken);
+    },
     subscribe: function (listener, healthListener) {
       var sseUrl = API_PREFIX + "/events?archived=1";
       if (apiToken) sseUrl += "&aq_token=" + encodeURIComponent(apiToken);

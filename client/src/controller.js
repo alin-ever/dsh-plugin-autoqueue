@@ -16,6 +16,8 @@ export function createController(transport) {
   var editTaskData = null;
   var showConfig = false;
   var showTemplates = false;
+  var showTokenSaver = false;
+  var tokenSaverData = null;
   var loading = true;
   var error = null;
   var revision = 0;
@@ -96,8 +98,9 @@ export function createController(transport) {
       tasks: tasks, schedulers: schedulers, scoped: scoped, filtered: filtered, counts: counts, scopeCounts: scopeCounts,
       scopeMetrics: deriveMetrics(scoped.map(function (task) { return Object.assign({}, task, { archivedAt: null }); })), metrics: metrics,
       boardOpen: boardOpen, filter: filter, navGroup: navGroup,
-      showDetail: showDetail, showNewTask: showNewTask, showEdit: showEdit, showConfig: showConfig, showTemplates: showTemplates,
+      showDetail: showDetail, showNewTask: showNewTask, showEdit: showEdit, showConfig: showConfig, showTemplates: showTemplates, showTokenSaver: showTokenSaver,
       loading: loading, error: error, revision: revision, config: config, options: options,
+      tokenSaverData: tokenSaverData,
       showFloatingDock: config.showFloatingDock !== false,
       optionsStatus: optionsStatus,
       runtimeHealth: runtimeHealth,
@@ -293,6 +296,25 @@ export function createController(transport) {
   function closeConfig() { showConfig = false; notif(); }
   function openTemplates() { showTemplates = true; notif(); }
   function closeTemplates() { showTemplates = false; notif(); }
+  function openTokenSaver() { showTokenSaver = true; notif(); }
+  function closeTokenSaver() { showTokenSaver = false; notif(); }
+  
+  async function loadTokenSaver() {
+    try { tokenSaverData = await transport.getTokenSaver(); notif(); return tokenSaverData; }
+    catch (err) { error = err.message; notif(); throw err; }
+  }
+  async function updateTokenSaver(patch) {
+    try {
+      var result = await transport.setTokenSaver(patch);
+      tokenSaverData = await transport.getTokenSaver();
+      error = null; notif();
+      return result;
+    } catch (err) { error = err.message; notif(); throw err; }
+  }
+  async function compressTokenSaver(text) {
+    try { return await transport.compressTokenSaver(text); }
+    catch (err) { error = err.message; notif(); throw err; }
+  }
 
   async function createTask(data) {
     try {
@@ -390,6 +412,8 @@ export function createController(transport) {
     openNewTask: openNewTask, closeNewTask: closeNewTask,
     openConfig: openConfig, closeConfig: closeConfig,
     openTemplates: openTemplates, closeTemplates: closeTemplates,
+    openTokenSaver: openTokenSaver, closeTokenSaver: closeTokenSaver,
+    loadTokenSaver: loadTokenSaver, updateTokenSaver: updateTokenSaver, compressTokenSaver: compressTokenSaver,
     createTask: createTask, doAction: doAction, updateTask: updateTask, markRead: markRead,
     setConcurrency: setConcurrency, updateConfig: updateConfig, restartDsh: restartDsh, shutdownDsh: shutdownDsh, clearError: clearError,
     loadState: loadState

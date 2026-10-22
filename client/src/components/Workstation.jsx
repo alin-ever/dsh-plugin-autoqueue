@@ -159,6 +159,7 @@ export function Workstation(props) {
       snap: snap, message: message[0],
       onConfig: function () { controller.openConfig(); },
       onTemplates: function () { controller.openTemplates(); },
+      onTokenSaver: function () { controller.openTokenSaver(); controller.loadTokenSaver(); },
       onClose: function () { controller.closeBoard(); },
       onScan: function () { runAction("force-scan"); },
       onRestart: function () {
@@ -253,6 +254,12 @@ export function Workstation(props) {
       transport: transport,
       onClose: function () { controller.closeTemplates(); }
     }),
+    snap.showTokenSaver && h(TokenSaverPanel, {
+      data: snap.tokenSaverData,
+      onClose: function () { controller.closeTokenSaver(); },
+      onUpdate: function (patch) { return controller.updateTokenSaver(patch); },
+      onCompress: function (text) { return controller.compressTokenSaver(text); }
+    }),
     confirm[0] && h(ConfirmModal, {
       title: confirm[0].title, message: confirm[0].message, confirmLabel: confirm[0].confirmLabel, tone: confirm[0].tone,
       onConfirm: confirm[0].onConfirm, onCancel: function () { confirm[1](null); }
@@ -273,6 +280,7 @@ function CompactHeader(props) {
     props.message && h("div", { className: "absolute top-10 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-lg bg-aq-navy text-white text-xs shadow-lg z-50" }, props.message),
     h("button", { className: "aq-btn aq-btn-ghost h-7 text-xs", onClick: props.onScan, title: "立即扫描收件箱", dangerouslySetInnerHTML: { __html: iconHtml("scan") + " 扫描" } }),
     h("button", { className: "aq-btn aq-btn-ghost h-7 text-xs", onClick: props.onTemplates, title: "模板管理", dangerouslySetInnerHTML: { __html: iconHtml("doc") } }),
+    h("button", { className: "aq-btn aq-btn-ghost h-7 text-xs", onClick: props.onTokenSaver, title: "省Token工具", dangerouslySetInnerHTML: { __html: iconHtml("zap") } }),
     h("button", { className: "aq-btn aq-btn-ghost h-7 text-xs", onClick: props.onConfig, title: "运行设置", dangerouslySetInnerHTML: { __html: iconHtml("gear") } }),
     h("button", { className: "aq-btn aq-btn-ghost h-7 text-xs", onClick: props.onRestart, title: "重启 DSH", dangerouslySetInnerHTML: { __html: iconHtml("restart") } }),
     h("button", { className: "aq-btn aq-btn-ghost h-7 text-xs", onClick: props.onShutdown, title: "关闭 DSH", dangerouslySetInnerHTML: { __html: iconHtml("power") } }),
@@ -586,4 +594,142 @@ function taskNeedsAttention(task) {
   return task.status === "failed" || task.status === "interrupted" ||
     phase.indexOf("uncertain") >= 0 || phase.indexOf("containment") >= 0 ||
     !!task._goalAdmissionUncertain || !!task._promptAdmissionUncertain;
+}
+
+// ─── Token Saver Panel ───────────────────────────────────
+
+var LEVEL_LABELS = {
+  off: "关闭",
+  lite: "轻度",
+  full: "标准",
+  ultra: "极致",
+  "wenyan-lite": "文言轻",
+  wenyan: "文言",
+  "wenyan-ultra": "文言极致",
+};
+
+function TokenSaverPanel(props) {
+  var data = props.data || {};
+  var cfg = data.config || {};
+  var savings = data.savings || {};
+  var compressText = React.useState("");
+  var compressResult = React.useState(null);
+  var compressing = React.useState(false);
+  var saveNotice = React.useState("");
+
+  function showNotice(text) {
+    saveNotice[1](text);
+    setTimeout(function () { saveNotice[1](""); }, 1500);
+  }
+
+  function handleUpdate(patch) {
+    props.onUpdate(patch).then(function () { showNotice("已保存"); }).catch(function () { showNotice("保存失败"); });
+  }
+
+  function handleCompress() {
+    var text = compressText[0];
+    if (!text.trim()) return;
+    compressing[1](true);
+    props.onCompress(text).then(function (res) {
+      compressResult[1](res);
+      compressing[1](false);
+    }).catch(function () { compressing[1](false); });
+  }
+
+  var isEnabled = cfg.enabled !== false;
+
+  return h("div", { className: "fixed inset-0 z-40 flex items-start justify-center pt-16 bg-black/30" },
+    h("div", { className: "bg-aq-paper rounded-xl shadow-2xl border border-aq-line w-[640px] max-w-[90vw] max-h-[80vh] flex flex-col overflow-hidden" },
+      // Header
+      h("div", { className: "flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-aq-line" },
+        h("div", { className: "flex items-center gap-2" },
+          h("span", { className: "w-4 h-4 flex-shrink-0", dangerouslySetInnerHTML: { __html: iconHtml("zap") } }),
+          h("span", { className: "text-sm font-bold text-aq-ink" }, "省Token工具"),
+          saveNotice[0] && h("span", { className: "text-xs text-aq-green font-medium ml-2" }, saveNotice[0])
+        ),
+        h("button", { className: "aq-btn aq-btn-ghost h-7 w-7 p-0 flex items-center justify-center", onClick: props.onClose, dangerouslySetInnerHTML: { __html: iconHtml("close") } })
+      ),
+      // Body
+      h("div", { className: "flex-1 overflow-auto p-4 space-y-4" },
+        // Config section
+        h("div", { className: "space-y-3" },
+          h("h3", { className: "text-xs font-bold text-aq-muted uppercase tracking-wide" }, "配置"),
+          h("label", { className: "flex items-center gap-2 cursor-pointer" },
+            h("input", {
+              type: "checkbox",
+              checked: isEnabled,
+              onChange: function (e) { handleUpdate({ enabled: e.target.checked }); },
+              className: "h-4 w-4 rounded border border-aq-line-2 text-aq-blue focus:ring-aq-blue cursor-pointer"
+            }),
+            h("span", { className: "text-sm text-aq-ink font-semibold" }, "启用省Token功能"),
+            h("span", { className: "text-xs text-aq-faint" }, "关闭后所有省Token策略不再生效")
+          ),
+          h("div", { className: "space-y-3 " + (isEnabled ? "" : "opacity-50 pointer-events-none") },
+            h("label", { className: "flex items-center gap-2 cursor-pointer" },
+              h("input", {
+                type: "checkbox",
+                checked: cfg.rtk !== false,
+                onChange: function (e) { handleUpdate({ rtk: e.target.checked }); },
+                className: "h-4 w-4 rounded border border-aq-line-2 text-aq-blue focus:ring-aq-blue cursor-pointer"
+              }),
+              h("span", { className: "text-sm text-aq-ink" }, "RTK 工具输出压缩"),
+              h("span", { className: "text-xs text-aq-faint" }, "自动压缩 git diff、grep、ls 等工具结果")
+            ),
+            h("div", { className: "flex items-center gap-3" },
+              h("span", { className: "text-sm text-aq-ink w-24" }, "电报体回复:"),
+              h("select", {
+                className: "aq-input text-sm h-8",
+                value: (cfg.prompts && cfg.prompts.caveman) || "off",
+                onChange: function (e) { handleUpdate({ prompts: { caveman: e.target.value } }); }
+              }, (cfg.cavemanLevels || []).map(function (l) { return h("option", { key: l, value: l }, LEVEL_LABELS[l] || l); }))
+            ),
+            h("div", { className: "flex items-center gap-3" },
+              h("span", { className: "text-sm text-aq-ink w-24" }, "最小实现:"),
+              h("select", {
+                className: "aq-input text-sm h-8",
+                value: (cfg.prompts && cfg.prompts.ponytail) || "off",
+                onChange: function (e) { handleUpdate({ prompts: { ponytail: e.target.value } }); }
+              }, (cfg.ponytailLevels || []).map(function (l) { return h("option", { key: l, value: l }, LEVEL_LABELS[l] || l); }))
+            )
+          )
+        ),
+        // Stats section
+        data.summary && h("div", { className: "rounded-lg bg-aq-surface-alt p-3 space-y-1" },
+          h("h3", { className: "text-xs font-bold text-aq-muted uppercase tracking-wide" }, "统计"),
+          h("div", { className: "text-sm text-aq-ink" }, data.summary),
+          savings.calls > 0 && h("div", { className: "text-xs text-aq-faint" },
+            "已处理 ", savings.calls, " 次请求，压缩 ", savings.blocks, " 个块，节省 ",
+            savings.saved > 1024 ? (savings.saved / 1024).toFixed(1) + " KB" : savings.saved + " B"
+          )
+        ),
+        // Test section
+        h("div", { className: "space-y-3" },
+          h("h3", { className: "text-xs font-bold text-aq-muted uppercase tracking-wide" }, "测试压缩"),
+          h("textarea", {
+            className: "aq-input w-full text-sm font-mono",
+            style: { minHeight: "120px", resize: "vertical" },
+            placeholder: "粘贴工具输出文本（如 git diff、ls -la 等）进行测试...",
+            value: compressText[0],
+            onChange: function (e) { compressText[1](e.target.value); }
+          }),
+          h("div", { className: "flex items-center gap-2" },
+            h("button", {
+              className: "aq-btn aq-btn-primary text-xs h-8 px-3",
+              onClick: handleCompress,
+              disabled: compressing[0]
+            }, compressing[0] ? "压缩中..." : "测试压缩")
+          ),
+          compressResult[0] && h("div", { className: "rounded-lg bg-aq-surface-alt p-3 space-y-2" },
+            h("div", { className: "flex items-center gap-4 text-xs" },
+              h("span", { className: "text-aq-faint" }, "原始: ", compressResult[0].stats.bytesBefore, " B"),
+              h("span", { className: "text-aq-faint" }, "压缩后: ", compressResult[0].stats.bytesAfter, " B"),
+              h("span", { className: "text-aq-green font-semibold" }, "节省: ", compressResult[0].stats.saved, " B (", Math.round((compressResult[0].stats.saved / compressResult[0].stats.bytesBefore) * 100), "%)")
+            ),
+            h("div", { className: "text-xs text-aq-muted" }, "过滤器: ", (compressResult[0].stats.hits || []).map(function (h) { return h.filter; }).join(", ") || "无"),
+            h("pre", { className: "text-xs font-mono text-aq-ink bg-aq-paper border border-aq-line rounded p-2 overflow-auto", style: { maxHeight: "200px" } }, compressResult[0].compressed)
+          )
+        )
+      )
+    )
+  );
 }
