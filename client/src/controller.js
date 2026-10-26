@@ -311,11 +311,6 @@ export function createController(transport) {
       return result;
     } catch (err) { error = err.message; notif(); throw err; }
   }
-  async function compressTokenSaver(text) {
-    try { return await transport.compressTokenSaver(text); }
-    catch (err) { error = err.message; notif(); throw err; }
-  }
-
   async function createTask(data) {
     try {
       var result = await transport.createTask({
@@ -413,7 +408,7 @@ export function createController(transport) {
     openConfig: openConfig, closeConfig: closeConfig,
     openTemplates: openTemplates, closeTemplates: closeTemplates,
     openTokenSaver: openTokenSaver, closeTokenSaver: closeTokenSaver,
-    loadTokenSaver: loadTokenSaver, updateTokenSaver: updateTokenSaver, compressTokenSaver: compressTokenSaver,
+    loadTokenSaver: loadTokenSaver, updateTokenSaver: updateTokenSaver,
     createTask: createTask, doAction: doAction, updateTask: updateTask, markRead: markRead,
     setConcurrency: setConcurrency, updateConfig: updateConfig, restartDsh: restartDsh, shutdownDsh: shutdownDsh, clearError: clearError,
     loadState: loadState

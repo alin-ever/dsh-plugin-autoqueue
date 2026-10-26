@@ -257,8 +257,7 @@ export function Workstation(props) {
     snap.showTokenSaver && h(TokenSaverPanel, {
       data: snap.tokenSaverData,
       onClose: function () { controller.closeTokenSaver(); },
-      onUpdate: function (patch) { return controller.updateTokenSaver(patch); },
-      onCompress: function (text) { return controller.compressTokenSaver(text); }
+      onUpdate: function (patch) { return controller.updateTokenSaver(patch); }
     }),
     confirm[0] && h(ConfirmModal, {
       title: confirm[0].title, message: confirm[0].message, confirmLabel: confirm[0].confirmLabel, tone: confirm[0].tone,
@@ -612,9 +611,6 @@ function TokenSaverPanel(props) {
   var data = props.data || {};
   var cfg = data.config || {};
   var savings = data.savings || {};
-  var compressText = React.useState("");
-  var compressResult = React.useState(null);
-  var compressing = React.useState(false);
   var saveNotice = React.useState("");
 
   function showNotice(text) {
@@ -624,16 +620,6 @@ function TokenSaverPanel(props) {
 
   function handleUpdate(patch) {
     props.onUpdate(patch).then(function () { showNotice("已保存"); }).catch(function () { showNotice("保存失败"); });
-  }
-
-  function handleCompress() {
-    var text = compressText[0];
-    if (!text.trim()) return;
-    compressing[1](true);
-    props.onCompress(text).then(function (res) {
-      compressResult[1](res);
-      compressing[1](false);
-    }).catch(function () { compressing[1](false); });
   }
 
   var isEnabled = cfg.enabled !== false;
@@ -665,6 +651,7 @@ function TokenSaverPanel(props) {
             h("span", { className: "text-xs text-aq-faint" }, "关闭后所有省Token策略不再生效")
           ),
           h("div", { className: "space-y-3 " + (isEnabled ? "" : "opacity-50 pointer-events-none") },
+            h("p", { className: "text-xs text-aq-faint" }, "启用后所有 LLM 请求自动经过压缩层，无需切换 provider"),
             h("label", { className: "flex items-center gap-2 cursor-pointer" },
               h("input", {
                 type: "checkbox",
@@ -693,42 +680,7 @@ function TokenSaverPanel(props) {
             )
           )
         ),
-        // Stats section
-        data.summary && h("div", { className: "rounded-lg bg-aq-surface-alt p-3 space-y-1" },
-          h("h3", { className: "text-xs font-bold text-aq-muted uppercase tracking-wide" }, "统计"),
-          h("div", { className: "text-sm text-aq-ink" }, data.summary),
-          savings.calls > 0 && h("div", { className: "text-xs text-aq-faint" },
-            "已处理 ", savings.calls, " 次请求，压缩 ", savings.blocks, " 个块，节省 ",
-            savings.saved > 1024 ? (savings.saved / 1024).toFixed(1) + " KB" : savings.saved + " B"
-          )
-        ),
-        // Test section
-        h("div", { className: "space-y-3" },
-          h("h3", { className: "text-xs font-bold text-aq-muted uppercase tracking-wide" }, "测试压缩"),
-          h("textarea", {
-            className: "aq-input w-full text-sm font-mono",
-            style: { minHeight: "120px", resize: "vertical" },
-            placeholder: "粘贴工具输出文本（如 git diff、ls -la 等）进行测试...",
-            value: compressText[0],
-            onChange: function (e) { compressText[1](e.target.value); }
-          }),
-          h("div", { className: "flex items-center gap-2" },
-            h("button", {
-              className: "aq-btn aq-btn-primary text-xs h-8 px-3",
-              onClick: handleCompress,
-              disabled: compressing[0]
-            }, compressing[0] ? "压缩中..." : "测试压缩")
-          ),
-          compressResult[0] && h("div", { className: "rounded-lg bg-aq-surface-alt p-3 space-y-2" },
-            h("div", { className: "flex items-center gap-4 text-xs" },
-              h("span", { className: "text-aq-faint" }, "原始: ", compressResult[0].stats.bytesBefore, " B"),
-              h("span", { className: "text-aq-faint" }, "压缩后: ", compressResult[0].stats.bytesAfter, " B"),
-              h("span", { className: "text-aq-green font-semibold" }, "节省: ", compressResult[0].stats.saved, " B (", Math.round((compressResult[0].stats.saved / compressResult[0].stats.bytesBefore) * 100), "%)")
-            ),
-            h("div", { className: "text-xs text-aq-muted" }, "过滤器: ", (compressResult[0].stats.hits || []).map(function (h) { return h.filter; }).join(", ") || "无"),
-            h("pre", { className: "text-xs font-mono text-aq-ink bg-aq-paper border border-aq-line rounded p-2 overflow-auto", style: { maxHeight: "200px" } }, compressResult[0].compressed)
-          )
-        )
+
       )
     )
   );
